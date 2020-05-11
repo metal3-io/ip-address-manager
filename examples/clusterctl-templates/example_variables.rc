@@ -1,0 +1,105 @@
+export POD_CIDR='"192.168.0.0/24"'
+export SERVICE_CIDR='"10.96.0.0/12"'
+export API_ENDPOINT_HOST="192.168.111.249"
+export API_ENDPOINT_PORT="6443"
+export IMAGE_URL="http://192.168.0.1/ubuntu.qcow2"
+export IMAGE_CHECKSUM="http://192.168.0.1/ubuntu.qcow2.md5sum"
+export CTLPLANE_KUBEADM_EXTRA_CONFIG="
+    preKubeadmCommands:
+      - ip link set dev enp2s0 up
+      - dhclient enp2s0
+      - apt update -y
+      - netplan apply
+      - >-
+        apt install net-tools gcc linux-headers-$(uname -r) bridge-utils
+        apt-transport-https ca-certificates curl gnupg-agent
+        software-properties-common -y
+      - apt install -y keepalived && systemctl stop keepalived
+      - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+      - add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"
+      - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+      - echo 'deb https://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list
+      - apt update -y
+      - apt install docker-ce docker-ce-cli containerd.io kubelet kubeadm kubectl -y
+      - systemctl enable --now docker kubelet
+      - if (curl -sk --max-time 10 https://{{ CLUSTER_APIENDPOINT_HOST }}:6443/healthz); then echo \"keepalived already running\";else systemctl start keepalived; fi
+      - usermod -aG docker ubuntu
+    postKubeadmCommands:
+      - mkdir -p /home/ubuntu/.kube
+      - cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+      - systemctl enable --now keepalived
+      - chown ubuntu:ubuntu /home/ubuntu/.kube/config
+    files:
+        - path: /etc/keepalived/keepalived.conf
+          content: |
+            ! Configuration File for keepalived
+            global_defs {
+                notification_email {
+                sysadmin@example.com
+                support@example.com
+                }
+                notification_email_from lb@example.com
+                smtp_server localhost
+                smtp_connect_timeout 30
+            }
+            vrrp_instance VI_2 {
+                state MASTER
+                interface enp2s0
+                virtual_router_id 2
+                priority 101
+                advert_int 1
+                virtual_ipaddress {
+                    {{ CLUSTER_APIENDPOINT_HOST }}
+                }
+            }
+        - path: /etc/netplan/50-cloud-init.yaml
+          owner: root:root
+          permissions: '0644'
+          content: |
+            network:
+                ethernets:
+                    enp2s0:
+                        dhcp4: true
+                version: 2
+        - path : /etc/netplan/60-ironicendpoint.yaml
+          owner: root:root
+          permissions: '0644'
+          content: |
+            network:
+              version: 2
+              renderer: networkd
+              bridges:
+                ironicendpoint:
+                  interfaces: [enp1s0]
+                  dhcp4: yes
+"
+export WORKERS_KUBEADM_EXTRA_CONFIG="
+      preKubeadmCommands:
+        - ip link set dev enp2s0 up
+        - dhclient enp2s0
+        - apt update -y
+        - netplan apply
+        - >-
+          apt install apt-transport-https ca-certificates
+          curl gnupg-agent software-properties-common -y
+        - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+        - add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\"
+        - curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+        - echo 'deb https://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list
+        - apt update -y
+        - apt install docker-ce docker-ce-cli containerd.io kubelet kubeadm kubectl -y
+        - systemctl enable --now docker kubelet
+        - usermod -aG docker ubuntu
+      files:
+        - path: /etc/netplan/50-cloud-init.yaml
+          owner: root:root
+          permissions: '0644'
+          content: |
+            network:
+                ethernets:
+                    enp1s0:
+                        dhcp4: true
+                    enp2s0:
+                        dhcp4: true
+                version: 2
+"
