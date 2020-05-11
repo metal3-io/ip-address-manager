@@ -48,10 +48,6 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var timestampNow = metav1.Now()
 
-const (
-	namespaceName = "testNameSpace"
-)
-
 func init() {
 	klog.InitFlags(nil)
 	logf.SetLogger(klogr.New())
@@ -116,21 +112,3 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-var deletionTimestamp = metav1.Now()
-
-func contains(haystack []string, needle string) bool {
-	for _, straw := range haystack {
-		if straw == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func getKey(objectName string) *client.ObjectKey {
-	return &client.ObjectKey{
-		Name:      objectName,
-		Namespace: namespaceName,
-	}
-}

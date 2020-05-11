@@ -22,23 +22,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func (c *Metal3IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (c *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(c).
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipclaim,mutating=false,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ipclaims,versions=v1alpha4,name=validation.metal3ipclaim.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipclaim,mutating=true,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ipclaims,versions=v1alpha4,name=default.metal3ipclaim.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=validation.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=default.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
 
-var _ webhook.Defaulter = &Metal3IPClaim{}
-var _ webhook.Validator = &Metal3IPClaim{}
+var _ webhook.Defaulter = &IPClaim{}
+var _ webhook.Validator = &IPClaim{}
 
-func (c *Metal3IPClaim) Default() {
+func (c *IPClaim) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPClaim) ValidateCreate() error {
+func (c *IPClaim) ValidateCreate() error {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
@@ -53,18 +53,18 @@ func (c *Metal3IPClaim) ValidateCreate() error {
 	if len(allErrs) == 0 {
 		return nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3IPClaim").GroupKind(), c.Name, allErrs)
+	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPClaim) ValidateUpdate(old runtime.Object) error {
+func (c *IPClaim) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
-	oldMetal3IPClaim, ok := old.(*Metal3IPClaim)
-	if !ok || oldMetal3IPClaim == nil {
+	oldIPClaim, ok := old.(*IPClaim)
+	if !ok || oldIPClaim == nil {
 		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	if c.Spec.Pool.Name != oldMetal3IPClaim.Spec.Pool.Name {
+	if c.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -72,7 +72,7 @@ func (c *Metal3IPClaim) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Namespace != oldMetal3IPClaim.Spec.Pool.Namespace {
+	} else if c.Spec.Pool.Namespace != oldIPClaim.Spec.Pool.Namespace {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -80,7 +80,7 @@ func (c *Metal3IPClaim) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Kind != oldMetal3IPClaim.Spec.Pool.Kind {
+	} else if c.Spec.Pool.Kind != oldIPClaim.Spec.Pool.Kind {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -93,10 +93,10 @@ func (c *Metal3IPClaim) ValidateUpdate(old runtime.Object) error {
 	if len(allErrs) == 0 {
 		return nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3IPClaim").GroupKind(), c.Name, allErrs)
+	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPClaim) ValidateDelete() error {
+func (c *IPClaim) ValidateDelete() error {
 	return nil
 }

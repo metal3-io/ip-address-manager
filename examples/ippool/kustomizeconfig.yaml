@@ -1,0 +1,6 @@
+namespace:
+- kind: IPClaim
+  group: ipam.metal3.io
+  version: v1alpha1
+  path: spec/pool/namespace
+  create: true

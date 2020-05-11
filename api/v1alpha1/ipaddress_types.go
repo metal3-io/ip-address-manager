@@ -22,18 +22,18 @@ import (
 )
 
 const (
-	// DataFinalizer allows Metal3IPAddressReconciler to clean up resources
-	// associated with Metal3IPAddress before removing it from the apiserver.
-	IPAddressFinalizer = "metal3ipaddress.infrastructure.cluster.x-k8s.io"
+	// DataFinalizer allows IPAddressReconciler to clean up resources
+	// associated with IPAddress before removing it from the apiserver.
+	IPAddressFinalizer = "ipaddress.ipam.metal3.io"
 )
 
-// Metal3IPAddressSpec defines the desired state of Metal3IPAddress.
-type Metal3IPAddressSpec struct {
+// IPAddressSpec defines the desired state of IPAddress.
+type IPAddressSpec struct {
 
-	// Claim points to the object the Metal3IPClaim was created for.
+	// Claim points to the object the IPClaim was created for.
 	Claim corev1.ObjectReference `json:"claim"`
 
-	// Pool is the Metal3IPPool this was generated from.
+	// Pool is the IPPool this was generated from.
 	Pool corev1.ObjectReference `json:"pool"`
 
 	// +kubebuilder:validation:Maximum=128
@@ -48,26 +48,26 @@ type Metal3IPAddressSpec struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=metal3ipaddresses,scope=Namespaced,categories=cluster-api,shortName=m3ipa;m3ipaddress;metal3ipaddress
+// +kubebuilder:resource:path=ipaddresses,scope=Namespaced,categories=metal3,shortName=ipa;ipaddress;ipaddress
 // +kubebuilder:storageversion
 // +kubebuilder:object:root=true
-// Metal3IPAddress is the Schema for the metal3ipaddresses API
-type Metal3IPAddress struct {
+// IPAddress is the Schema for the ipaddresses API
+type IPAddress struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec Metal3IPAddressSpec `json:"spec,omitempty"`
+	Spec IPAddressSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// Metal3IPAddressList contains a list of Metal3IPAddress
-type Metal3IPAddressList struct {
+// IPAddressList contains a list of IPAddress
+type IPAddressList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Metal3IPAddress `json:"items"`
+	Items           []IPAddress `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Metal3IPAddress{}, &Metal3IPAddressList{})
+	SchemeBuilder.Register(&IPAddress{}, &IPAddressList{})
 }

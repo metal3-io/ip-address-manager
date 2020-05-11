@@ -25,18 +25,14 @@ You must have docker installed.
 
 1. A container image of the shared cluster-api-provider-metal3 manager
 1. A git tag
-1. A release on Github containing:
-    - A manifest file - `infrastructure-components.yaml`
-    - A metadata file - `metadata.yaml`
-    - A cluster template - `cluster-template.yaml`
 
 ### Artifact locations
 
 1. The container image is found in the registry `quay.io/metal3-io` with an image
-   name of `cluster-api-provider-metal3` and a tag that matches the release
+   name of `ipam` and a tag that matches the release
    version. The image is automatically built once the release has been created.
 
-## Creating a release for CAPM3
+## Creating a release for IPAM
 
 ### Process
 
@@ -66,22 +62,19 @@ Releasing requires a particular set of permissions.
 
 Multiple additional actions are required in the Metal3 project
 
-### Update the Jenkins jobs
+### Update CAPM3
 
-For each minor or major release, two jobs need to be created :
-
-- a master job that runs on a regular basis
-- a PR verification job that is triggered by a keyword on a PR targeted for that
-  release branch.
+CAPM3 should use the latest version. Changes are required there to pull the
+latest version.
 
 ### Update Metal3-dev-env
 
 Metal3-dev-env variables need to be modified. After a major or minor release,
-the new minor version (that follows CAPI versioning) should point to master for
-CAPM3 and the released version should point to the release branch.
+the new minor version should point to master for
+IPAM and the released version should point to the release branch.
 
-### Update the image of CAPM3 in the release branch
+### Update the image of IPAM in the release branch
 
 If you just created a release branch (i.e. minor version release), you should
-modify the image for CAPM3 deployment in this branch to be tagged with the
+modify the image for IPAM deployment in this branch to be tagged with the
 branch name. The image will then follow the branch.

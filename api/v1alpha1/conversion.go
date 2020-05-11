@@ -16,6 +16,6 @@ limitations under the License.
 
 package v1alpha1
 
-func (*Metal3IPPool) Hub()    {}
-func (*Metal3IPAddress) Hub() {}
-func (*Metal3IPClaim) Hub()   {}
+func (*IPPool) Hub()    {}
+func (*IPAddress) Hub() {}
+func (*IPClaim) Hub()   {}

@@ -105,8 +105,8 @@ var _ = Describe("Metal3 manager utils", func() {
 	})
 
 	type testCaseUpdate struct {
-		TestObject     *ipamv1.Metal3IPClaim
-		ExistingObject *ipamv1.Metal3IPClaim
+		TestObject     *ipamv1.IPClaim
+		ExistingObject *ipamv1.IPClaim
 		ExpectedError  bool
 	}
 
@@ -116,7 +116,7 @@ var _ = Describe("Metal3 manager utils", func() {
 			if tc.ExistingObject != nil {
 				err := c.Create(context.TODO(), tc.ExistingObject)
 				Expect(err).NotTo(HaveOccurred())
-				ipPool := ipamv1.Metal3IPClaim{}
+				ipPool := ipamv1.IPClaim{}
 				err = c.Get(context.TODO(),
 					client.ObjectKey{
 						Name:      tc.ExistingObject.Name,
@@ -136,7 +136,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(obj.Spec).To(Equal(tc.TestObject.Spec))
 				Expect(obj.Status).To(Equal(tc.TestObject.Status))
-				savedObject := ipamv1.Metal3IPClaim{}
+				savedObject := ipamv1.IPClaim{}
 				err = c.Get(context.TODO(),
 					client.ObjectKey{
 						Name:      tc.TestObject.Name,
@@ -157,15 +157,15 @@ var _ = Describe("Metal3 manager utils", func() {
 			}
 		},
 		Entry("Object does not exist", testCaseUpdate{
-			TestObject: &ipamv1.Metal3IPClaim{
+			TestObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abc"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abc"},
 				},
 			},
@@ -173,27 +173,27 @@ var _ = Describe("Metal3 manager utils", func() {
 			ExpectedError:  true,
 		}),
 		Entry("Object exists", testCaseUpdate{
-			TestObject: &ipamv1.Metal3IPClaim{
+			TestObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abc"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abc"},
 				},
 			},
-			ExistingObject: &ipamv1.Metal3IPClaim{
+			ExistingObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abcd"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abcd"},
 				},
 			},
@@ -217,7 +217,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(obj.Spec).To(Equal(tc.TestObject.Spec))
 				Expect(obj.Status).To(Equal(tc.TestObject.Status))
-				savedObject := ipamv1.Metal3IPClaim{}
+				savedObject := ipamv1.IPClaim{}
 				err = c.Get(context.TODO(),
 					client.ObjectKey{
 						Name:      tc.TestObject.Name,
@@ -234,15 +234,15 @@ var _ = Describe("Metal3 manager utils", func() {
 			}
 		},
 		Entry("Object does not exist", testCaseUpdate{
-			TestObject: &ipamv1.Metal3IPClaim{
+			TestObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abc"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abc"},
 				},
 			},
@@ -250,27 +250,27 @@ var _ = Describe("Metal3 manager utils", func() {
 			ExpectedError:  false,
 		}),
 		Entry("Object exists", testCaseUpdate{
-			TestObject: &ipamv1.Metal3IPClaim{
+			TestObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abc"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abc"},
 				},
 			},
-			ExistingObject: &ipamv1.Metal3IPClaim{
+			ExistingObject: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "abc",
 					Namespace: "myns",
 				},
-				Spec: ipamv1.Metal3IPClaimSpec{
+				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{Name: "abcd"},
 				},
-				Status: ipamv1.Metal3IPClaimStatus{
+				Status: ipamv1.IPClaimStatus{
 					Address: &corev1.ObjectReference{Name: "abcd"},
 				},
 			},

@@ -175,11 +175,11 @@ generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUS
 		object:headerFile=./hack/boilerplate/boilerplate.generatego.txt
 
 	$(MOCKGEN) \
-	  -destination=./ipam/mocks/zz_generated.metal3ippool_manager.go \
-	  -source=./ipam/metal3ippool_manager.go \
+	  -destination=./ipam/mocks/zz_generated.ippool_manager.go \
+	  -source=./ipam/ippool_manager.go \
 		-package=ipam_mocks \
 		-copyright_file=./hack/boilerplate/boilerplate.generatego.txt \
-		IPPoolManagerInterface
+		PoolManagerInterface
 
 	$(MOCKGEN) \
 	  -destination=./ipam/mocks/zz_generated.manager_factory.go \
@@ -273,14 +273,10 @@ deploy: generate-examples
 	kubectl apply -f examples/_out/provider-components.yaml
 
 deploy-examples:
-	kubectl apply -f ./examples/_out/cluster.yaml
-	kubectl apply -f ./examples/_out/machinedeployment.yaml
-	kubectl apply -f ./examples/_out/controlplane.yaml
+	kubectl apply -f ./examples/_out/ippool.yaml
 
 delete-examples:
-	kubectl delete -f ./examples/_out/controlplane.yaml
-	kubectl delete -f ./examples/_out/machinedeployment.yaml
-	kubectl delete -f ./examples/_out/cluster.yaml
+	kubectl delete -f ./examples/_out/ippool.yaml
 
 
 ## --------------------------------------
@@ -310,9 +306,6 @@ release: clean-release  ## Builds and push container images using the latest git
 .PHONY: release-manifests
 release-manifests: $(RELEASE_DIR) ## Builds the manifests to publish with a release
 	kustomize build config > $(RELEASE_DIR)/infrastructure-components.yaml
-	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
-	cp examples/clusterctl-templates/clusterctl-cluster.yaml $(RELEASE_DIR)/cluster-template.yaml
-	cp examples/clusterctl-templates/example_variables.rc $(RELEASE_DIR)/example_variables.rc
 
 .PHONY: release-binaries
 release-binaries: ## Builds the binaries to publish with a release
@@ -343,67 +336,6 @@ release-tag-latest: ## Adds the latest tag to the last build tag.
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES)  ## Generates a release notes template to be used with a release.
 	$(RELEASE_NOTES)
-
-## --------------------------------------
-## Development
-## --------------------------------------
-
-.PHONY: create-cluster
-create-cluster: $(CLUSTERCTL) ## Create a development Kubernetes cluster using examples
-	$(CLUSTERCTL) \
-	create cluster -v 4 \
-	--bootstrap-flags="name=clusterapi" \
-	--bootstrap-type kind \
-	-m ./examples/_out/controlplane.yaml \
-	-c ./examples/_out/cluster.yaml \
-	-p ./examples/_out/provider-components.yaml \
-	-a ./examples/addons.yaml
-
-
-.PHONY: create-cluster-management
-create-cluster-management: $(CLUSTERCTL) ## Create a development Kubernetes cluster in a KIND management cluster.
-	kind create cluster --name=clusterapi
-	# Apply provider-components.
-	kubectl \
-		--kubeconfig=$$(kind get kubeconfig-path --name="clusterapi") \
-		create -f examples/_out/provider-components.yaml
-	# Create Cluster.
-	kubectl \
-		--kubeconfig=$$(kind get kubeconfig-path --name="clusterapi") \
-		create -f examples/_out/cluster.yaml
-	# Create control plane machine.
-	kubectl \
-		--kubeconfig=$$(kind get kubeconfig-path --name="clusterapi") \
-		create -f examples/_out/controlplane.yaml
-	# Get KubeConfig using clusterctl.
-	$(CLUSTERCTL) \
-		alpha phases get-kubeconfig -v=3 \
-		--kubeconfig=$$(kind get kubeconfig-path --name="clusterapi") \
-		--namespace=default \
-		--cluster-name=test1
-	# Apply addons on the target cluster, waiting for the control-plane to become available.
-	$(CLUSTERCTL) \
-		alpha phases apply-addons -v=3 \
-		--kubeconfig=./kubeconfig \
-		-a examples/addons.yaml
-	# Create a worker node with MachineDeployment.
-	kubectl \
-		--kubeconfig=$$(kind get kubeconfig-path --name="clusterapi") \
-		create -f examples/_out/machinedeployment.yaml
-
-.PHONY: delete-cluster
-delete-cluster: $(CLUSTERCTL) ## Deletes the development Kubernetes Cluster "test1"
-	$(CLUSTERCTL) \
-	delete cluster -v 4 \
-	--bootstrap-type kind \
-	--bootstrap-flags="name=clusterapi" \
-	--cluster test1 \
-	--kubeconfig ./kubeconfig \
-	-p ./examples/_out/provider-components.yaml \
-
-.PHONY: kind-reset
-kind-reset: ## Destroys the "clusterapi" kind cluster.
-	kind delete cluster --name=clusterapi || true
 
 ## --------------------------------------
 ## Cleanup / Verification

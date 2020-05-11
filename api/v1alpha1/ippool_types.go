@@ -21,14 +21,14 @@ import (
 )
 
 const (
-	// IPPoolFinalizer allows Metal3IPPoolReconciler to clean up resources
-	// associated with Metal3IPPool before removing it from the apiserver.
-	IPPoolFinalizer = "metal3ippool.infrastructure.cluster.x-k8s.io"
+	// IPPoolFinalizer allows IPPoolReconciler to clean up resources
+	// associated with IPPool before removing it from the apiserver.
+	IPPoolFinalizer = "ippool.ipam.metal3.io"
 )
 
 // MetaDataIPAddress contains the info to render th ip address. It is IP-version
 // agnostic
-type IPPool struct {
+type Pool struct {
 
 	// Start is the first ip address that can be rendered
 	Start *IPAddressStr `json:"start,omitempty"`
@@ -50,15 +50,15 @@ type IPPool struct {
 	Gateway *IPAddressStr `json:"gateway,omitempty"`
 }
 
-// Metal3IPPoolSpec defines the desired state of Metal3IPPool.
-type Metal3IPPoolSpec struct {
+// IPPoolSpec defines the desired state of IPPool.
+type IPPoolSpec struct {
 
 	// ClusterName is the name of the Cluster this object belongs to.
 	// +kubebuilder:validation:MinLength=1
 	ClusterName string `json:"clusterName"`
 
 	//Pools contains the list of IP addresses pools
-	Pools []IPPool `json:"pools,omitempty"`
+	Pools []Pool `json:"pools,omitempty"`
 
 	// PreAllocations contains the preallocated IP addresses
 	PreAllocations map[string]IPAddressStr `json:"preAllocations,omitempty"`
@@ -71,12 +71,12 @@ type Metal3IPPoolSpec struct {
 	Gateway *IPAddressStr `json:"gateway,omitempty"`
 
 	// +kubebuilder:validation:MinLength=1
-	// namePrefix is the prefix used to generate the Metal3IPAddress object names
+	// namePrefix is the prefix used to generate the IPAddress object names
 	NamePrefix string `json:"namePrefix"`
 }
 
-// Metal3IPPoolStatus defines the observed state of Metal3IPPool.
-type Metal3IPPoolStatus struct {
+// IPPoolStatus defines the observed state of IPPool.
+type IPPoolStatus struct {
 	// LastUpdated identifies when this status was last observed.
 	// +optional
 	LastUpdated *metav1.Time `json:"lastUpdated,omitempty"`
@@ -86,30 +86,30 @@ type Metal3IPPoolStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=metal3ippools,scope=Namespaced,categories=cluster-api,shortName=m3ipp;m3ippool
+// +kubebuilder:resource:path=ippools,scope=Namespaced,categories=cluster-api,shortName=m3ipp;m3ippool
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels.cluster\\.x-k8s\\.io/cluster-name",description="Cluster to which this template belongs"
 
-// Metal3IPPool is the Schema for the metal3ippools API
-type Metal3IPPool struct {
+// IPPool is the Schema for the ippools API
+type IPPool struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   Metal3IPPoolSpec   `json:"spec,omitempty"`
-	Status Metal3IPPoolStatus `json:"status,omitempty"`
+	Spec   IPPoolSpec   `json:"spec,omitempty"`
+	Status IPPoolStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// Metal3IPPoolList contains a list of Metal3IPPool
-type Metal3IPPoolList struct {
+// IPPoolList contains a list of IPPool
+type IPPoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Metal3IPPool `json:"items"`
+	Items           []IPPool `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Metal3IPPool{}, &Metal3IPPoolList{})
+	SchemeBuilder.Register(&IPPool{}, &IPPoolList{})
 }

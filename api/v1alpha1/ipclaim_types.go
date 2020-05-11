@@ -22,22 +22,22 @@ import (
 )
 
 const (
-	// IPClaimFinalizer allows Metal3IPClaimReconciler to clean up resources
-	// associated with Metal3IPClaim before removing it from the apiserver.
-	IPClaimFinalizer = "metal3ipclaim.infrastructure.cluster.x-k8s.io"
+	// IPClaimFinalizer allows IPClaimReconciler to clean up resources
+	// associated with IPClaim before removing it from the apiserver.
+	IPClaimFinalizer = "ipclaim.ipam.metal3.io"
 )
 
-// Metal3IPClaimSpec defines the desired state of Metal3IPClaim.
-type Metal3IPClaimSpec struct {
+// IPClaimSpec defines the desired state of IPClaim.
+type IPClaimSpec struct {
 
-	// Pool is the Metal3IPPool this was generated from.
+	// Pool is the IPPool this was generated from.
 	Pool corev1.ObjectReference `json:"pool"`
 }
 
-// Metal3IPClaimStatus defines the observed state of Metal3IPClaim.
-type Metal3IPClaimStatus struct {
+// IPClaimStatus defines the observed state of IPClaim.
+type IPClaimStatus struct {
 
-	// Address is the Metal3IPAddress that was generated for this claim.
+	// Address is the IPAddress that was generated for this claim.
 	Address *corev1.ObjectReference `json:"address,omitempty"`
 
 	// ErrorMessage contains the error message
@@ -45,28 +45,28 @@ type Metal3IPClaimStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=metal3ipclaims,scope=Namespaced,categories=cluster-api,shortName=m3ipc;m3ipclaim;metal3ipclaim
+// +kubebuilder:resource:path=ipclaims,scope=Namespaced,categories=cluster-api,shortName=m3ipc;m3ipclaim;ipclaim
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
-// Metal3IPClaim is the Schema for the metal3ipclaims API
-type Metal3IPClaim struct {
+// IPClaim is the Schema for the ipclaims API
+type IPClaim struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   Metal3IPClaimSpec   `json:"spec,omitempty"`
-	Status Metal3IPClaimStatus `json:"status,omitempty"`
+	Spec   IPClaimSpec   `json:"spec,omitempty"`
+	Status IPClaimStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// Metal3IPClaimList contains a list of Metal3IPClaim
-type Metal3IPClaimList struct {
+// IPClaimList contains a list of IPClaim
+type IPClaimList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Metal3IPClaim `json:"items"`
+	Items           []IPClaim `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Metal3IPClaim{}, &Metal3IPClaimList{})
+	SchemeBuilder.Register(&IPClaim{}, &IPClaimList{})
 }

@@ -23,7 +23,7 @@ import (
 )
 
 type ManagerFactoryInterface interface {
-	NewIPPoolManager(*ipamv1.Metal3IPPool, logr.Logger) (
+	NewIPPoolManager(*ipamv1.IPPool, logr.Logger) (
 		IPPoolManagerInterface, error,
 	)
 }
@@ -39,6 +39,6 @@ func NewManagerFactory(client client.Client) ManagerFactory {
 }
 
 // NewIPPoolManager creates a new IPPoolManager
-func (f ManagerFactory) NewIPPoolManager(ipPool *ipamv1.Metal3IPPool, metadataLog logr.Logger) (IPPoolManagerInterface, error) {
+func (f ManagerFactory) NewIPPoolManager(ipPool *ipamv1.IPPool, metadataLog logr.Logger) (IPPoolManagerInterface, error) {
 	return NewIPPoolManager(f.client, ipPool, metadataLog)
 }

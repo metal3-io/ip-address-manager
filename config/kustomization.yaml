@@ -1,4 +1,4 @@
-namePrefix: capm3-
+namePrefix: metal3-ipam-
 
 commonLabels:
   cluster.x-k8s.io/provider: "infrastructure-metal3"
@@ -9,57 +9,21 @@ bases:
 - default
 
 patchesJson6902:
-- target: # NOTE: This patch needs to be repeatd for EACH CustomResourceDefinition you have under crd/bases.
+- target:
     group: apiextensions.k8s.io
     version: v1
     kind: CustomResourceDefinition
-    name: metal3clusters.infrastructure.cluster.x-k8s.io
+    name: ippools.ipam.metal3.io
   path: patch_crd_webhook_namespace.yaml
 - target:
     group: apiextensions.k8s.io
     version: v1
     kind: CustomResourceDefinition
-    name: metal3machines.infrastructure.cluster.x-k8s.io
+    name: ipaddresses.ipam.metal3.io
   path: patch_crd_webhook_namespace.yaml
 - target:
     group: apiextensions.k8s.io
     version: v1
     kind: CustomResourceDefinition
-    name: metal3machinetemplates.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3datatemplates.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3datas.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3dataclaims.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3ippools.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3ipaddresses.infrastructure.cluster.x-k8s.io
-  path: patch_crd_webhook_namespace.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: metal3ipclaims.infrastructure.cluster.x-k8s.io
+    name: ipclaims.ipam.metal3.io
   path: patch_crd_webhook_namespace.yaml
