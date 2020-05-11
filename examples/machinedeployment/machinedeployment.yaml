@@ -1,0 +1,144 @@
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    nodepool: nodepool-0
+spec:
+  clusterName: ${CLUSTER_NAME}
+  replicas: 2
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+      nodepool: nodepool-0
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+        nodepool: nodepool-0
+    spec:
+      clusterName: ${CLUSTER_NAME}
+      version: ${KUBERNETES_VERSION}
+      bootstrap:
+        configRef:
+          name: ${CLUSTER_NAME}-md-0
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: ${CLUSTER_NAME}-md-0
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+        kind: Metal3MachineTemplate
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: Metal3MachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+spec:
+  template:
+    spec:
+      image:
+        url: "http://172.22.0.1/images/rhcos-ootpa-latest.qcow2"
+        checksum: "97830b21ed272a3d854615beb54cf004"
+      dataTemplate:
+        name: ${CLUSTER_NAME}-md-metadata
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: Metal3DataTemplate
+metadata:
+  name: ${CLUSTER_NAME}-md-metadata
+spec:
+  clusterName: ${CLUSTER_NAME}
+  metaData:
+    strings:
+      - key: abc
+        value: def
+    indexes:
+      - key: index_0_1
+        offset: 0
+        step: 1
+      - key: index_3
+        offset: 3
+      - key: index_5_2
+        offset: 5
+        step: 2
+    objectNames:
+      - key: machine_name
+        object: machine
+      - key: metal3machine_name
+        object: metal3machine
+      - key: bmh_name
+        object: baremetalhost
+    ipAddressesFromPool:
+      - key: ip_1
+        name: pool1
+      - key: ip_2
+        name: pool2
+      - key: ip6_1
+        name: pool6-1
+      - key: ip6_2
+        name: pool6-2
+    prefixesFromPool:
+      - key: prefix_1
+        name: pool1
+      - key: prefix_2
+        name: pool2
+      - key: prefix6_1
+        name: pool6-1
+      - key: prefix6_2
+        name: pool6-2
+    gatewaysFromPool:
+      - key: gateway_1
+        name: pool1
+      - key: gateway_2
+        name: pool2
+      - key: gateway6_1
+        name: pool6-1
+      - key: gateway6_2
+        name: pool6-2
+    fromHostInterfaces:
+      - key: mac
+        interface: eth0
+  networkData:
+    links:
+      ethernets:
+        - type: phy
+          id: enp1s0
+          macAddress:
+            fromHostInterface: eth0
+        - type: phy
+          id: enp2s0
+          macAddress:
+            fromHostInterface: eth1
+    networks:
+      ipv4DHCP:
+        - id: provisioning
+          link: enp1s0
+      ipv4:
+        - id: baremetal
+          link: enp2s0
+          ipAddressFromIPPool: pool1
+          routes:
+            - network: 0.0.0.0
+              prefix: 0
+              gateway:
+                fromIPPool: pool1
+              services:
+                dns:
+                  - 8.8.4.4
+    services:
+      dns:
+        - 8.8.8.8
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}-md-0
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data.hostname }}'
+          kubeletExtraArgs:
+            cloud-provider: baremetal
