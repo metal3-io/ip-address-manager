@@ -11,58 +11,58 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipaddress
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ipaddress
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: default.metal3ipaddress.infrastructure.cluster.x-k8s.io
+  name: default.ipaddress.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ipaddresses
+    - ipaddresses
 - clientConfig:
     caBundle: Cg==
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipclaim
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: default.metal3ipclaim.infrastructure.cluster.x-k8s.io
+  name: default.ipclaim.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ipclaims
+    - ipclaims
 - clientConfig:
     caBundle: Cg==
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ippool
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: default.metal3ippool.infrastructure.cluster.x-k8s.io
+  name: default.ippool.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ippools
+    - ippools
 
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
@@ -76,55 +76,55 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipaddress
+      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-ipaddress
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: validation.metal3ipaddress.infrastructure.cluster.x-k8s.io
+  name: validation.ipaddress.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ipaddresses
+    - ipaddresses
 - clientConfig:
     caBundle: Cg==
     service:
       name: webhook-service
       namespace: system
-      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipclaim
+      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: validation.metal3ipclaim.infrastructure.cluster.x-k8s.io
+  name: validation.ipclaim.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ipclaims
+    - ipclaims
 - clientConfig:
     caBundle: Cg==
     service:
       name: webhook-service
       namespace: system
-      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ippool
+      path: /validate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool
   failurePolicy: Fail
   matchPolicy: Equivalent
-  name: validation.metal3ippool.infrastructure.cluster.x-k8s.io
+  name: validation.ippool.ipam.metal3.io
   rules:
   - apiGroups:
-    - infrastructure.cluster.x-k8s.io
+    - ipam.metal3.io
     apiVersions:
     - v1alpha4
     operations:
     - CREATE
     - UPDATE
     resources:
-    - metal3ippools
+    - ippools

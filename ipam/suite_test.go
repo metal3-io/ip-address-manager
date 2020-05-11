@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -45,12 +44,6 @@ var timeNow = metav1.Now()
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-
-const (
-	clusterName       = "testCluster"
-	metal3ClusterName = "testmetal3Cluster"
-	namespaceName     = "testNameSpace"
-)
 
 func TestManagers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -95,12 +88,6 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-var bmcOwnerRef = &metav1.OwnerReference{
-	APIVersion: clusterv1.GroupVersion.String(),
-	Kind:       "Cluster",
-	Name:       clusterName,
-}
 
 //-----------------------------------
 //------ Helper functions -----------

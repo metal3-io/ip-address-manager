@@ -20,36 +20,36 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestMetal3IPPoolDefault(t *testing.T) {
+func TestIPPoolDefault(t *testing.T) {
 	g := NewWithT(t)
 
-	c := &Metal3IPPool{
+	c := &IPPool{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "foo",
 		},
-		Spec: Metal3IPPoolSpec{},
+		Spec: IPPoolSpec{},
 	}
 	c.Default()
 
-	g.Expect(c.Spec).To(Equal(Metal3IPPoolSpec{}))
-	g.Expect(c.Status).To(Equal(Metal3IPPoolStatus{}))
+	g.Expect(c.Spec).To(Equal(IPPoolSpec{}))
+	g.Expect(c.Status).To(Equal(IPPoolStatus{}))
 }
 
-func TestMetal3IPPoolValidation(t *testing.T) {
+func TestIPPoolValidation(t *testing.T) {
 
 	tests := []struct {
 		name      string
 		expectErr bool
-		c         *Metal3IPPool
+		c         *IPPool
 	}{
 		{
 			name:      "should succeed when values and templates correct",
 			expectErr: false,
-			c: &Metal3IPPool{
+			c: &IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 				},
-				Spec: Metal3IPPoolSpec{},
+				Spec: IPPoolSpec{},
 			},
 		},
 	}
@@ -69,33 +69,33 @@ func TestMetal3IPPoolValidation(t *testing.T) {
 	}
 }
 
-func TestMetal3IPPoolUpdateValidation(t *testing.T) {
+func TestIPPoolUpdateValidation(t *testing.T) {
 
 	tests := []struct {
 		name      string
 		expectErr bool
-		newPool   *Metal3IPPoolSpec
-		oldPool   *Metal3IPPoolSpec
+		newPool   *IPPoolSpec
+		oldPool   *IPPoolSpec
 	}{
 		{
 			name:      "should succeed when values and templates correct",
 			expectErr: false,
-			newPool:   &Metal3IPPoolSpec{},
-			oldPool:   &Metal3IPPoolSpec{},
+			newPool:   &IPPoolSpec{},
+			oldPool:   &IPPoolSpec{},
 		},
 		{
 			name:      "should fail when oldPool is nil",
 			expectErr: true,
-			newPool:   &Metal3IPPoolSpec{},
+			newPool:   &IPPoolSpec{},
 			oldPool:   nil,
 		},
 		{
 			name:      "should fail when namePrefix value changes",
 			expectErr: true,
-			newPool: &Metal3IPPoolSpec{
+			newPool: &IPPoolSpec{
 				NamePrefix: "abcde",
 			},
-			oldPool: &Metal3IPPoolSpec{
+			oldPool: &IPPoolSpec{
 				NamePrefix: "abcd",
 			},
 		},
@@ -103,9 +103,9 @@ func TestMetal3IPPoolUpdateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var newPool, oldPool *Metal3IPPool
+			var newPool, oldPool *IPPool
 			g := NewWithT(t)
-			newPool = &Metal3IPPool{
+			newPool = &IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 				},
@@ -113,7 +113,7 @@ func TestMetal3IPPoolUpdateValidation(t *testing.T) {
 			}
 
 			if tt.oldPool != nil {
-				oldPool = &Metal3IPPool{
+				oldPool = &IPPool{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "foo",
 					},

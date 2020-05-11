@@ -54,7 +54,7 @@ func (m *MockManagerFactoryInterface) EXPECT() *MockManagerFactoryInterfaceMockR
 }
 
 // NewIPPoolManager mocks base method
-func (m *MockManagerFactoryInterface) NewIPPoolManager(arg0 *v1alpha1.Metal3IPPool, arg1 logr.Logger) (ipam.IPPoolManagerInterface, error) {
+func (m *MockManagerFactoryInterface) NewIPPoolManager(arg0 *v1alpha1.IPPool, arg1 logr.Logger) (ipam.IPPoolManagerInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewIPPoolManager", arg0, arg1)
 	ret0, _ := ret[0].(ipam.IPPoolManagerInterface)

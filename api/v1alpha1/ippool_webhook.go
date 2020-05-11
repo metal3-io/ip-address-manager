@@ -24,30 +24,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func (c *Metal3IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (c *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(c).
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ippool,mutating=false,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ippools,versions=v1alpha4,name=validation.metal3ippool.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ippool,mutating=true,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ippools,versions=v1alpha4,name=default.metal3ippool.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=validation.ippool.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=default.ippool.ipam.metal3.io,matchPolicy=Equivalent
 
-var _ webhook.Defaulter = &Metal3IPPool{}
-var _ webhook.Validator = &Metal3IPPool{}
+var _ webhook.Defaulter = &IPPool{}
+var _ webhook.Validator = &IPPool{}
 
-func (c *Metal3IPPool) Default() {
+func (c *IPPool) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPPool) ValidateCreate() error {
+func (c *IPPool) ValidateCreate() error {
 	return c.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPPool) ValidateUpdate(old runtime.Object) error {
+func (c *IPPool) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
-	oldM3ipp, ok := old.(*Metal3IPPool)
+	oldM3ipp, ok := old.(*IPPool)
 	if !ok || oldM3ipp == nil {
 		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
@@ -69,16 +69,16 @@ func (c *Metal3IPPool) ValidateUpdate(old runtime.Object) error {
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPPool) ValidateDelete() error {
+func (c *IPPool) ValidateDelete() error {
 	return nil
 }
 
 //No further validation for now
-func (c *Metal3IPPool) validate() error {
+func (c *IPPool) validate() error {
 	var allErrs field.ErrorList
 
 	if len(allErrs) == 0 {
 		return nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3IPPool").GroupKind(), c.Name, allErrs)
+	return apierrors.NewInvalid(GroupVersion.WithKind("IPPool").GroupKind(), c.Name, allErrs)
 }

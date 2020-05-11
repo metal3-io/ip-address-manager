@@ -22,23 +22,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func (c *Metal3IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (c *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(c).
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipaddress,mutating=false,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ipaddresses,versions=v1alpha4,name=validation.metal3ipaddress.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-metal3ipaddress,mutating=true,failurePolicy=fail,groups=infrastructure.cluster.x-k8s.io,resources=metal3ipaddresses,versions=v1alpha4,name=default.metal3ipaddress.infrastructure.cluster.x-k8s.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-ipaddress,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=validation.ipaddress.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ipaddress,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=default.ipaddress.ipam.metal3.io,matchPolicy=Equivalent
 
-var _ webhook.Defaulter = &Metal3IPAddress{}
-var _ webhook.Validator = &Metal3IPAddress{}
+var _ webhook.Defaulter = &IPAddress{}
+var _ webhook.Validator = &IPAddress{}
 
-func (c *Metal3IPAddress) Default() {
+func (c *IPAddress) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPAddress) ValidateCreate() error {
+func (c *IPAddress) ValidateCreate() error {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
@@ -73,18 +73,18 @@ func (c *Metal3IPAddress) ValidateCreate() error {
 	if len(allErrs) == 0 {
 		return nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3IPAddress").GroupKind(), c.Name, allErrs)
+	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
+func (c *IPAddress) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
-	oldMetal3IPAddress, ok := old.(*Metal3IPAddress)
-	if !ok || oldMetal3IPAddress == nil {
+	oldIPAddress, ok := old.(*IPAddress)
+	if !ok || oldIPAddress == nil {
 		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	if c.Spec.Address != oldMetal3IPAddress.Spec.Address {
+	if c.Spec.Address != oldIPAddress.Spec.Address {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "address"),
@@ -94,7 +94,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 		)
 	}
 
-	if c.Spec.Pool.Name != oldMetal3IPAddress.Spec.Pool.Name {
+	if c.Spec.Pool.Name != oldIPAddress.Spec.Pool.Name {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -102,7 +102,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Namespace != oldMetal3IPAddress.Spec.Pool.Namespace {
+	} else if c.Spec.Pool.Namespace != oldIPAddress.Spec.Pool.Namespace {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -110,7 +110,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Kind != oldMetal3IPAddress.Spec.Pool.Kind {
+	} else if c.Spec.Pool.Kind != oldIPAddress.Spec.Pool.Kind {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
@@ -120,7 +120,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 		)
 	}
 
-	if c.Spec.Claim.Name != oldMetal3IPAddress.Spec.Claim.Name {
+	if c.Spec.Claim.Name != oldIPAddress.Spec.Claim.Name {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "claim"),
@@ -128,7 +128,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Claim.Namespace != oldMetal3IPAddress.Spec.Claim.Namespace {
+	} else if c.Spec.Claim.Namespace != oldIPAddress.Spec.Claim.Namespace {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "claim"),
@@ -136,7 +136,7 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Claim.Kind != oldMetal3IPAddress.Spec.Claim.Kind {
+	} else if c.Spec.Claim.Kind != oldIPAddress.Spec.Claim.Kind {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "claim"),
@@ -149,10 +149,10 @@ func (c *Metal3IPAddress) ValidateUpdate(old runtime.Object) error {
 	if len(allErrs) == 0 {
 		return nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3IPAddress").GroupKind(), c.Name, allErrs)
+	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (c *Metal3IPAddress) ValidateDelete() error {
+func (c *IPAddress) ValidateDelete() error {
 	return nil
 }

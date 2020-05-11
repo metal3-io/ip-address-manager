@@ -18,23 +18,15 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"time"
 
-	bmoapis "github.com/metal3-io/baremetal-operator/pkg/apis"
-	infrav1alpha2 "github.com/metal3-io/cluster-api-provider-metal3/api/v1alpha2"
-	infrav1alpha3 "github.com/metal3-io/cluster-api-provider-metal3/api/v1alpha3"
 	ipamv1 "github.com/metal3-io/ipam/api/v1alpha1"
-	"github.com/metal3-io/cluster-api-provider-metal3/baremetal"
-	capm3remote "github.com/metal3-io/cluster-api-provider-metal3/baremetal/remote"
-	"github.com/metal3-io/cluster-api-provider-metal3/controllers"
+	"github.com/metal3-io/ipam/controllers"
+	"github.com/metal3-io/ipam/ipam"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 	"k8s.io/klog/klogr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
@@ -44,24 +36,20 @@ import (
 )
 
 var (
-	myscheme                = runtime.NewScheme()
-	setupLog                = ctrl.Log.WithName("setup")
-	waitForMetal3Controller = false
-	metricsAddr             string
-	enableLeaderElection    bool
-	syncPeriod              time.Duration
-	webhookPort             int
-	healthAddr              string
-	watchNamespace          string
+	myscheme             = runtime.NewScheme()
+	setupLog             = ctrl.Log.WithName("setup")
+	metricsAddr          string
+	enableLeaderElection bool
+	syncPeriod           time.Duration
+	webhookPort          int
+	healthAddr           string
+	watchNamespace       string
 )
 
 func init() {
 	_ = scheme.AddToScheme(myscheme)
-	_ = infrav1.AddToScheme(myscheme)
+	_ = ipamv1.AddToScheme(myscheme)
 	_ = clusterv1.AddToScheme(myscheme)
-	_ = bmoapis.AddToScheme(myscheme)
-	_ = infrav1alpha2.AddToScheme(myscheme)
-	_ = infrav1alpha3.AddToScheme(myscheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -97,14 +85,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if waitForMetal3Controller {
-		err = waitForAPIs(ctrl.GetConfigOrDie())
-		if err != nil {
-			setupLog.Error(err, "unable to discover required APIs")
-			os.Exit(1)
-		}
-	}
-
 	setupChecks(mgr)
 	setupReconcilers(mgr)
 	setupWebhooks(mgr)
@@ -115,31 +95,6 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-func waitForAPIs(cfg *rest.Config) error {
-	c, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return err
-	}
-
-	metal3GV := schema.GroupVersion{
-		Group:   "metal3.io",
-		Version: "v1alpha1",
-	}
-
-	for {
-		err = discovery.ServerSupportsVersion(c, metal3GV)
-		if err != nil {
-			setupLog.Info(fmt.Sprintf("Waiting for API group %v to be available: %v", metal3GV, err))
-			time.Sleep(time.Second * 10)
-			continue
-		}
-		setupLog.Info(fmt.Sprintf("Found API group %v", metal3GV))
-		break
-	}
-
-	return nil
 }
 
 func setupChecks(mgr ctrl.Manager) {
@@ -158,49 +113,13 @@ func setupReconcilers(mgr ctrl.Manager) {
 	if webhookPort != 0 {
 		return
 	}
-	if err := (&controllers.Metal3MachineReconciler{
-		Client:           mgr.GetClient(),
-		ManagerFactory:   baremetal.NewManagerFactory(mgr.GetClient()),
-		Log:              ctrl.Log.WithName("controllers").WithName("Metal3Machine"),
-		CapiClientGetter: capm3remote.NewClusterClient,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Metal3MachineReconciler")
-		os.Exit(1)
-	}
 
-	if err := (&controllers.Metal3ClusterReconciler{
+	if err := (&controllers.IPPoolReconciler{
 		Client:         mgr.GetClient(),
-		ManagerFactory: baremetal.NewManagerFactory(mgr.GetClient()),
-		Log:            ctrl.Log.WithName("controllers").WithName("Metal3Cluster"),
+		ManagerFactory: ipam.NewManagerFactory(mgr.GetClient()),
+		Log:            ctrl.Log.WithName("controllers").WithName("IPPool"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Metal3ClusterReconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.Metal3DataTemplateReconciler{
-		Client:         mgr.GetClient(),
-		ManagerFactory: baremetal.NewManagerFactory(mgr.GetClient()),
-		Log:            ctrl.Log.WithName("controllers").WithName("Metal3DataTemplate"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Metal3DataTemplateReconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.Metal3DataReconciler{
-		Client:         mgr.GetClient(),
-		ManagerFactory: baremetal.NewManagerFactory(mgr.GetClient()),
-		Log:            ctrl.Log.WithName("controllers").WithName("Metal3Data"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Metal3DataReconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.Metal3IPPoolReconciler{
-		Client:         mgr.GetClient(),
-		ManagerFactory: baremetal.NewManagerFactory(mgr.GetClient()),
-		Log:            ctrl.Log.WithName("controllers").WithName("Metal3IPPool"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Metal3IPPoolReconciler")
+		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconciler")
 		os.Exit(1)
 	}
 }
@@ -209,104 +128,19 @@ func setupWebhooks(mgr ctrl.Manager) {
 	if webhookPort == 0 {
 		return
 	}
-	if err := (&infrav1alpha2.Metal3Cluster{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Cluster")
-		os.Exit(1)
-	}
-	if err := (&infrav1alpha3.Metal3Cluster{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Cluster")
-		os.Exit(1)
-	}
-	if err := (&infrav1.Metal3Cluster{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Cluster")
+
+	if err := (&ipamv1.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "IPPool")
 		os.Exit(1)
 	}
 
-	if err := (&infrav1alpha2.Metal3ClusterList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3ClusterList")
+	if err := (&ipamv1.IPAddress{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "IPAddress")
 		os.Exit(1)
 	}
 
-	if err := (&infrav1alpha3.Metal3ClusterList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3ClusterList")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha2.Metal3Machine{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Machine")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha3.Metal3Machine{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Machine")
-		os.Exit(1)
-	}
-	if err := (&infrav1.Metal3Machine{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Machine")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha2.Metal3MachineList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineList")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha3.Metal3MachineList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineList")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha2.Metal3MachineTemplate{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineTemplate")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha3.Metal3MachineTemplate{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineTemplate")
-		os.Exit(1)
-	}
-	if err := (&infrav1.Metal3MachineTemplate{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineTemplate")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha2.Metal3MachineTemplateList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineTemplateList")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1alpha3.Metal3MachineTemplateList{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3MachineTemplateList")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3DataTemplate{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3DataTemplate")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3Data{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3Data")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3DataClaim{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3DataClaim")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3IPPool{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3IPPool")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3IPAddress{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3IPAddress")
-		os.Exit(1)
-	}
-
-	if err := (&infrav1.Metal3IPClaim{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Metal3IPClaim")
+	if err := (&ipamv1.IPClaim{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "IPClaim")
 		os.Exit(1)
 	}
 }

@@ -21,21 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestMetal3IPClaimDefault(t *testing.T) {
+func TestIPClaimDefault(t *testing.T) {
 	g := NewWithT(t)
 
-	c := &Metal3IPClaim{
+	c := &IPClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "foo",
 		},
 	}
 	c.Default()
 
-	g.Expect(c.Spec).To(Equal(Metal3IPClaimSpec{}))
-	g.Expect(c.Status).To(Equal(Metal3IPClaimStatus{}))
+	g.Expect(c.Spec).To(Equal(IPClaimSpec{}))
+	g.Expect(c.Status).To(Equal(IPClaimStatus{}))
 }
 
-func TestMetal3IPClaimCreateValidation(t *testing.T) {
+func TestIPClaimCreateValidation(t *testing.T) {
 
 	tests := []struct {
 		name      string
@@ -71,12 +71,12 @@ func TestMetal3IPClaimCreateValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			obj := &Metal3IPClaim{
+			obj := &IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      tt.claimName,
 				},
-				Spec: Metal3IPClaimSpec{
+				Spec: IPClaimSpec{
 					Pool: tt.ipPool,
 				},
 			}
@@ -92,23 +92,23 @@ func TestMetal3IPClaimCreateValidation(t *testing.T) {
 	}
 }
 
-func TestMetal3IPClaimUpdateValidation(t *testing.T) {
+func TestIPClaimUpdateValidation(t *testing.T) {
 
 	tests := []struct {
 		name      string
 		expectErr bool
-		new       *Metal3IPClaimSpec
-		old       *Metal3IPClaimSpec
+		new       *IPClaimSpec
+		old       *IPClaimSpec
 	}{
 		{
 			name:      "should succeed when values are the same",
 			expectErr: false,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
 			},
-			old: &Metal3IPClaimSpec{
+			old: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -117,7 +117,7 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail with nil old",
 			expectErr: true,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -127,10 +127,10 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when pool is unset",
 			expectErr: true,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{},
 			},
-			old: &Metal3IPClaimSpec{
+			old: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -139,12 +139,12 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when pool name changes",
 			expectErr: true,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
 			},
-			old: &Metal3IPClaimSpec{
+			old: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abcd",
 				},
@@ -153,13 +153,13 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool Namespace changes",
 			expectErr: true,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abc",
 				},
 			},
-			old: &Metal3IPClaimSpec{
+			old: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abcd",
@@ -169,13 +169,13 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool kind changes",
 			expectErr: true,
-			new: &Metal3IPClaimSpec{
+			new: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abc",
 				},
 			},
-			old: &Metal3IPClaimSpec{
+			old: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abcd",
@@ -186,9 +186,9 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var new, old *Metal3IPClaim
+			var new, old *IPClaim
 			g := NewWithT(t)
-			new = &Metal3IPClaim{
+			new = &IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "abc-1",
@@ -197,7 +197,7 @@ func TestMetal3IPClaimUpdateValidation(t *testing.T) {
 			}
 
 			if tt.old != nil {
-				old = &Metal3IPClaim{
+				old = &IPClaim{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "foo",
 						Name:      "abc-1",

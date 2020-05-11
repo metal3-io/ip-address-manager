@@ -1,0 +1,16 @@
+---
+apiVersion: ipam.metal3.io/v1alpha1
+kind: IPPool
+metadata:
+  name: pool1
+spec:
+  clusterName: ${CLUSTER_NAME}
+
+---
+apiVersion: ipam.metal3.io/v1alpha1
+kind: IPClaim
+metadata:
+  name: Claim1
+spec:
+  Pool:
+    Name: pool1

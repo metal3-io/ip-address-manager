@@ -41,7 +41,7 @@ var _ = Describe("Manager factory testing", func() {
 	})
 
 	It("returns an IPPool manager", func() {
-		_, err := managerFactory.NewIPPoolManager(&ipamv1.Metal3IPPool{}, clusterLog)
+		_, err := managerFactory.NewIPPoolManager(&ipamv1.IPPool{}, clusterLog)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
