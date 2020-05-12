@@ -18,7 +18,7 @@ package ipam
 
 import (
 	"github.com/go-logr/logr"
-	ipamv1 "github.com/metal3-io/ipam/api/v1alpha1"
+	ipamv1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

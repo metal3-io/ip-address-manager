@@ -24,9 +24,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/golang/mock/gomock"
-	ipamv1 "github.com/metal3-io/ipam/api/v1alpha1"
-	"github.com/metal3-io/ipam/ipam"
-	ipam_mocks "github.com/metal3-io/ipam/ipam/mocks"
+	ipamv1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
+	"github.com/metal3-io/metal3-ipam/ipam"
+	ipam_mocks "github.com/metal3-io/metal3-ipam/ipam/mocks"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

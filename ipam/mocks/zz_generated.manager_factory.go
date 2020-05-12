@@ -25,8 +25,8 @@ package ipam_mocks
 import (
 	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
-	v1alpha1 "github.com/metal3-io/ipam/api/v1alpha1"
-	ipam "github.com/metal3-io/ipam/ipam"
+	v1alpha1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
+	ipam "github.com/metal3-io/metal3-ipam/ipam"
 	reflect "reflect"
 )
 

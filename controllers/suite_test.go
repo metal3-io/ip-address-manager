@@ -29,7 +29,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/klog/klogr"
 
-	ipamv1 "github.com/metal3-io/ipam/api/v1alpha1"
+	ipamv1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/client"

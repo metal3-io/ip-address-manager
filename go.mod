@@ -1,4 +1,4 @@
-module github.com/metal3-io/ipam
+module github.com/metal3-io/metal3-ipam
 
 go 1.13
 
