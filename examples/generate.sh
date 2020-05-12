@@ -30,6 +30,7 @@ export CLUSTER_NAME="${CLUSTER_NAME:-test1}"
 
 # Outputs.
 COMPONENTS_CERT_MANAGER_GENERATED_FILE=${OUTPUT_DIR}/cert-manager.yaml
+COMPONENTS_CLUSTER_API_GENERATED_FILE=${SOURCE_DIR}/provider-components/core-components.yaml
 COMPONENTS_METAL3_GENERATED_FILE=${SOURCE_DIR}/provider-components/infrastructure-components.yaml
 
 PROVIDER_COMPONENTS_GENERATED_FILE=${OUTPUT_DIR}/provider-components.yaml
@@ -78,6 +79,10 @@ echo "Generated ${IPPOOL_GENERATED_FILE}"
 
 # Get Cert-manager provider components file
 curl -L -o "${COMPONENTS_CERT_MANAGER_GENERATED_FILE}" https://github.com/jetstack/cert-manager/releases/download/v0.13.0/cert-manager.yaml
+
+# Generate Cluster API provider components file.
+kustomize build "github.com/kubernetes-sigs/cluster-api/config/?ref=master" > "${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
+echo "Generated ${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
 
 # Generate METAL3 Infrastructure Provider components file.
 kustomize build "${SOURCE_DIR}/../config" | envsubst > "${COMPONENTS_METAL3_GENERATED_FILE}"
