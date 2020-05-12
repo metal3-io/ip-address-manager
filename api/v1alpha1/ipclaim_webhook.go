@@ -28,8 +28,8 @@ func (c *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=validation.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ipclaim,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=default.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha4-ipclaim,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=validation.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha4-ipclaim,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha4,name=default.ipclaim.ipam.metal3.io,matchPolicy=Equivalent
 
 var _ webhook.Defaulter = &IPClaim{}
 var _ webhook.Validator = &IPClaim{}

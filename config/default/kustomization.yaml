@@ -5,9 +5,6 @@ kind: Kustomization
 # dependency for CAPM3
 namespace: capm3-system
 
-resources:
-- namespace.yaml
-
 bases:
 - ../rbac
 - ../manager

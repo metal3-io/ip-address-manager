@@ -30,8 +30,8 @@ func (c *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=validation.ippool.ipam.metal3.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-infrastructure-cluster-x-k8s-io-v1alpha4-ippool,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=default.ippool.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha4-ippool,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=validation.ippool.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha4-ippool,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha4,name=default.ippool.ipam.metal3.io,matchPolicy=Equivalent
 
 var _ webhook.Defaulter = &IPPool{}
 var _ webhook.Validator = &IPPool{}
