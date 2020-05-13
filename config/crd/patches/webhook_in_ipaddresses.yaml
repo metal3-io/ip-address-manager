@@ -15,5 +15,5 @@ spec:
         caBundle: Cg==
         service:
           namespace: system
-          name: ipam-webhook-service
+          name: webhook-service
           path: /convert

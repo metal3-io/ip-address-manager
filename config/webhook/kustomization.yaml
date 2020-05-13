@@ -14,7 +14,7 @@ patchesStrategicMerge:
 - webhookcainjection_patch.yaml # Disable this value if you don't have any defaulting or validation webhook. If you don't know, you can check if the manifests.yaml file in the same directory has any contents.
 
 vars:
-- name: IPAM_CERTIFICATE_NAMESPACE # namespace of the certificate CR
+- name: CERTIFICATE_NAMESPACE # namespace of the certificate CR
   objref:
     kind: Certificate
     group: cert-manager.io
@@ -22,21 +22,21 @@ vars:
     name: serving-cert # this name should match the one in certificate.yaml
   fieldref:
     fieldpath: metadata.namespace
-- name: IPAM_CERTIFICATE_NAME
+- name: CERTIFICATE_NAME
   objref:
     kind: Certificate
     group: cert-manager.io
     version: v1alpha2
     name: serving-cert # this name should match the one in certificate.yaml
-- name: IPAM_SERVICE_NAMESPACE # namespace of the service
+- name: SERVICE_NAMESPACE # namespace of the service
   objref:
     kind: Service
     version: v1
-    name: ipam-webhook-service
+    name: webhook-service
   fieldref:
     fieldpath: metadata.namespace
-- name: IPAM_SERVICE_NAME
+- name: SERVICE_NAME
   objref:
     kind: Service
     version: v1
-    name: ipam-webhook-service
+    name: webhook-service

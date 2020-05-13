@@ -9,7 +9,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /mutate-ipam-metal3-io-v1alpha4-ipaddress
   failurePolicy: Fail
@@ -28,7 +28,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /mutate-ipam-metal3-io-v1alpha4-ipclaim
   failurePolicy: Fail
@@ -47,7 +47,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /mutate-ipam-metal3-io-v1alpha4-ippool
   failurePolicy: Fail
@@ -74,7 +74,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /validate-ipam-metal3-io-v1alpha4-ipaddress
   failurePolicy: Fail
@@ -93,7 +93,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /validate-ipam-metal3-io-v1alpha4-ipclaim
   failurePolicy: Fail
@@ -112,7 +112,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: ipam-webhook-service
+      name: webhook-service
       namespace: system
       path: /validate-ipam-metal3-io-v1alpha4-ippool
   failurePolicy: Fail
