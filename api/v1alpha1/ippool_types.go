@@ -54,8 +54,7 @@ type Pool struct {
 type IPPoolSpec struct {
 
 	// ClusterName is the name of the Cluster this object belongs to.
-	// +kubebuilder:validation:MinLength=1
-	ClusterName string `json:"clusterName"`
+	ClusterName *string `json:"clusterName,omitempty"`
 
 	//Pools contains the list of IP addresses pools
 	Pools []Pool `json:"pools,omitempty"`

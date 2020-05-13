@@ -88,24 +88,28 @@ func (r *IPPoolReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, rerr erro
 	}()
 
 	cluster := &capi.Cluster{}
-	key := client.ObjectKey{
-		Name:      ipamv1IPPool.Spec.ClusterName,
-		Namespace: ipamv1IPPool.Namespace,
-	}
-
-	if ipamv1IPPool.ObjectMeta.Labels == nil {
-		ipamv1IPPool.ObjectMeta.Labels = make(map[string]string)
-	}
-	ipamv1IPPool.ObjectMeta.Labels[capi.ClusterLabelName] = ipamv1IPPool.Spec.ClusterName
-	ipamv1IPPool.ObjectMeta.Labels[capi.ProviderLabelName] = "infrastructure-metal3"
-
-	// Fetch the Cluster. Ignore an error if the deletion timestamp is set
-	err = r.Client.Get(ctx, key, cluster)
-	if ipamv1IPPool.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err != nil {
-			metadataLog.Info("Error fetching cluster. It might not exist yet, Requeuing")
-			return ctrl.Result{}, nil
+	if ipamv1IPPool.Spec.ClusterName != nil {
+		key := client.ObjectKey{
+			Name:      *ipamv1IPPool.Spec.ClusterName,
+			Namespace: ipamv1IPPool.Namespace,
 		}
+
+		if ipamv1IPPool.ObjectMeta.Labels == nil {
+			ipamv1IPPool.ObjectMeta.Labels = make(map[string]string)
+		}
+		ipamv1IPPool.ObjectMeta.Labels[capi.ClusterLabelName] = *ipamv1IPPool.Spec.ClusterName
+		ipamv1IPPool.ObjectMeta.Labels[capi.ProviderLabelName] = "infrastructure-metal3"
+
+		// Fetch the Cluster. Ignore an error if the deletion timestamp is set
+		err = r.Client.Get(ctx, key, cluster)
+		if ipamv1IPPool.ObjectMeta.DeletionTimestamp.IsZero() {
+			if err != nil {
+				metadataLog.Info("Error fetching cluster. It might not exist yet, Requeuing")
+				return ctrl.Result{}, nil
+			}
+		}
+	} else {
+		cluster = nil
 	}
 
 	// Create a helper for managing the metadata object.
@@ -114,15 +118,17 @@ func (r *IPPoolReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, rerr erro
 		return ctrl.Result{}, errors.Wrapf(err, "failed to create helper for managing the IP pool")
 	}
 
-	metadataLog = metadataLog.WithValues("cluster", cluster.Name)
-	if err := ipPoolMgr.SetClusterOwnerRef(cluster); err != nil {
-		return ctrl.Result{}, err
-	}
+	if ipamv1IPPool.Spec.ClusterName != nil && cluster != nil {
+		metadataLog = metadataLog.WithValues("cluster", cluster.Name)
+		if err := ipPoolMgr.SetClusterOwnerRef(cluster); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	// Return early if the Metadata or Cluster is paused.
-	if util.IsPaused(cluster, ipamv1IPPool) {
-		metadataLog.Info("reconciliation is paused for this object")
-		return ctrl.Result{Requeue: true, RequeueAfter: requeueAfter}, nil
+		// Return early if the Metadata or Cluster is paused.
+		if util.IsPaused(cluster, ipamv1IPPool) {
+			metadataLog.Info("reconciliation is paused for this object")
+			return ctrl.Result{Requeue: true, RequeueAfter: requeueAfter}, nil
+		}
 	}
 
 	// Handle deleted metadata
