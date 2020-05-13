@@ -1,0 +1,130 @@
+
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: mutating-webhook-configuration
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-ipam-metal3-io-v1alpha4-ipaddress
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.ipaddress.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ipaddresses
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-ipam-metal3-io-v1alpha4-ipclaim
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.ipclaim.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ipclaims
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-ipam-metal3-io-v1alpha4-ippool
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.ippool.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ippools
+
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-ipam-metal3-io-v1alpha4-ipaddress
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.ipaddress.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ipaddresses
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-ipam-metal3-io-v1alpha4-ipclaim
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.ipclaim.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ipclaims
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-ipam-metal3-io-v1alpha4-ippool
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.ippool.ipam.metal3.io
+  rules:
+  - apiGroups:
+    - ipam.metal3.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ippools
