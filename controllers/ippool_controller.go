@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	ipamv1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
-	"github.com/metal3-io/metal3-ipam/ipam"
+	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	"github.com/metal3-io/ip-address-manager/ipam"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"

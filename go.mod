@@ -1,4 +1,4 @@
-module github.com/metal3-io/metal3-ipam
+module github.com/metal3-io/ip-address-manager
 
 go 1.13
 

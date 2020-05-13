@@ -21,9 +21,9 @@ import (
 	"os"
 	"time"
 
-	ipamv1 "github.com/metal3-io/metal3-ipam/api/v1alpha1"
-	"github.com/metal3-io/metal3-ipam/controllers"
-	"github.com/metal3-io/metal3-ipam/ipam"
+	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	"github.com/metal3-io/ip-address-manager/controllers"
+	"github.com/metal3-io/ip-address-manager/ipam"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
