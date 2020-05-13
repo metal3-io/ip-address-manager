@@ -51,7 +51,7 @@ RELEASE_NOTES := $(TOOLS_DIR)/$(RELEASE_NOTES_BIN)
 REGISTRY ?= quay.io/metal3-io
 STAGING_REGISTRY := quay.io/metal3-io
 PROD_REGISTRY := quay.io/metal3-io
-IMAGE_NAME ?= ipam
+IMAGE_NAME ?= ip-address-manager
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 TAG ?= v1alpha1
 ARCH ?= amd64
@@ -305,7 +305,7 @@ release: clean-release  ## Builds and push container images using the latest git
 
 .PHONY: release-manifests
 release-manifests: $(RELEASE_DIR) ## Builds the manifests to publish with a release
-	kustomize build config > $(RELEASE_DIR)/infrastructure-components.yaml
+	kustomize build config > $(RELEASE_DIR)/ipam-components.yaml
 
 .PHONY: release-binaries
 release-binaries: ## Builds the binaries to publish with a release

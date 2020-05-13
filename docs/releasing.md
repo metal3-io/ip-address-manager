@@ -23,13 +23,14 @@ You must have docker installed.
 
 ### Expected artifacts
 
-1. A container image of the shared cluster-api-provider-metal3 manager
+1. A container image of the ip-address-manager manager
 1. A git tag
+1. A deployment file : ipam-components.yaml
 
 ### Artifact locations
 
 1. The container image is found in the registry `quay.io/metal3-io` with an image
-   name of `ipam` and a tag that matches the release
+   name of `ip-address-manager` and a tag that matches the release
    version. The image is automatically built once the release has been created.
 
 ## Creating a release for IPAM
