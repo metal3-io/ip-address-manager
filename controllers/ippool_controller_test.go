@@ -87,7 +87,9 @@ var _ = Describe("IPPool controller", func() {
 				if tc.setOwnerRefError {
 					m.EXPECT().SetClusterOwnerRef(gomock.Any()).Return(errors.New(""))
 				} else {
-					m.EXPECT().SetClusterOwnerRef(gomock.Any()).Return(nil)
+					if tc.cluster != nil {
+						m.EXPECT().SetClusterOwnerRef(gomock.Any()).Return(nil)
+					}
 				}
 			}
 

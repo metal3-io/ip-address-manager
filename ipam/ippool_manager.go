@@ -206,7 +206,6 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	}
 	// Always patch addressClaim exiting this function so we can persist any changes.
 	defer func() {
-		fmt.Printf("\nPatching %v", addressClaim.Name)
 		err := helper.Patch(ctx, addressClaim)
 		if err != nil {
 			m.Log.Info("failed to Patch IPClaim")
@@ -253,7 +252,6 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 		index := 0
 		for !ipAllocated {
 			allocatedAddress, err = getIPAddress(pool, index)
-			fmt.Println(allocatedAddress)
 			if err != nil {
 				break
 			}

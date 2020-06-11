@@ -30,11 +30,8 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -118,7 +115,7 @@ func (r *IPPoolReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, rerr erro
 		return ctrl.Result{}, errors.Wrapf(err, "failed to create helper for managing the IP pool")
 	}
 
-	if ipamv1IPPool.Spec.ClusterName != nil && cluster != nil {
+	if ipamv1IPPool.Spec.ClusterName != nil && cluster != nil && cluster.Name != "" {
 		metadataLog = metadataLog.WithValues("cluster", cluster.Name)
 		if err := ipPoolMgr.SetClusterOwnerRef(cluster); err != nil {
 			return ctrl.Result{}, err
@@ -181,14 +178,6 @@ func (r *IPPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&handler.EnqueueRequestsFromMapFunc{
 				ToRequests: handler.ToRequestsFunc(r.IPClaimToIPPool),
 			},
-			// Do not trigger a reconciliation on updates of the claim, as the Spec
-			// fields are immutable
-			builder.WithPredicates(predicate.Funcs{
-				UpdateFunc:  func(e event.UpdateEvent) bool { return false },
-				CreateFunc:  func(e event.CreateEvent) bool { return true },
-				DeleteFunc:  func(e event.DeleteEvent) bool { return true },
-				GenericFunc: func(e event.GenericEvent) bool { return false },
-			}),
 		).
 		Complete(r)
 }
