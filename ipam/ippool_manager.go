@@ -304,6 +304,22 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
+	ownerRefs := addressClaim.OwnerReferences
+	ownerRefs = append(ownerRefs,
+		metav1.OwnerReference{
+			APIVersion: m.IPPool.APIVersion,
+			Kind:       m.IPPool.Kind,
+			Name:       m.IPPool.Name,
+			UID:        m.IPPool.UID,
+		},
+		metav1.OwnerReference{
+			APIVersion: addressClaim.APIVersion,
+			Kind:       addressClaim.Kind,
+			Name:       addressClaim.Name,
+			UID:        addressClaim.UID,
+		},
+	)
+
 	// Create the IPAddress object, with an Owner ref to the Metal3Machine
 	// (curOwnerRef) and to the IPPool
 	addressObject := &ipamv1.IPAddress{
@@ -312,24 +328,10 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 			APIVersion: ipamv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      addressName,
-			Namespace: m.IPPool.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
-					Controller: pointer.BoolPtr(true),
-					APIVersion: m.IPPool.APIVersion,
-					Kind:       m.IPPool.Kind,
-					Name:       m.IPPool.Name,
-					UID:        m.IPPool.UID,
-				},
-				metav1.OwnerReference{
-					APIVersion: addressClaim.APIVersion,
-					Kind:       addressClaim.Kind,
-					Name:       addressClaim.Name,
-					UID:        addressClaim.UID,
-				},
-			},
-			Labels: addressClaim.Labels,
+			Name:            addressName,
+			Namespace:       m.IPPool.Namespace,
+			OwnerReferences: ownerRefs,
+			Labels:          addressClaim.Labels,
 		},
 		Spec: ipamv1.IPAddressSpec{
 			Address: allocatedAddress,
