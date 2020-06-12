@@ -278,11 +278,8 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	}
 
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
-		formatedAddress := strings.Replace(
-			strings.Replace(string(allocatedAddress), ":", "-", -1), ".", "-", -1,
-		)
 		addressClaim.Status.Address = &corev1.ObjectReference{
-			Name:      m.IPPool.Spec.NamePrefix + "-" + formatedAddress,
+			Name:      m.formatAddressName(allocatedAddress),
 			Namespace: m.IPPool.Namespace,
 		}
 		return addresses, nil
@@ -295,12 +292,9 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	if err != nil {
 		return addresses, err
 	}
-	formatedAddress := strings.Replace(
-		strings.Replace(string(allocatedAddress), ":", "-", -1), ".", "-", -1,
-	)
 
 	// Set the index and IPAddress names
-	addressName := m.IPPool.Spec.NamePrefix + "-" + formatedAddress
+	addressName := m.formatAddressName(allocatedAddress)
 
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
@@ -380,11 +374,8 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	if ok {
 		// Try to get the IPAddress. if it succeeds, delete it
 		tmpM3Data := &ipamv1.IPAddress{}
-		formatedAddress := strings.Replace(
-			strings.Replace(string(allocatedAddress), ":", "-", -1), ".", "-", -1,
-		)
 		key := client.ObjectKey{
-			Name:      m.IPPool.Spec.NamePrefix + "-" + formatedAddress,
+			Name:      m.formatAddressName(allocatedAddress),
 			Namespace: m.IPPool.Namespace,
 		}
 		err := m.client.Get(ctx, key, tmpM3Data)
@@ -517,4 +508,11 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 	// COpy the output back into an ip
 	copy(ip[16-IPBytesLen:], IPBytes)
 	return ip, nil
+}
+
+// formatAddressName renders the name of the IPAddress objects
+func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
+	return strings.TrimRight(m.IPPool.Spec.NamePrefix+"-"+strings.Replace(
+		strings.Replace(string(address), ":", "-", -1), ".", "-", -1,
+	), "-")
 }
