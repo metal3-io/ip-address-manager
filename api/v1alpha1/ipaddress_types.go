@@ -45,6 +45,9 @@ type IPAddressSpec struct {
 
 	// Address contains the IP address
 	Address IPAddressStr `json:"address"`
+
+	// DNSServers is the list of dns servers
+	DNSServers []IPAddressStr `json:"dnsServers,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

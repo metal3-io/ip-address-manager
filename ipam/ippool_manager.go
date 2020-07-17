@@ -230,7 +230,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 
 func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	addresses map[ipamv1.IPAddressStr]string,
-) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, error) {
+) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, []ipamv1.IPAddressStr, error) {
 	var err error
 
 	// Get pre-allocated addresses
@@ -238,16 +238,11 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	// If the IP is pre-allocated, the default prefix and gateway are used
 	prefix := m.IPPool.Spec.Prefix
 	gateway := m.IPPool.Spec.Gateway
+	dnsServers := m.IPPool.Spec.DNSServers
 
 	for _, pool := range m.IPPool.Spec.Pools {
 		if ipAllocated {
 			break
-		}
-		if pool.Prefix != 0 {
-			prefix = pool.Prefix
-		}
-		if pool.Gateway != nil {
-			gateway = pool.Gateway
 		}
 		index := 0
 		for !ipAllocated {
@@ -258,14 +253,23 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 			index++
 			if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
 				ipAllocated = true
+				if pool.Prefix != 0 {
+					prefix = pool.Prefix
+				}
+				if pool.Gateway != nil {
+					gateway = pool.Gateway
+				}
+				if len(pool.DNSServers) != 0 {
+					dnsServers = pool.DNSServers
+				}
 			}
 		}
 	}
 	if !ipAllocated {
 		addressClaim.Status.ErrorMessage = pointer.StringPtr("Exhausted IP Pools")
-		return "", 0, nil, errors.New("Exhausted IP Pools")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Exhausted IP Pools")
 	}
-	return allocatedAddress, prefix, gateway, nil
+	return allocatedAddress, prefix, gateway, dnsServers, nil
 }
 
 func (m *IPPoolManager) createAddress(ctx context.Context,
@@ -288,7 +292,7 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	// Get a new index for this machine
 	m.Log.Info("Getting address", "Claim", addressClaim.Name)
 	// Get a new IP for this owner
-	allocatedAddress, prefix, gateway, err := m.allocateAddress(addressClaim, addresses)
+	allocatedAddress, prefix, gateway, dnsServers, err := m.allocateAddress(addressClaim, addresses)
 	if err != nil {
 		return addresses, err
 	}
@@ -337,8 +341,9 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 				Name:      addressClaim.Name,
 				Namespace: m.IPPool.Namespace,
 			},
-			Prefix:  prefix,
-			Gateway: gateway,
+			Prefix:     prefix,
+			Gateway:    gateway,
+			DNSServers: dnsServers,
 		},
 	}
 

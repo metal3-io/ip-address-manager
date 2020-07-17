@@ -48,6 +48,9 @@ type Pool struct {
 
 	// Gateway is the gateway ip address
 	Gateway *IPAddressStr `json:"gateway,omitempty"`
+
+	// DNSServers is the list of dns servers
+	DNSServers []IPAddressStr `json:"dnsServers,omitempty"`
 }
 
 // IPPoolSpec defines the desired state of IPPool.
@@ -68,6 +71,9 @@ type IPPoolSpec struct {
 
 	// Gateway is the gateway ip address
 	Gateway *IPAddressStr `json:"gateway,omitempty"`
+
+	// DNSServers is the list of dns servers
+	DNSServers []IPAddressStr `json:"dnsServers,omitempty"`
 
 	// +kubebuilder:validation:MinLength=1
 	// namePrefix is the prefix used to generate the IPAddress object names
