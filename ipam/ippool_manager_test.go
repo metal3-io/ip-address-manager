@@ -679,13 +679,14 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseAllocateAddress struct {
-		ipPool          *ipamv1.IPPool
-		ipClaim         *ipamv1.IPClaim
-		addresses       map[ipamv1.IPAddressStr]string
-		expectedAddress ipamv1.IPAddressStr
-		expectedPrefix  int
-		expectedGateway *ipamv1.IPAddressStr
-		expectError     bool
+		ipPool             *ipamv1.IPPool
+		ipClaim            *ipamv1.IPClaim
+		addresses          map[ipamv1.IPAddressStr]string
+		expectedAddress    ipamv1.IPAddressStr
+		expectedPrefix     int
+		expectedGateway    *ipamv1.IPAddressStr
+		expectedDNSServers []ipamv1.IPAddressStr
+		expectError        bool
 	}
 
 	DescribeTable("Test AllocateAddress",
@@ -694,7 +695,7 @@ var _ = Describe("IPPool manager", func() {
 				klogr.New(),
 			)
 			Expect(err).NotTo(HaveOccurred())
-			allocatedAddress, prefix, gateway, err := ipPoolMgr.allocateAddress(
+			allocatedAddress, prefix, gateway, dnsServers, err := ipPoolMgr.allocateAddress(
 				tc.ipClaim, tc.addresses,
 			)
 			if tc.expectError {
@@ -706,6 +707,7 @@ var _ = Describe("IPPool manager", func() {
 			Expect(allocatedAddress).To(Equal(tc.expectedAddress))
 			Expect(prefix).To(Equal(tc.expectedPrefix))
 			Expect(*gateway).To(Equal(*tc.expectedGateway))
+			Expect(dnsServers).To(Equal(tc.expectedDNSServers))
 		},
 		Entry("Empty pools", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
@@ -727,6 +729,9 @@ var _ = Describe("IPPool manager", func() {
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  26,
 							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
 						},
 					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
@@ -734,6 +739,9 @@ var _ = Describe("IPPool manager", func() {
 					},
 					Prefix:  24,
 					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
@@ -743,7 +751,10 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.15"),
 			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
-			expectedPrefix:  24,
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("8.8.4.4"),
+			},
+			expectedPrefix: 24,
 		}),
 		Entry("One pool, with start and existing address", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
@@ -780,10 +791,16 @@ var _ = Describe("IPPool manager", func() {
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  24,
 							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
 						},
 					},
 					Prefix:  26,
 					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
@@ -797,7 +814,50 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.13"),
 			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
-			expectedPrefix:  24,
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("8.8.8.8"),
+			},
+			expectedPrefix: 24,
+		}),
+		Entry("two pools, with subnet and override prefix in first", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						ipamv1.Pool{
+							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
+							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
+							Prefix:  24,
+							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
+						},
+						ipamv1.Pool{
+							Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.1.10/24")),
+						},
+					},
+					Prefix:  26,
+					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.2.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.1.11"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.10"): "abcd",
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.1.12"),
+			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.2.1")),
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("8.8.4.4"),
+			},
+			expectedPrefix: 26,
 		}),
 		Entry("two pools, with subnet and override prefix", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
@@ -811,10 +871,16 @@ var _ = Describe("IPPool manager", func() {
 							Subnet:  (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.1.10/24")),
 							Prefix:  24,
 							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
 						},
 					},
 					Prefix:  26,
 					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.2.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
@@ -828,7 +894,10 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.1.12"),
 			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
-			expectedPrefix:  24,
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("8.8.8.8"),
+			},
+			expectedPrefix: 24,
 		}),
 		Entry("Exhausted pools start", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
