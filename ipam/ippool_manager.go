@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"reflect"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -108,7 +109,10 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 	m.Log.Info("Fetching IPAddress objects")
 
 	//start from empty maps
-	m.IPPool.Status.Allocations = make(map[string]ipamv1.IPAddressStr)
+	if m.IPPool.Status.Allocations == nil {
+		m.IPPool.Status.Allocations = make(map[string]ipamv1.IPAddressStr)
+	}
+	updatedAllocations := make(map[string]ipamv1.IPAddressStr)
 
 	addresses := make(map[ipamv1.IPAddressStr]string)
 
@@ -145,10 +149,15 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		if addressObject.Spec.Claim.Name != "" {
 			claimName = addressObject.Spec.Claim.Name
 		}
-		m.IPPool.Status.Allocations[claimName] = addressObject.Spec.Address
+		updatedAllocations[claimName] = addressObject.Spec.Address
 		addresses[addressObject.Spec.Address] = claimName
 	}
-	m.updateStatusTimestamp()
+
+	if !reflect.DeepEqual(updatedAllocations, m.IPPool.Status.Allocations) {
+		m.IPPool.Status.Allocations = updatedAllocations
+		m.updateStatusTimestamp()
+	}
+
 	return addresses, nil
 }
 

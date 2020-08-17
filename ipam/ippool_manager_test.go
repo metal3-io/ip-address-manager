@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -170,6 +171,11 @@ var _ = Describe("IPPool manager", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			previousAllocations := tc.ipPool.Status.Allocations
+			if previousAllocations == nil {
+				previousAllocations = make(map[string]ipamv1.IPAddressStr)
+			}
+
 			addressMap, err := ipPoolMgr.getIndexes(context.TODO())
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
@@ -178,7 +184,13 @@ var _ = Describe("IPPool manager", func() {
 			}
 			Expect(addressMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
-			Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeFalse())
+			if !reflect.DeepEqual(previousAllocations, tc.ipPool.Status.Allocations) {
+				Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeFalse())
+			} else {
+				Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeTrue())
+			}
+			
+
 		},
 		Entry("No addresses", testGetIndexes{
 			ipPool:              &ipamv1.IPPool{},
