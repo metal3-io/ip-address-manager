@@ -16,3 +16,9 @@ hack/tools/bin/*
 examples/_out/*
 examples/provider-components/*-components.yaml
 out/*
+
+# Tilt files
+.tiltbuild/*
+tilt-settings.json
+tilt_config.json
+tilt.d/*

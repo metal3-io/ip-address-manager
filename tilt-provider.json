@@ -1,0 +1,10 @@
+{
+    "name": "metal3-ipam",
+    "config": {
+        "kustomize_config": false,
+        "image": "quay.io/metal3-io/ip-address-manager",
+        "live_reload_deps": [
+            "api", "ipam", "config", "controllers", "go.mod", "go.sum", "main.go"
+        ]
+    }
+}
