@@ -37,6 +37,7 @@ The *spec* field contains the following :
 * **pools**: this is a list of IP address pools
 * **prefix**: This is a default prefix for this IPPool
 * **gateway**: This is a default gateway for this IPPool
+* **preAllocations**: This is a default preallocated IP address for this IPPool
 
 The *prefix* and *gateway* can be overridden per pool. The pool definition is
 as follows :
