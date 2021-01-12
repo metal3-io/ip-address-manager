@@ -189,7 +189,6 @@ var _ = Describe("IPPool manager", func() {
 			} else {
 				Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeTrue())
 			}
-			
 
 		},
 		Entry("No addresses", testGetIndexes{
