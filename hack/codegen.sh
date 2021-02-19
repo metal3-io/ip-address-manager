@@ -34,6 +34,6 @@ else
     --volume "${PWD}:/data:rw,z" \
     --entrypoint sh \
     --workdir /data \
-    registry.hub.docker.com/library/golang:1.15.3 \
+    registry.hub.docker.com/library/golang:1.16 \
     /data/hack/codegen.sh
 fi;
