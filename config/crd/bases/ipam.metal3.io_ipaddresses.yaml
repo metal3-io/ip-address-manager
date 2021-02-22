@@ -18,7 +18,12 @@ spec:
     shortNames:
     - ipa
     - ipaddress
-    - ipaddress
+    - m3ipa
+    - m3ipaddress
+    - m3ipaddresses
+    - metal3ipa
+    - metal3ipaddress
+    - metal3ipaddresses
     singular: ipaddress
   scope: Namespaced
   versions:

@@ -51,7 +51,7 @@ type IPAddressSpec struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=ipaddresses,scope=Namespaced,categories=metal3,shortName=ipa;ipaddress;ipaddress
+// +kubebuilder:resource:path=ipaddresses,scope=Namespaced,categories=metal3,shortName=ipa;ipaddress;m3ipa;m3ipaddress;m3ipaddresses;metal3ipa;metal3ipaddress;metal3ipaddresses
 // +kubebuilder:storageversion
 // +kubebuilder:object:root=true
 // IPAddress is the Schema for the ipaddresses API
