@@ -45,7 +45,7 @@ type IPClaimStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=ipclaims,scope=Namespaced,categories=cluster-api,shortName=m3ipc;m3ipclaim;ipclaim
+// +kubebuilder:resource:path=ipclaims,scope=Namespaced,categories=cluster-api,shortName=ipc;ipclaim;m3ipc;m3ipclaim;m3ipclaims;metal3ipc;metal3ipclaim;metal3ipclaims
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true

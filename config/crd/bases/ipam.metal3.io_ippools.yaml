@@ -16,8 +16,14 @@ spec:
     listKind: IPPoolList
     plural: ippools
     shortNames:
+    - ipp
+    - ippool
     - m3ipp
     - m3ippool
+    - m3ippools
+    - metal3ipp
+    - metal3ippool
+    - metal3ippools
     singular: ippool
   scope: Namespaced
   versions:

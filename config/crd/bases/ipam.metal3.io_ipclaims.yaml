@@ -16,9 +16,14 @@ spec:
     listKind: IPClaimList
     plural: ipclaims
     shortNames:
+    - ipc
+    - ipclaim
     - m3ipc
     - m3ipclaim
-    - ipclaim
+    - m3ipclaims
+    - metal3ipc
+    - metal3ipclaim
+    - metal3ipclaims
     singular: ipclaim
   scope: Namespaced
   versions:

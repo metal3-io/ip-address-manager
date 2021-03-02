@@ -91,7 +91,7 @@ type IPPoolStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +kubebuilder:resource:path=ippools,scope=Namespaced,categories=cluster-api,shortName=m3ipp;m3ippool
+// +kubebuilder:resource:path=ippools,scope=Namespaced,categories=cluster-api,shortName=ipp;ippool;m3ipp;m3ippool;m3ippools;metal3ipp;metal3ippool;metal3ippools
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
