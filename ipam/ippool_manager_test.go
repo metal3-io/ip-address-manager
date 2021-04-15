@@ -19,7 +19,6 @@ package ipam
 import (
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 
 	. "github.com/onsi/ginkgo"
@@ -744,6 +743,46 @@ var _ = Describe("IPPool manager", func() {
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
+						ipamv1.Pool{
+							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.21")),
+							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.30")),
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.21"),
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.0.21"),
+			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("8.8.4.4"),
+			},
+			expectedPrefix: 24,
+		}),
+		Entry("One pool, pre-allocated, with overrides", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						ipamv1.Pool{
+							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
+							Prefix:  26,
+							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
+						},
 					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
 						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
@@ -761,11 +800,42 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.15"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
-				ipamv1.IPAddressStr("8.8.4.4"),
+				ipamv1.IPAddressStr("8.8.8.8"),
 			},
-			expectedPrefix: 24,
+			expectedPrefix: 26,
+		}),
+		Entry("One pool, pre-allocated, out of bonds", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						ipamv1.Pool{
+							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
+							Prefix:  26,
+							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
+							DNSServers: []ipamv1.IPAddressStr{
+								ipamv1.IPAddressStr("8.8.8.8"),
+							},
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.21"),
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("8.8.4.4"),
+					},
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			},
+			expectError: true,
 		}),
 		Entry("One pool, with start and existing address", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
@@ -1071,166 +1141,6 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-		}),
-	)
-
-	type testCaseGetIPAddress struct {
-		ipAddress   ipamv1.Pool
-		index       int
-		expectError bool
-		expectedIP  ipamv1.IPAddressStr
-	}
-
-	DescribeTable("Test getIPAddress",
-		func(tc testCaseGetIPAddress) {
-			result, err := getIPAddress(tc.ipAddress, tc.index)
-			if tc.expectError {
-				Expect(err).To(HaveOccurred())
-			} else {
-				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(Equal(tc.expectedIP))
-			}
-		},
-		Entry("Empty Start and Subnet", testCaseGetIPAddress{
-			ipAddress:   ipamv1.Pool{},
-			index:       1,
-			expectError: true,
-		}),
-		Entry("Start set, no end or subnet", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-			},
-			index:      1,
-			expectedIP: ipamv1.IPAddressStr("192.168.0.11"),
-		}),
-		Entry("Start set, end set, subnet unset", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-				End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.100")),
-			},
-			index:      1,
-			expectedIP: ipamv1.IPAddressStr("192.168.0.11"),
-		}),
-		Entry("Start set, end set, subnet unset, out of bound", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-				End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.100")),
-			},
-			index:       100,
-			expectError: true,
-		}),
-		Entry("Start set, end unset, subnet set", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start:  (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.0.0/24")),
-			},
-			index:      1,
-			expectedIP: ipamv1.IPAddressStr("192.168.0.11"),
-		}),
-		Entry("Start set, end unset, subnet set, out of bound", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start:  (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.0.0/24")),
-			},
-			index:       250,
-			expectError: true,
-		}),
-		Entry("Start set, end unset, subnet empty", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Start:  (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("")),
-			},
-			index:       1,
-			expectError: true,
-		}),
-		Entry("subnet empty", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("")),
-			},
-			index:       1,
-			expectError: true,
-		}),
-		Entry("Start unset, end unset, subnet set", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.0.10/24")),
-			},
-			index:      1,
-			expectedIP: ipamv1.IPAddressStr("192.168.0.12"),
-		}),
-		Entry("Start unset, end unset, subnet set, out of bound", testCaseGetIPAddress{
-			ipAddress: ipamv1.Pool{
-				Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.0.10/24")),
-			},
-			index:       250,
-			expectError: true,
-		}),
-	)
-
-	type testCaseAddOffsetToIP struct {
-		ip          string
-		endIP       string
-		offset      int
-		expectedIP  string
-		expectError bool
-	}
-
-	DescribeTable("Test AddOffsetToIP",
-		func(tc testCaseAddOffsetToIP) {
-			testIP := net.ParseIP(tc.ip)
-			testEndIP := net.ParseIP(tc.endIP)
-			expectedIP := net.ParseIP(tc.expectedIP)
-
-			result, err := addOffsetToIP(testIP, testEndIP, tc.offset)
-			if tc.expectError {
-				Expect(err).To(HaveOccurred())
-			} else {
-				Expect(err).NotTo(HaveOccurred())
-				Expect(result).To(Equal(expectedIP))
-			}
-		},
-		Entry("valid IPv4", testCaseAddOffsetToIP{
-			ip:         "192.168.0.10",
-			endIP:      "192.168.0.200",
-			offset:     10,
-			expectedIP: "192.168.0.20",
-		}),
-		Entry("valid IPv4, no end ip", testCaseAddOffsetToIP{
-			ip:         "192.168.0.10",
-			offset:     1000,
-			expectedIP: "192.168.3.242",
-		}),
-		Entry("Over bound ipv4", testCaseAddOffsetToIP{
-			ip:          "192.168.0.10",
-			endIP:       "192.168.0.200",
-			offset:      1000,
-			expectError: true,
-		}),
-		Entry("error ipv4", testCaseAddOffsetToIP{
-			ip:          "255.255.255.250",
-			offset:      10,
-			expectError: true,
-		}),
-		Entry("valid IPv6", testCaseAddOffsetToIP{
-			ip:         "2001::10",
-			endIP:      "2001::fff0",
-			offset:     10,
-			expectedIP: "2001::1A",
-		}),
-		Entry("valid IPv6, no end ip", testCaseAddOffsetToIP{
-			ip:         "2001::10",
-			offset:     10000,
-			expectedIP: "2001::2720",
-		}),
-		Entry("Over bound ipv6", testCaseAddOffsetToIP{
-			ip:          "2001::10",
-			endIP:       "2001::00f0",
-			offset:      10000,
-			expectError: true,
-		}),
-		Entry("error ipv6", testCaseAddOffsetToIP{
-			ip:          "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFF0",
-			offset:      100,
-			expectError: true,
 		}),
 	)
 
