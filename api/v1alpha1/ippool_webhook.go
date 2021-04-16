@@ -61,11 +61,76 @@ func (c *IPPool) ValidateUpdate(old runtime.Object) error {
 			),
 		)
 	}
+	allocationOutOfBonds, inUseOutOfBonds := c.checkPoolBonds(oldM3ipp)
+	if len(allocationOutOfBonds) != 0 {
+		for _, address := range allocationOutOfBonds {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("spec", "preAllocations"),
+					address,
+					"is out of bonds of the pools given",
+				),
+			)
+		}
+	}
+	if len(inUseOutOfBonds) != 0 {
+		for _, address := range inUseOutOfBonds {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("spec", "pools"),
+					address,
+					"is in use but out of bonds of the pools given",
+				),
+			)
+		}
+	}
 
 	if len(allErrs) == 0 {
 		return nil
 	}
 	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3Data").GroupKind(), c.Name, allErrs)
+}
+
+func (c *IPPool) checkPoolBonds(old *IPPool) ([]IPAddressStr, []IPAddressStr) {
+	allocationOutOfBonds := []IPAddressStr{}
+	inUseOutOfBonds := []IPAddressStr{}
+	for _, address := range c.Spec.PreAllocations {
+		inBonds := c.isAddressInBonds(address)
+
+		if !inBonds {
+			allocationOutOfBonds = append(allocationOutOfBonds, address)
+		}
+	}
+	for _, address := range old.Status.Allocations {
+		inBonds := c.isAddressInBonds(address)
+
+		if !inBonds {
+			inUseOutOfBonds = append(inUseOutOfBonds, address)
+		}
+	}
+	return allocationOutOfBonds, inUseOutOfBonds
+}
+
+func (c *IPPool) isAddressInBonds(address IPAddressStr) bool {
+	inBonds := false
+	for _, pool := range c.Spec.Pools {
+		if inBonds {
+			break
+		}
+		index := 0
+		for !inBonds {
+			allocatedAddress, err := GetIPAddress(pool, index)
+			if err != nil {
+				break
+			}
+			index++
+			if allocatedAddress == address {
+				inBonds = true
+				break
+			}
+		}
+	}
+	return inBonds
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

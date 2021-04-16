@@ -18,9 +18,6 @@ package ipam
 
 import (
 	"context"
-	"fmt"
-	"math/big"
-	"net"
 	"reflect"
 	"strings"
 
@@ -240,14 +237,17 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	addresses map[ipamv1.IPAddressStr]string,
 ) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, []ipamv1.IPAddressStr, error) {
+	var allocatedAddress ipamv1.IPAddressStr = ""
 	var err error
 
 	// Get pre-allocated addresses
-	allocatedAddress, ipAllocated := m.IPPool.Spec.PreAllocations[addressClaim.Name]
+	preAllocatedAddress, ipPreAllocated := m.IPPool.Spec.PreAllocations[addressClaim.Name]
 	// If the IP is pre-allocated, the default prefix and gateway are used
 	prefix := m.IPPool.Spec.Prefix
 	gateway := m.IPPool.Spec.Gateway
 	dnsServers := m.IPPool.Spec.DNSServers
+
+	ipAllocated := false
 
 	for _, pool := range m.IPPool.Spec.Pools {
 		if ipAllocated {
@@ -255,24 +255,45 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 		}
 		index := 0
 		for !ipAllocated {
-			allocatedAddress, err = getIPAddress(pool, index)
+			allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
 			if err != nil {
 				break
 			}
 			index++
+			// We have a pre-allocated ip, we just need to ensure that it matches the current address
+			// if it does not, continue and try the next address
+			if ipPreAllocated && allocatedAddress != preAllocatedAddress {
+				continue
+			}
+			// Here the two addresses match, so we continue with that one
+			if ipPreAllocated {
+				ipAllocated = true
+			}
+			// If we have a preallocated address, this is useless, otherwise, check if the
+			// ip is free
 			if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
 				ipAllocated = true
-				if pool.Prefix != 0 {
-					prefix = pool.Prefix
-				}
-				if pool.Gateway != nil {
-					gateway = pool.Gateway
-				}
-				if len(pool.DNSServers) != 0 {
-					dnsServers = pool.DNSServers
-				}
+			}
+			if !ipAllocated {
+				continue
+			}
+
+			if pool.Prefix != 0 {
+				prefix = pool.Prefix
+			}
+			if pool.Gateway != nil {
+				gateway = pool.Gateway
+			}
+			if len(pool.DNSServers) != 0 {
+				dnsServers = pool.DNSServers
 			}
 		}
+	}
+	// We have a preallocated IP but we did not find it in the pools! It means it is
+	// misconfigured
+	if !ipAllocated && ipPreAllocated {
+		addressClaim.Status.ErrorMessage = pointer.StringPtr("Pre-allocated IP out of bond")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
 		addressClaim.Status.ErrorMessage = pointer.StringPtr("Exhausted IP Pools")
@@ -421,107 +442,6 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	}
 	m.updateStatusTimestamp()
 	return addresses, nil
-}
-
-// getIPAddress renders the IP address, taking the index, offset and step into
-// account, it is IP version agnostic
-func getIPAddress(entry ipamv1.Pool, index int) (ipamv1.IPAddressStr, error) {
-
-	if entry.Start == nil && entry.Subnet == nil {
-		return "", errors.New("Either Start or Subnet is required for ipAddress")
-	}
-	var ip net.IP
-	var err error
-	var ipNet *net.IPNet
-	offset := index
-
-	// If start is given, use it to add the offset
-	if entry.Start != nil {
-		var endIP net.IP
-		if entry.End != nil {
-			endIP = net.ParseIP(string(*entry.End))
-		}
-		ip, err = addOffsetToIP(net.ParseIP(string(*entry.Start)), endIP, offset)
-		if err != nil {
-			return "", err
-		}
-
-		// Verify that the IP is in the subnet
-		if entry.Subnet != nil {
-			_, ipNet, err = net.ParseCIDR(string(*entry.Subnet))
-			if err != nil {
-				return "", err
-			}
-			if !ipNet.Contains(ip) {
-				return "", errors.New("IP address out of bonds")
-			}
-		}
-
-		// If it is not given, use the CIDR ip address and increment the offset by 1
-	} else {
-		ip, ipNet, err = net.ParseCIDR(string(*entry.Subnet))
-		if err != nil {
-			return "", err
-		}
-		offset++
-		ip, err = addOffsetToIP(ip, nil, offset)
-		if err != nil {
-			return "", err
-		}
-
-		// Verify that the ip is in the subnet
-		if !ipNet.Contains(ip) {
-			return "", errors.New("IP address out of bonds")
-		}
-	}
-	return ipamv1.IPAddressStr(ip.String()), nil
-}
-
-// addOffsetToIP computes the value of the IP address with the offset. It is
-// IP version agnostic
-// Note that if the resulting IP address is in the format ::ffff:xxxx:xxxx then
-// ip.String will fail to select the correct type of ip
-func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
-	ip4 := false
-	//ip := net.ParseIP(ipString)
-	if ip.To4() != nil {
-		ip4 = true
-	}
-
-	// Create big integers
-	IPInt := big.NewInt(0)
-	OffsetInt := big.NewInt(int64(offset))
-
-	// Transform the ip into an int. (big endian function)
-	IPInt = IPInt.SetBytes(ip)
-
-	// add the two integers
-	IPInt = IPInt.Add(IPInt, OffsetInt)
-
-	// return the bytes list
-	IPBytes := IPInt.Bytes()
-
-	IPBytesLen := len(IPBytes)
-
-	// Verify that the IPv4 or IPv6 fulfills theirs constraints
-	if (ip4 && IPBytesLen > 6 && IPBytes[4] != 255 && IPBytes[5] != 255) ||
-		(!ip4 && IPBytesLen > 16) {
-		return nil, errors.New(fmt.Sprintf("IP address overflow for : %s", ip.String()))
-	}
-
-	//transform the end ip into an Int to compare
-	if endIP != nil {
-		endIPInt := big.NewInt(0)
-		endIPInt = endIPInt.SetBytes(endIP)
-		// Computed IP is higher than the end IP
-		if IPInt.Cmp(endIPInt) > 0 {
-			return nil, errors.New(fmt.Sprintf("IP address out of bonds for : %s", ip.String()))
-		}
-	}
-
-	// COpy the output back into an ip
-	copy(ip[16-IPBytesLen:], IPBytes)
-	return ip, nil
 }
 
 // formatAddressName renders the name of the IPAddress objects

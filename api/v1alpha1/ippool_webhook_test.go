@@ -71,32 +71,99 @@ func TestIPPoolValidation(t *testing.T) {
 
 func TestIPPoolUpdateValidation(t *testing.T) {
 
+	startAddr := IPAddressStr("192.168.0.1")
+	endAddr := IPAddressStr("192.168.0.10")
+
 	tests := []struct {
-		name      string
-		expectErr bool
-		newPool   *IPPoolSpec
-		oldPool   *IPPoolSpec
+		name          string
+		expectErr     bool
+		newPoolSpec   *IPPoolSpec
+		oldPoolSpec   *IPPoolSpec
+		oldPoolStatus IPPoolStatus
 	}{
 		{
-			name:      "should succeed when values and templates correct",
-			expectErr: false,
-			newPool:   &IPPoolSpec{},
-			oldPool:   &IPPoolSpec{},
+			name:        "should succeed when values and templates correct",
+			expectErr:   false,
+			newPoolSpec: &IPPoolSpec{},
+			oldPoolSpec: &IPPoolSpec{},
 		},
 		{
-			name:      "should fail when oldPool is nil",
-			expectErr: true,
-			newPool:   &IPPoolSpec{},
-			oldPool:   nil,
+			name:        "should fail when oldPoolSpec is nil",
+			expectErr:   true,
+			newPoolSpec: &IPPoolSpec{},
+			oldPoolSpec: nil,
 		},
 		{
 			name:      "should fail when namePrefix value changes",
 			expectErr: true,
-			newPool: &IPPoolSpec{
+			newPoolSpec: &IPPoolSpec{
 				NamePrefix: "abcde",
 			},
-			oldPool: &IPPoolSpec{
+			oldPoolSpec: &IPPoolSpec{
 				NamePrefix: "abcd",
+			},
+		},
+		{
+			name:      "should succeed when preAllocations are correct",
+			expectErr: false,
+			newPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]IPAddressStr{
+					"alloc": IPAddressStr("192.168.0.2"),
+				},
+			},
+			oldPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+			oldPoolStatus: IPPoolStatus{
+				Allocations: map[string]IPAddressStr{
+					"inuse": IPAddressStr("192.168.0.3"),
+				},
+			},
+		},
+		{
+			name:      "should fail when preAllocations are incorrect",
+			expectErr: true,
+			newPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]IPAddressStr{
+					"alloc": IPAddressStr("192.168.0.20"),
+				},
+			},
+			oldPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+			oldPoolStatus: IPPoolStatus{
+				Allocations: map[string]IPAddressStr{
+					"inuse": IPAddressStr("192.168.0.3"),
+				},
+			},
+		},
+		{
+			name:      "should fail when ip in use",
+			expectErr: true,
+			newPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]IPAddressStr{
+					"alloc": IPAddressStr("192.168.0.2"),
+				},
+			},
+			oldPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+			oldPoolStatus: IPPoolStatus{
+				Allocations: map[string]IPAddressStr{
+					"inuse": IPAddressStr("192.168.0.30"),
+				},
 			},
 		},
 	}
@@ -109,15 +176,16 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 				},
-				Spec: *tt.newPool,
+				Spec: *tt.newPoolSpec,
 			}
 
-			if tt.oldPool != nil {
+			if tt.oldPoolSpec != nil {
 				oldPool = &IPPool{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "foo",
 					},
-					Spec: *tt.oldPool,
+					Spec:   *tt.oldPoolSpec,
+					Status: tt.oldPoolStatus,
 				}
 			} else {
 				oldPool = nil
