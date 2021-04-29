@@ -32,7 +32,7 @@ var _ = Describe("Manager factory testing", func() {
 	clusterLog := klogr.New()
 
 	BeforeEach(func() {
-		managerClient = fakeclient.NewFakeClientWithScheme(setupScheme())
+		managerClient = fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects().Build()
 		managerFactory = NewManagerFactory(managerClient)
 	})
 

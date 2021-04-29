@@ -309,7 +309,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Absent", testCaseFindOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
@@ -320,7 +320,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 0", testCaseFindOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -332,13 +332,13 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 1", testCaseFindOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
 					UID:        "adfasdf",
 				},
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -350,7 +350,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present but different versions", testCaseFindOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v2",
 					Kind:       "def",
 					Name:       "ghi",
@@ -362,7 +362,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Wrong group", testCaseFindOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.co/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -398,7 +398,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Absent", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
@@ -408,7 +408,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 0", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -418,13 +418,13 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 1", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
 					UID:        "adfasdf",
 				},
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
@@ -434,7 +434,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -465,7 +465,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Absent", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
@@ -475,7 +475,7 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 0", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",
@@ -485,13 +485,13 @@ var _ = Describe("Metal3 manager utils", func() {
 		}),
 		Entry("Present 1", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghij",
 					UID:        "adfasdf",
 				},
-				metav1.OwnerReference{
+				{
 					APIVersion: "abc.com/v1",
 					Kind:       "def",
 					Name:       "ghi",

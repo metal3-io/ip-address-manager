@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
@@ -29,7 +30,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
 	"k8s.io/klog/klogr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	// +kubebuilder:scaffold:imports
@@ -85,13 +86,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup the context that's going to be used in controllers and for the manager.
+	ctx := ctrl.SetupSignalHandler()
+
 	setupChecks(mgr)
-	setupReconcilers(mgr)
+	setupReconcilers(ctx, mgr)
 	setupWebhooks(mgr)
 
 	// +kubebuilder:scaffold:builder
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -109,7 +113,7 @@ func setupChecks(mgr ctrl.Manager) {
 	}
 }
 
-func setupReconcilers(mgr ctrl.Manager) {
+func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if webhookPort != 0 {
 		return
 	}
@@ -118,7 +122,7 @@ func setupReconcilers(mgr ctrl.Manager) {
 		Client:         mgr.GetClient(),
 		ManagerFactory: ipam.NewManagerFactory(mgr.GetClient()),
 		Log:            ctrl.Log.WithName("controllers").WithName("IPPool"),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconciler")
 		os.Exit(1)
 	}

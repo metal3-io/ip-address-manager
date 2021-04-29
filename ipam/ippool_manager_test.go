@@ -28,10 +28,9 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/klogr"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -116,7 +115,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 					OwnerReferences: []metav1.OwnerReference{
-						metav1.OwnerReference{
+						{
 							Name: "def",
 						},
 					},
@@ -133,10 +132,10 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 					OwnerReferences: []metav1.OwnerReference{
-						metav1.OwnerReference{
+						{
 							Name: "def",
 						},
-						metav1.OwnerReference{
+						{
 							Name: "abc-cluster",
 						},
 					},
@@ -160,11 +159,12 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test getIndexes",
 		func(tc testGetIndexes) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -205,7 +205,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			addresses: []*ipamv1.IPAddress{
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abc-0",
 						Namespace: "myns",
@@ -216,7 +216,7 @@ var _ = Describe("IPPool manager", func() {
 						Claim:   *testObjectReference,
 					},
 				},
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "bbc-1",
 						Namespace: "myns",
@@ -233,7 +233,7 @@ var _ = Describe("IPPool manager", func() {
 						},
 					},
 				},
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abc-2",
 						Namespace: "myns",
@@ -244,7 +244,7 @@ var _ = Describe("IPPool manager", func() {
 						Claim:   *testObjectReference,
 					},
 				},
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abc-3",
 						Namespace: "myns",
@@ -285,14 +285,14 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test UpdateAddresses",
 		func(tc testCaseUpdateAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
 			for _, claim := range tc.ipClaims {
 				objects = append(objects, claim)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -342,7 +342,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			ipClaims: []*ipamv1.IPClaim{
-				&ipamv1.IPClaim{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abc",
 						Namespace: "myns",
@@ -354,7 +354,7 @@ var _ = Describe("IPPool manager", func() {
 						},
 					},
 				},
-				&ipamv1.IPClaim{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcd",
 						Namespace: "myns",
@@ -372,7 +372,7 @@ var _ = Describe("IPPool manager", func() {
 						},
 					},
 				},
-				&ipamv1.IPClaim{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abce",
 						Namespace: "myns",
@@ -390,7 +390,7 @@ var _ = Describe("IPPool manager", func() {
 						},
 					},
 				},
-				&ipamv1.IPClaim{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              "abcf",
 						Namespace:         "myns",
@@ -411,7 +411,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			ipAddresses: []*ipamv1.IPAddress{
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-1-11",
 						Namespace: "myns",
@@ -430,7 +430,7 @@ var _ = Describe("IPPool manager", func() {
 						Prefix:  24,
 					},
 				},
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-1-12",
 						Namespace: "myns",
@@ -447,7 +447,7 @@ var _ = Describe("IPPool manager", func() {
 						Address: ipamv1.IPAddressStr("192.168.1.12"),
 					},
 				},
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-1-13",
 						Namespace: "myns",
@@ -487,11 +487,11 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test CreateAddresses",
 		func(tc testCaseCreateAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -550,7 +550,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 						},
@@ -583,7 +583,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 						},
@@ -616,7 +616,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 						},
@@ -634,7 +634,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			ipAddresses: []*ipamv1.IPAddress{
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-0-11",
 						Namespace: "myns",
@@ -660,7 +660,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 						},
@@ -734,7 +734,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  26,
@@ -743,7 +743,7 @@ var _ = Describe("IPPool manager", func() {
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.21")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.30")),
 						},
@@ -774,7 +774,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  26,
@@ -810,7 +810,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  26,
@@ -841,7 +841,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 						},
@@ -867,7 +867,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.11")),
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.20")),
 							Prefix:  24,
@@ -904,7 +904,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 							End:     (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 							Prefix:  24,
@@ -913,7 +913,7 @@ var _ = Describe("IPPool manager", func() {
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
-						ipamv1.Pool{
+						{
 							Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.1.10/24")),
 						},
 					},
@@ -944,11 +944,11 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 						},
-						ipamv1.Pool{
+						{
 							Subnet:  (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.1.10/24")),
 							Prefix:  24,
 							Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.1.1")),
@@ -984,7 +984,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Start: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 							End:   (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.10")),
 						},
@@ -1007,7 +1007,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
-						ipamv1.Pool{
+						{
 							Subnet: (*ipamv1.IPSubnetStr)(pointer.StringPtr("192.168.0.0/30")),
 						},
 					},
@@ -1041,11 +1041,11 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test DeleteAddresses",
 		func(tc testCaseDeleteAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.m3addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -1135,7 +1135,7 @@ var _ = Describe("IPPool manager", func() {
 			expectedAddresses:   map[ipamv1.IPAddressStr]string{},
 			expectedAllocations: map[string]ipamv1.IPAddressStr{},
 			m3addresses: []*ipamv1.IPAddress{
-				&ipamv1.IPAddress{
+				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "abc-192-168-0-1",
 					},
