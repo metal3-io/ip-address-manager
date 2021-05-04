@@ -1,4 +1,4 @@
-module github.com/metal3-io/ip-address-manager/api
+module github.com/metal3-io/ip-address-manager/api/v1alpha1
 
 go 1.16
 
