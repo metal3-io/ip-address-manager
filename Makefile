@@ -83,7 +83,7 @@ testprereqs: $(KUBEBUILDER) $(KUSTOMIZE)
 
 .PHONY: test
 test: testprereqs generate fmt lint ## Run tests
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./api/... ./controllers/... ./ipam/... -coverprofile ./cover.out
+	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd api; go test -v ./... -coverprofile ./cover.out
 
 .PHONY: test-integration
 test-integration: ## Run integration tests
@@ -140,18 +140,21 @@ $(RELEASE_NOTES) : $(TOOLS_DIR)/go.mod
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint codebase
 	$(GOLANGCI_LINT) run -v
+	cd api; ../$(GOLANGCI_LINT) run -v
 
 lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
 	$(GOLANGCI_LINT) run -v --fast=false
+	cd api; ../$(GOLANGCI_LINT) run -v --fast=false
 
 # Run go fmt against code
 fmt:
-	go fmt ./api/... ./controllers/... ./ipam/... .
+	go fmt ./controllers/... ./ipam/... .
+	cd api; go fmt ./...
 
 # Run go vet against code
 vet:
-	go vet ./api/... ./controllers/... ./ipam/... .
-
+	go vet ./controllers/... ./ipam/... .
+	cd api; go vet ./...
 
 ## --------------------------------------
 ## Generate
@@ -160,6 +163,7 @@ vet:
 .PHONY: modules
 modules: ## Runs go mod to ensure proper vendoring.
 	go mod tidy
+	cd api; go mod tidy
 	cd $(TOOLS_DIR); go mod tidy
 
 .PHONY: generate
@@ -170,9 +174,10 @@ generate: ## Generate code
 .PHONY: generate-go
 generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUSTOMIZE) ## Runs Go related generate targets
 	go generate ./...
-	$(CONTROLLER_GEN) \
-		paths=./api/... \
-		object:headerFile=./hack/boilerplate/boilerplate.generatego.txt
+	cd api; go generate ./...
+	cd ./api; ../$(CONTROLLER_GEN) \
+		paths=./... \
+		object:headerFile=../hack/boilerplate/boilerplate.generatego.txt
 
 	$(MOCKGEN) \
 	  -destination=./ipam/mocks/zz_generated.ippool_manager.go \
@@ -190,11 +195,11 @@ generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUS
 
 .PHONY: generate-manifests
 generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
-	$(CONTROLLER_GEN) \
-		paths=./api/... \
+	cd api; ../$(CONTROLLER_GEN) \
+		paths=./... \
 		crd:crdVersions=v1 \
-		output:crd:dir=$(CRD_ROOT) \
-		output:webhook:dir=$(WEBHOOK_ROOT) \
+		output:crd:dir=../$(CRD_ROOT) \
+		output:webhook:dir=../$(WEBHOOK_ROOT) \
 		webhook
 	$(CONTROLLER_GEN) \
 		paths=./controllers/... \
