@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.1.4 // indirect
 	github.com/googleapis/gnostic v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
+	github.com/metal3-io/ip-address-manager/api v0.0.0
 	github.com/nxadm/tail v1.4.6 // indirect
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.4
@@ -27,16 +28,16 @@ require (
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.1.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/api v0.20.1
+	k8s.io/api v0.20.2
 	k8s.io/apiextensions-apiserver v0.20.1
-	k8s.io/apimachinery v0.20.1
-	k8s.io/client-go v1.5.1
+	k8s.io/apimachinery v0.20.2
+	k8s.io/client-go v0.20.2
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.4.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd // indirect
 	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
 	sigs.k8s.io/cluster-api v0.3.12
-	sigs.k8s.io/controller-runtime v0.7.0
+	sigs.k8s.io/controller-runtime v0.8.3
 )
 
 replace k8s.io/client-go => k8s.io/client-go v0.17.9
@@ -54,3 +55,5 @@ replace sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.5.14
 replace github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.0
 
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20200410145947-bcb3869e6f29
+
+replace github.com/metal3-io/ip-address-manager/api => ./api
