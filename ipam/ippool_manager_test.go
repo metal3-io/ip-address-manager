@@ -711,9 +711,8 @@ var _ = Describe("IPPool manager", func() {
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
 				return
-			} else {
-				Expect(err).NotTo(HaveOccurred())
 			}
+			Expect(err).NotTo(HaveOccurred())
 			Expect(allocatedAddress).To(Equal(tc.expectedAddress))
 			Expect(prefix).To(Equal(tc.expectedPrefix))
 			Expect(*gateway).To(Equal(*tc.expectedGateway))
