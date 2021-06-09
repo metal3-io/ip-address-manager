@@ -193,7 +193,7 @@ func (r *IPPoolReconciler) IPClaimToIPPool(obj handler.MapObject) []ctrl.Request
 				namespace = m3ipc.Namespace
 			}
 			return []ctrl.Request{
-				ctrl.Request{
+				{
 					NamespacedName: types.NamespacedName{
 						Name:      m3ipc.Spec.Pool.Name,
 						Namespace: namespace,
