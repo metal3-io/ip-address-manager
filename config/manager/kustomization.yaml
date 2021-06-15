@@ -6,8 +6,3 @@ resources:
 
 generatorOptions:
  disableNameSuffixHash: true
-
-patchesStrategicMerge:
-- manager_image_patch.yaml
-- manager_pull_policy_patch.yaml
-- manager_auth_proxy_patch.yaml

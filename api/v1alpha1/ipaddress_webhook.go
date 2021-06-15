@@ -28,8 +28,8 @@ func (c *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha4-ipaddress,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=validation.ipaddress.ipam.metal3.io,matchPolicy=Equivalent
-// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha4-ipaddress,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=default.ipaddress.ipam.metal3.io,matchPolicy=Equivalent
+// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha4-ipaddress,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=validation.ipaddress.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1beta1
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha4-ipaddress,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha4,name=default.ipaddress.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1beta1
 
 var _ webhook.Defaulter = &IPAddress{}
 var _ webhook.Validator = &IPAddress{}

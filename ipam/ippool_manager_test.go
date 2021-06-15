@@ -28,10 +28,9 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/klogr"
+	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -160,11 +159,11 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test getIndexes",
 		func(tc testGetIndexes) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -285,14 +284,14 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test UpdateAddresses",
 		func(tc testCaseUpdateAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
 			for _, claim := range tc.ipClaims {
 				objects = append(objects, claim)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -487,11 +486,11 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test CreateAddresses",
 		func(tc testCaseCreateAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
@@ -1040,11 +1039,11 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test DeleteAddresses",
 		func(tc testCaseDeleteAddresses) {
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			for _, address := range tc.m3addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				klogr.New(),
 			)
