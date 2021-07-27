@@ -26,9 +26,10 @@ import (
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
-	"sigs.k8s.io/cluster-api/util"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -42,9 +43,10 @@ const (
 
 // IPPoolReconciler reconciles a IPPool object
 type IPPoolReconciler struct {
-	Client         client.Client
-	ManagerFactory ipam.ManagerFactoryInterface
-	Log            logr.Logger
+	Client           client.Client
+	ManagerFactory   ipam.ManagerFactoryInterface
+	Log              logr.Logger
+	WatchFilterValue string
 }
 
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools,verbs=get;list;watch;create;update;patch;delete
@@ -59,8 +61,8 @@ type IPPoolReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile handles Metal3Machine events
-func (r *IPPoolReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, rerr error) {
-	ctx := context.Background()
+func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
+	ctx = context.Background()
 	metadataLog := r.Log.WithName(ipPoolControllerName).WithValues("metal3-ippool", req.NamespacedName)
 
 	// Fetch the IPPool instance.
@@ -122,7 +124,7 @@ func (r *IPPoolReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, rerr erro
 		}
 
 		// Return early if the Metadata or Cluster is paused.
-		if util.IsPaused(cluster, ipamv1IPPool) {
+		if annotations.IsPaused(cluster, ipamv1IPPool) {
 			metadataLog.Info("reconciliation is paused for this object")
 			return ctrl.Result{Requeue: true, RequeueAfter: requeueAfter}, nil
 		}
@@ -170,23 +172,22 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 }
 
 // SetupWithManager will add watches for this controller
-func (r *IPPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ipamv1.IPPool{}).
 		Watches(
 			&source.Kind{Type: &ipamv1.IPClaim{}},
-			&handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.IPClaimToIPPool),
-			},
+			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
 		).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
 }
 
 // IPClaimToIPPool will return a reconcile request for a
 // Metal3DataTemplate if the event is for a
 // IPClaim and that IPClaim references a Metal3DataTemplate
-func (r *IPPoolReconciler) IPClaimToIPPool(obj handler.MapObject) []ctrl.Request {
-	if m3ipc, ok := obj.Object.(*ipamv1.IPClaim); ok {
+func (r *IPPoolReconciler) IPClaimToIPPool(obj client.Object) []ctrl.Request {
+	if m3ipc, ok := obj.(*ipamv1.IPClaim); ok {
 		if m3ipc.Spec.Pool.Name != "" {
 			namespace := m3ipc.Spec.Pool.Namespace
 			if namespace == "" {

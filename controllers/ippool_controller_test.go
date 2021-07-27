@@ -30,13 +30,12 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/klogr"
+	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -68,14 +67,14 @@ var _ = Describe("IPPool controller", func() {
 			f := ipam_mocks.NewMockManagerFactoryInterface(gomockCtrl)
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
-			objects := []runtime.Object{}
+			objects := []client.Object{}
 			if tc.m3ipp != nil {
 				objects = append(objects, tc.m3ipp)
 			}
 			if tc.cluster != nil {
 				objects = append(objects, tc.cluster)
 			}
-			c := fake.NewFakeClientWithScheme(setupScheme(), objects...)
+			c := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 
 			if tc.managerError {
 				f.EXPECT().NewIPPoolManager(gomock.Any(), gomock.Any()).Return(nil, errors.New(""))
@@ -123,7 +122,7 @@ var _ = Describe("IPPool controller", func() {
 				},
 			}
 
-			result, err := ipPoolReconcile.Reconcile(req)
+			result, err := ipPoolReconcile.Reconcile(context.Background(), req)
 
 			if tc.expectError || tc.managerError || tc.reconcileNormalError {
 				Expect(err).To(HaveOccurred())
@@ -235,7 +234,7 @@ var _ = Describe("IPPool controller", func() {
 		func(tc reconcileNormalTestCase) {
 			gomockCtrl := gomock.NewController(GinkgoT())
 
-			c := fake.NewFakeClientWithScheme(setupScheme())
+			c := fake.NewClientBuilder().WithScheme(setupScheme()).Build()
 
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
@@ -288,8 +287,7 @@ var _ = Describe("IPPool controller", func() {
 		func(tc reconcileDeleteTestCase) {
 			gomockCtrl := gomock.NewController(GinkgoT())
 
-			c := fake.NewFakeClientWithScheme(setupScheme())
-
+			c := fake.NewClientBuilder().WithScheme(setupScheme()).Build()
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
 				ManagerFactory: ipam.NewManagerFactory(c),
@@ -345,9 +343,7 @@ var _ = Describe("IPPool controller", func() {
 	DescribeTable("IPClaim To IPPool tests",
 		func(tc TestCaseM3IPCToM3IPP) {
 			r := IPPoolReconciler{}
-			obj := handler.MapObject{
-				Object: tc.IPClaim,
-			}
+			obj := client.Object(tc.IPClaim)
 			reqs := r.IPClaimToIPPool(obj)
 
 			if tc.ExpectRequest {
