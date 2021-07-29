@@ -15,8 +15,10 @@ apiVersion: ipam.metal3.io/v1alpha1
 kind: IPPool
 metadata:
   name: pool1
+  namespace: default
 spec:
   clusterName: cluster1
+  namePrefix: test1-prov
   pools:
     - start: 192.168.0.10
       end: 192.168.0.30
@@ -34,6 +36,7 @@ The *spec* field contains the following :
 
 * **clusterName**: That is the name of the cluster to which this pool belongs
   it is used to verify whether the resource is paused.
+* **namePrefix**: That is the prefix used to generate the IPAddress.
 * **pools**: this is a list of IP address pools
 * **prefix**: This is a default prefix for this IPPool
 * **gateway**: This is a default gateway for this IPPool
@@ -59,10 +62,12 @@ Example pool:
 apiVersion: ipam.metal3.io/v1alpha1
 kind: IPClaim
 metadata:
-  name: claim1
+  name: test1-controlplane-template-0-provisioning-pool
+  namespace: default
 spec:
   pool:
-    Name: pool1
+    name: pool1
+    namespace: default
 ```
 
 The *spec* field contains the following :
@@ -80,11 +85,14 @@ apiVersion: ipam.metal3.io/v1alpha1
 kind: IPAddress
 metadata:
   name: pool1-192-168-0-13
+  namespace: default
 spec:
   pool:
-    Name: pool1
+    name: pool1
+    namespace: default
   claim:
-    Name: claim1
+    name: test1-controlplane-template-0-provisioning-pool
+    namespace: default
   address: 192.168.0.13
   prefix: 24
   gateway: 192.168.0.1
