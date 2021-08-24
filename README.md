@@ -11,9 +11,10 @@ For more information about this controller and related repositories, see
 
 ## Compatibility with Cluster API
 
-| IPAM version      | CAPM3 version     | Cluster API version |
-|-------------------|-------------------|---------------------|
-| v1alpha1 (v0.1.X) | v1alpha4 (v0.4.X) | v1alpha3 (v0.3.X)   |
+| IPAM version      | CAPM3 version     | Cluster API version | IPAM Release |
+|-------------------|-------------------|---------------------|--------------|
+| v1alpha1 (v0.1.X) | v1alpha4 (v0.4.X) | v1alpha3 (v0.3.X)   | v0.0.X       |
+| v1alpha1 (v0.1.X) | v1alpha5 (v0.5.X) | v1alpha4 (v0.4.X)   | v0.1.X       |
 
 ## Development Environment
 
