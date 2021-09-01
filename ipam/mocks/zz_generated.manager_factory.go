@@ -23,37 +23,38 @@
 package ipam_mocks
 
 import (
+	reflect "reflect"
+
 	logr "github.com/go-logr/logr"
 	gomock "github.com/golang/mock/gomock"
 	v1alpha1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	ipam "github.com/metal3-io/ip-address-manager/ipam"
-	reflect "reflect"
 )
 
-// MockManagerFactoryInterface is a mock of ManagerFactoryInterface interface
+// MockManagerFactoryInterface is a mock of ManagerFactoryInterface interface.
 type MockManagerFactoryInterface struct {
 	ctrl     *gomock.Controller
 	recorder *MockManagerFactoryInterfaceMockRecorder
 }
 
-// MockManagerFactoryInterfaceMockRecorder is the mock recorder for MockManagerFactoryInterface
+// MockManagerFactoryInterfaceMockRecorder is the mock recorder for MockManagerFactoryInterface.
 type MockManagerFactoryInterfaceMockRecorder struct {
 	mock *MockManagerFactoryInterface
 }
 
-// NewMockManagerFactoryInterface creates a new mock instance
+// NewMockManagerFactoryInterface creates a new mock instance.
 func NewMockManagerFactoryInterface(ctrl *gomock.Controller) *MockManagerFactoryInterface {
 	mock := &MockManagerFactoryInterface{ctrl: ctrl}
 	mock.recorder = &MockManagerFactoryInterfaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockManagerFactoryInterface) EXPECT() *MockManagerFactoryInterfaceMockRecorder {
 	return m.recorder
 }
 
-// NewIPPoolManager mocks base method
+// NewIPPoolManager mocks base method.
 func (m *MockManagerFactoryInterface) NewIPPoolManager(arg0 *v1alpha1.IPPool, arg1 logr.Logger) (ipam.IPPoolManagerInterface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewIPPoolManager", arg0, arg1)
@@ -62,7 +63,7 @@ func (m *MockManagerFactoryInterface) NewIPPoolManager(arg0 *v1alpha1.IPPool, ar
 	return ret0, ret1
 }
 
-// NewIPPoolManager indicates an expected call of NewIPPoolManager
+// NewIPPoolManager indicates an expected call of NewIPPoolManager.
 func (mr *MockManagerFactoryInterfaceMockRecorder) NewIPPoolManager(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIPPoolManager", reflect.TypeOf((*MockManagerFactoryInterface)(nil).NewIPPoolManager), arg0, arg1)
