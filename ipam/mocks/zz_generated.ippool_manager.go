@@ -24,59 +24,36 @@ package ipam_mocks
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 	v1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 )
 
-// MockIPPoolManagerInterface is a mock of IPPoolManagerInterface interface
+// MockIPPoolManagerInterface is a mock of IPPoolManagerInterface interface.
 type MockIPPoolManagerInterface struct {
 	ctrl     *gomock.Controller
 	recorder *MockIPPoolManagerInterfaceMockRecorder
 }
 
-// MockIPPoolManagerInterfaceMockRecorder is the mock recorder for MockIPPoolManagerInterface
+// MockIPPoolManagerInterfaceMockRecorder is the mock recorder for MockIPPoolManagerInterface.
 type MockIPPoolManagerInterfaceMockRecorder struct {
 	mock *MockIPPoolManagerInterface
 }
 
-// NewMockIPPoolManagerInterface creates a new mock instance
+// NewMockIPPoolManagerInterface creates a new mock instance.
 func NewMockIPPoolManagerInterface(ctrl *gomock.Controller) *MockIPPoolManagerInterface {
 	mock := &MockIPPoolManagerInterface{ctrl: ctrl}
 	mock.recorder = &MockIPPoolManagerInterfaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIPPoolManagerInterface) EXPECT() *MockIPPoolManagerInterfaceMockRecorder {
 	return m.recorder
 }
 
-// SetFinalizer mocks base method
-func (m *MockIPPoolManagerInterface) SetFinalizer() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFinalizer")
-}
-
-// SetFinalizer indicates an expected call of SetFinalizer
-func (mr *MockIPPoolManagerInterfaceMockRecorder) SetFinalizer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizer", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).SetFinalizer))
-}
-
-// UnsetFinalizer mocks base method
-func (m *MockIPPoolManagerInterface) UnsetFinalizer() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnsetFinalizer")
-}
-
-// UnsetFinalizer indicates an expected call of UnsetFinalizer
-func (mr *MockIPPoolManagerInterfaceMockRecorder) UnsetFinalizer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetFinalizer", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).UnsetFinalizer))
-}
-
-// SetClusterOwnerRef mocks base method
+// SetClusterOwnerRef mocks base method.
 func (m *MockIPPoolManagerInterface) SetClusterOwnerRef(arg0 *v1alpha4.Cluster) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClusterOwnerRef", arg0)
@@ -84,13 +61,37 @@ func (m *MockIPPoolManagerInterface) SetClusterOwnerRef(arg0 *v1alpha4.Cluster) 
 	return ret0
 }
 
-// SetClusterOwnerRef indicates an expected call of SetClusterOwnerRef
+// SetClusterOwnerRef indicates an expected call of SetClusterOwnerRef.
 func (mr *MockIPPoolManagerInterfaceMockRecorder) SetClusterOwnerRef(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterOwnerRef", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).SetClusterOwnerRef), arg0)
 }
 
-// UpdateAddresses mocks base method
+// SetFinalizer mocks base method.
+func (m *MockIPPoolManagerInterface) SetFinalizer() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFinalizer")
+}
+
+// SetFinalizer indicates an expected call of SetFinalizer.
+func (mr *MockIPPoolManagerInterfaceMockRecorder) SetFinalizer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFinalizer", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).SetFinalizer))
+}
+
+// UnsetFinalizer mocks base method.
+func (m *MockIPPoolManagerInterface) UnsetFinalizer() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UnsetFinalizer")
+}
+
+// UnsetFinalizer indicates an expected call of UnsetFinalizer.
+func (mr *MockIPPoolManagerInterfaceMockRecorder) UnsetFinalizer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetFinalizer", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).UnsetFinalizer))
+}
+
+// UpdateAddresses mocks base method.
 func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAddresses", arg0)
@@ -99,7 +100,7 @@ func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context) (int,
 	return ret0, ret1
 }
 
-// UpdateAddresses indicates an expected call of UpdateAddresses
+// UpdateAddresses indicates an expected call of UpdateAddresses.
 func (mr *MockIPPoolManagerInterfaceMockRecorder) UpdateAddresses(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAddresses", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).UpdateAddresses), arg0)
