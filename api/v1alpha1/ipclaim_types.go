@@ -49,6 +49,7 @@ type IPClaimStatus struct {
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3IPClaim"
 // IPClaim is the Schema for the ipclaims API
 type IPClaim struct {
 	metav1.TypeMeta   `json:",inline"`

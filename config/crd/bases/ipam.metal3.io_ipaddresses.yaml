@@ -27,7 +27,12 @@ spec:
     singular: ipaddress
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Time duration since creation of Metal3IPAddress
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: IPAddress is the Schema for the ipaddresses API
@@ -146,6 +151,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""
