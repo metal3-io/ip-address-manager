@@ -27,7 +27,12 @@ spec:
     singular: ipclaim
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Time duration since creation of Metal3IPClaim
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: IPClaim is the Schema for the ipclaims API
