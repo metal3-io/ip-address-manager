@@ -13,7 +13,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-ipam-metal3-io-v1alpha4-ipaddress
+      path: /mutate-ipam-metal3-io-v1alpha1-ipaddress
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: default.ipaddress.ipam.metal3.io
@@ -21,7 +21,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
@@ -35,7 +35,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-ipam-metal3-io-v1alpha4-ipclaim
+      path: /mutate-ipam-metal3-io-v1alpha1-ipclaim
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: default.ipclaim.ipam.metal3.io
@@ -43,7 +43,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
@@ -57,7 +57,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-ipam-metal3-io-v1alpha4-ippool
+      path: /mutate-ipam-metal3-io-v1alpha1-ippool
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: default.ippool.ipam.metal3.io
@@ -65,7 +65,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
@@ -87,7 +87,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-ipam-metal3-io-v1alpha4-ipaddress
+      path: /validate-ipam-metal3-io-v1alpha1-ipaddress
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: validation.ipaddress.ipam.metal3.io
@@ -95,7 +95,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
@@ -109,7 +109,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-ipam-metal3-io-v1alpha4-ipclaim
+      path: /validate-ipam-metal3-io-v1alpha1-ipclaim
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: validation.ipclaim.ipam.metal3.io
@@ -117,7 +117,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
@@ -131,7 +131,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-ipam-metal3-io-v1alpha4-ippool
+      path: /validate-ipam-metal3-io-v1alpha1-ippool
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: validation.ippool.ipam.metal3.io
@@ -139,7 +139,7 @@ webhooks:
   - apiGroups:
     - ipam.metal3.io
     apiVersions:
-    - v1alpha4
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
