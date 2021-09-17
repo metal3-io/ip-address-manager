@@ -21,4 +21,4 @@ spec:
   issuerRef:
     kind: Issuer
     name: selfsigned-issuer
-  secretName: $(SERVICE_NAME)-cert # this secret will not be prefixed, since it's not managed by kustomize
+  secretName: ipam-serving-cert # this secret will not be prefixed, since it's not managed by kustomize
