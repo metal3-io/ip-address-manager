@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/golangci/golangci-lint v1.37.1
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
+	go.mongodb.org/mongo-driver v1.5.1 // indirect
 	k8s.io/code-generator v0.17.4
 	sigs.k8s.io/controller-tools v0.2.8
 	sigs.k8s.io/kustomize/kustomize/v3 v3.10.0
