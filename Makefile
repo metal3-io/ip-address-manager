@@ -311,7 +311,7 @@ release: clean-release  ## Builds and push container images using the latest git
 
 .PHONY: release-manifests
 release-manifests: $(RELEASE_DIR) ## Builds the manifests to publish with a release
-	kustomize build config/default > $(RELEASE_DIR)/ipam-components.yaml
+	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/ipam-components.yaml
 
 .PHONY: release-binaries
 release-binaries: ## Builds the binaries to publish with a release
