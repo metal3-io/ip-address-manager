@@ -336,7 +336,7 @@ release-staging: ## Builds and push container images to the staging bucket.
 
 .PHONY: release-tag-latest
 release-tag-latest: ## Adds the latest tag to the last build tag.
-	## TODO(vincepri): Only do this when we're on master.
+	## TODO(vincepri): Only do this when we're on main.
 	gcloud container images add-tag $(CONTROLLER_IMG):$(TAG) $(CONTROLLER_IMG):latest
 
 .PHONY: release-notes

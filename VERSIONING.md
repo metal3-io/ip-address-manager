@@ -1,7 +1,7 @@
 # Versioning
 
 Those guidelines are coming from
-[Cluster API](https://github.com/kubernetes-sigs/cluster-api/blob/master/VERSIONING.md)
+[Cluster API](https://github.com/kubernetes-sigs/cluster-api/blob/main/VERSIONING.md)
 as we try to follow closely the release process
 
 <!-- markdownlint-disable -->
@@ -9,7 +9,7 @@ as we try to follow closely the release process
 <!-- markdownlint-restore -->
 
 - We follow [Semantic Versioning (semver)](https://semver.org/).
-- The _master_ branch is where development happens, this might include breaking
+- The _main_ branch is where development happens, this might include breaking
   changes.
 - The _release-X_ branches contain stable, backward compatible code. A new
   _release-X_ branch is created at every major (X) release.
@@ -33,7 +33,7 @@ but essentially, for any given release X.Y.Z:
 changes.
 
 These guarantees extend to all code exposed in public APIs of
-Cluster API Provider Metal3. This includes code both in Cluster API Provider
+IP Address Manager. This includes code both in IP Address Manager
 Baremetal itself, *plus types from dependencies in public APIs*.  Types and
 functions not in public APIs are not considered part of the guarantee.
 
@@ -42,11 +42,11 @@ that we follow.
 
 ## Branches
 
-Cluster API Provider Metal3 contains two types of branches: the *master*
+IP Address Manager contains two types of branches: the *main*
 branch and *release-X* branches.
 
-The *master* branch is where development happens.  All the latest and
-greatest code, including breaking changes, happen on master.
+The *main* branch is where development happens.  All the latest and
+greatest code, including breaking changes, happen on main.
 
 The *release-X* branches contain stable, backwards compatible code.  Every
 major (X) release, a new such branch is created.  It is from these
@@ -80,7 +80,7 @@ separately.
 
 ### Commands and Workflow
 
-Cluster API Provider Metal3 follows the standard Kubernetes workflow: any PR
+IP Address Manager follows the standard Kubernetes workflow: any PR
 needs `lgtm` and `approved` labels, PRs authors must have signed the CNCF CLA,
 and PRs must pass the tests before being merged.  See [the contributor
 docs](https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#the-testing-and-merge-workflow)
@@ -90,7 +90,7 @@ We use the same priority and kind labels as Kubernetes.  See the labels
 tab in GitHub for the full list.
 
 The standard Kubernetes comment commands should work in
-Cluster API Provider Metal3.  See [Prow](https://prow.k8s.io/command-help)
+IP Address Manager.  See [Prow](https://prow.k8s.io/command-help)
 for a command reference.
 
 ## Release Process
@@ -115,11 +115,11 @@ Refer to the [releasing document](./docs/releasing.md) for the exact steps.
 
 Try to avoid breaking changes.  They make life difficult for users, who
 have to rewrite their code when they eventually upgrade, and for
-maintainers/contributors, who have to deal with differences between master
+maintainers/contributors, who have to deal with differences between main
 and stable branches.
 
 That being said, we'll occasionally want to make breaking changes. They'll
-be merged onto master, and will then trigger a major release (see [Release
+be merged onto main, and will then trigger a major release (see [Release
 Process](#release-process)).  Because breaking changes induce a major
 revision, the maintainers may delay a particular breaking change until
 a later date when they are ready to make a major revision with a few
@@ -149,7 +149,7 @@ Development branches:
   changes (we still have to merge/manage multiple branches for development
   and stable)
 
-- can be confusing to contributors, who often expect master to have the
+- can be confusing to contributors, who often expect main to have the
   latest changes.
 
 ### Never break compatibility

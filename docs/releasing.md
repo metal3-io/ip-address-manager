@@ -71,7 +71,7 @@ latest version.
 ### Update Metal3-dev-env
 
 Metal3-dev-env variables need to be modified. After a major or minor release,
-the new minor version should point to master for
+the new minor version should point to main for
 IPAM and the released version should point to the release branch.
 
 ### Update the image of IPAM in the release branch
