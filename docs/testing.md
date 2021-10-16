@@ -1,11 +1,11 @@
-# CAPM3 testing
+# IPAM testing
 
-This document outlines the testing strategy applied in CAPM3. All developers
+This document outlines the testing strategy applied in IPAM. All developers
 should follow those guidelines to ensure uniformity and quality in the tests.
 
 ## Code coverage
 
-The minimum code coverage required for the `api`, `baremetal` and `controllers`
+The minimum code coverage required for the `api`, `ipam` and `controllers`
 folders is **80%**. Any PR introducing new code should include tests for the new
 code and the developers should verify that the code coverage did not decrease
 due to their PR. The generated code should be excluded from the coverage (files
