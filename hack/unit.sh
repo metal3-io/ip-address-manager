@@ -15,9 +15,9 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/go/src/github.com/metal3-io/cluster-api-provider-metal3:ro,z" \
+    --volume "${PWD}:/workdir:ro,z" \
     --entrypoint sh \
-    --workdir /go/src/github.com/metal3-io/cluster-api-provider-metal3 \
+    --workdir /workdir \
     quay.io/metal3-io/capm3-unit:master \
-    /go/src/github.com/metal3-io/cluster-api-provider-metal3/hack/unit.sh "${@}"
+    /workdir/hack/unit.sh "${@}"
 fi;
