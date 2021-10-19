@@ -45,7 +45,7 @@ For version v0.x.y:
    signature when pushing the tag, use `git tag -s [...]` instead
 1. Push the tag to the GitHub repository `git push origin v0.x.y`
    NB: `origin` should be the name of the remote pointing to
-   `github.com/metal3-io/cluster-api-provider-metal3`
+   `github.com/metal3-io/ip-address-manager`
 1. Run `make release` to build artifacts (the image is automatically built by CI)
 1. [Create a release in GitHub](https://help.github.com/en/github/administering-a-repository/creating-releases)
    that contains the elements listed above that have been created in the `out`
