@@ -61,6 +61,15 @@ func main() {
 	os.Exit(run())
 }
 
+func latestTag() string {
+	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
+	out, err := cmd.Output()
+	if err != nil {
+		return firstCommit()
+	}
+	return string(bytes.TrimSpace(out))
+}
+
 func lastTag() string {
 	if fromTag != nil && *fromTag != "" {
 		return *fromTag
@@ -83,6 +92,7 @@ func firstCommit() string {
 }
 
 func run() int {
+	latestTag := latestTag()
 	lastTag := lastTag()
 	cmd := exec.Command("git", "rev-list", lastTag+"..HEAD", "--merges", "--pretty=format:%B")
 
@@ -139,7 +149,7 @@ func run() int {
 			body = strings.TrimPrefix(body, ":seedling:")
 			body = strings.TrimPrefix(body, "🌱")
 		case strings.HasPrefix(body, ":running:"), strings.HasPrefix(body, "🏃"):
- 			// This has been deprecated in favor of :seedling:
+			// This has been deprecated in favor of :seedling:
 			key = other
 			body = strings.TrimPrefix(body, ":running:")
 			body = strings.TrimPrefix(body, "🏃")
@@ -174,7 +184,7 @@ func run() int {
 		}
 	}
 
-	fmt.Println("The image for this release is: `<ADD_IMAGE_HERE>`.")
+	fmt.Printf("The image for this release is: %v\n", latestTag)
 	fmt.Println("")
 	fmt.Println("_Thanks to all our contributors!_ 😊")
 
