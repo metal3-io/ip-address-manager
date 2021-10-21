@@ -27,7 +27,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	v1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	v1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 // MockIPPoolManagerInterface is a mock of IPPoolManagerInterface interface.
@@ -54,7 +54,7 @@ func (m *MockIPPoolManagerInterface) EXPECT() *MockIPPoolManagerInterfaceMockRec
 }
 
 // SetClusterOwnerRef mocks base method.
-func (m *MockIPPoolManagerInterface) SetClusterOwnerRef(arg0 *v1alpha4.Cluster) error {
+func (m *MockIPPoolManagerInterface) SetClusterOwnerRef(arg0 *v1beta1.Cluster) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClusterOwnerRef", arg0)
 	ret0, _ := ret[0].(error)

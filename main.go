@@ -31,7 +31,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	// +kubebuilder:scaffold:imports
 )
@@ -52,7 +52,7 @@ var (
 func init() {
 	_ = scheme.AddToScheme(myscheme)
 	_ = ipamv1.AddToScheme(myscheme)
-	_ = clusterv1.AddToScheme(myscheme)
+	_ = capi.AddToScheme(myscheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -77,7 +77,7 @@ func main() {
 		&watchFilterValue,
 		"watch-filter",
 		"",
-		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel),
+		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", capi.WatchLabel),
 	)
 	flag.StringVar(&healthAddr, "health-addr", ":9440",
 		"The address the health endpoint binds to.")
