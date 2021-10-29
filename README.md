@@ -6,7 +6,7 @@
 This repository contains a controller to manage static IP address allocations
 in [Cluster API Provider Metal3](https://github.com/metal3-io/cluster-api-provider-metal3/).
 
-For more information about this controller and related repositories, see
+For more information about this, controller and related repositories, see
 [metal3.io](http://metal3.io/).
 
 ## Compatibility with Cluster API
