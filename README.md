@@ -1,7 +1,7 @@
 # Metal3 IP Address Manager for Cluster API Provider Metal3
 
-[![Ubuntu V1alpha5 build status](https://jenkins.nordix.org/view/Airship/job/airship_master_v1a5_integration_test_ubuntu/badge/icon?subject=Ubuntu%20E2E%20V1alpha5)](https://jenkins.nordix.org/view/Airship/job/airship_master_v1a5_integration_test_ubuntu)
-[![CentOS V1alpha5 build status](https://jenkins.nordix.org/view/Airship/job/airship_master_v1a5_integration_test_centos/badge/icon?subject=CentOS%20E2E%20V1alpha5)](https://jenkins.nordix.org/view/Airship/job/airship_master_v1a5_integration_test_centos)
+[![Ubuntu V1beta1 build status](https://jenkins.nordix.org/view/Airship/job/airship_master_v1b1_integration_test_ubuntu/badge/icon?subject=Ubuntu%20E2E%20V1beta1)](https://jenkins.nordix.org/view/Airship/job/airship_master_v1b1_integration_test_ubuntu/)
+[![CentOS V1beta1 build status](https://jenkins.nordix.org/view/Airship/job/airship_master_v1b1_integration_test_centos/badge/icon?subject=CentOS%20E2E%20V1beta1)](https://jenkins.nordix.org/view/Airship/job/airship_master_v1b1_integration_test_centos/)
 
 This repository contains a controller to manage static IP address allocations
 in [Cluster API Provider Metal3](https://github.com/metal3-io/cluster-api-provider-metal3/).
@@ -13,8 +13,9 @@ For more information about this controller and related repositories, see
 
 | IPAM version      | CAPM3 version     | Cluster API version | IPAM Release |
 |-------------------|-------------------|---------------------|--------------|
-| v1alpha1 (v0.1.X) | v1alpha4 (v0.4.X) | v1alpha3 (v0.3.X)   | v0.0.X       |
+| v1alpha1 (v0.0.X) | v1alpha4 (v0.4.X) | v1alpha3 (v0.3.X)   | v0.0.X       |
 | v1alpha1 (v0.1.X) | v1alpha5 (v0.5.X) | v1alpha4 (v0.4.X)   | v0.1.X       |
+| v1alpha1 (v1.0.X) | v1beta1 (v1.0.X)  | v1beta1 (v1.0.X)    | v1.0.X       |
 
 ## Development Environment
 
