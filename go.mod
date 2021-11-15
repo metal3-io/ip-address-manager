@@ -17,7 +17,7 @@ require (
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
 	sigs.k8s.io/cluster-api v1.0.0
-	sigs.k8s.io/controller-runtime v0.10.3-0.20211011182302-43ea648ec318
+	sigs.k8s.io/controller-runtime v0.10.3
 )
 
 replace github.com/metal3-io/ip-address-manager/api => ./api
