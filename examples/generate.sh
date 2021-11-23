@@ -15,18 +15,15 @@
 
 set -o errexit
 set -o nounset
+set -o pipefail
 
 # Directories.
 SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 OUTPUT_DIR=${OUTPUT_DIR:-${SOURCE_DIR}/_out}
 
-# Binaries
-ENVSUBST=${ENVSUBST:-envsubst}
-command -v "${ENVSUBST}" >/dev/null 2>&1 || echo -v "Cannot find ${ENVSUBST} in path."
-
 # Cluster.
 export CLUSTER_NAME="${CLUSTER_NAME:-test1}"
-
+export NAMESPACE="${NAMESPACE:-capm3-system}"
 
 # Outputs.
 COMPONENTS_CERT_MANAGER_GENERATED_FILE=${OUTPUT_DIR}/cert-manager.yaml
@@ -72,9 +69,15 @@ if [ $OVERWRITE -ne 1 ] && [ -d "$OUTPUT_DIR" ]; then
 fi
 
 mkdir -p "${OUTPUT_DIR}"
+kubectl create namespace "${NAMESPACE}"
+
+# Get enhanced envsubst version to evaluate expressions like ${VAR:=default}
+ENVSUBST="${OUTPUT_DIR}/envsubst-go"
+curl --fail -Ss -L -o "${ENVSUBST}" https://github.com/a8m/envsubst/releases/download/v1.2.0/envsubst-"$(uname -s)"-"$(uname -m)"
+chmod +x "$ENVSUBST"
 
 # Generate cluster resources.
-kustomize build "${SOURCE_DIR}/ippool" | envsubst > "${IPPOOL_GENERATED_FILE}"
+kustomize build "${SOURCE_DIR}/ippool" | "$ENVSUBST" > "${IPPOOL_GENERATED_FILE}"
 echo "Generated ${IPPOOL_GENERATED_FILE}"
 
 # Get Cert-manager provider components file
@@ -82,11 +85,11 @@ curl --fail -Ss -L -o "${COMPONENTS_CERT_MANAGER_GENERATED_FILE}" https://github
 echo "Downloaded ${COMPONENTS_CERT_MANAGER_GENERATED_FILE}"
 
 # Generate Cluster API provider components file.
-kustomize build "github.com/kubernetes-sigs/cluster-api/config/default/?ref=main" > "${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
+kustomize build "github.com/kubernetes-sigs/cluster-api/config/default/?ref=main" | "$ENVSUBST" > "${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
 echo "Generated ${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
 
 # Generate METAL3 Infrastructure Provider components file.
-kustomize build "${SOURCE_DIR}/../config/default" | envsubst > "${COMPONENTS_METAL3_GENERATED_FILE}"
+kustomize build "${SOURCE_DIR}/../config/default" | "$ENVSUBST" > "${COMPONENTS_METAL3_GENERATED_FILE}"
 echo "Generated ${COMPONENTS_METAL3_GENERATED_FILE}"
 
 # Generate a single provider components file.

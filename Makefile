@@ -273,12 +273,19 @@ deploy: generate-examples
 	kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment cert-manager-webhook
 	kubectl apply -f examples/_out/provider-components.yaml
 
+.PHONY: kind-create
+kind-create: ## create ipam kind cluster if needed
+	./hack/kind_with_registry.sh
+
 deploy-examples:
 	kubectl apply -f ./examples/_out/ippool.yaml
 
 delete-examples:
-	kubectl delete -f ./examples/_out/ippool.yaml
+	kubectl delete -f ./examples/_out/ippool.yaml || true
 
+.PHONY: kind-reset
+kind-reset: ## Destroys the "ipam" kind cluster.
+	kind delete cluster --name=ipam || true
 
 ## --------------------------------------
 ## Release
