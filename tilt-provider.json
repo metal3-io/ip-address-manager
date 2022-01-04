@@ -4,7 +4,15 @@
         "kustomize_config": false,
         "image": "quay.io/metal3-io/ip-address-manager",
         "live_reload_deps": [
-            "api", "ipam", "config", "controllers", "go.mod", "go.sum", "main.go"
-        ]
+            "api",
+            "ipam",
+            "config",
+            "controllers",
+            "go.mod",
+            "go.sum",
+            "main.go"
+        ],
+        "label": "IPAM",
+        "manager_name": "ipam-controller-manager"
     }
 }
