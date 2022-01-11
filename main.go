@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -86,15 +87,16 @@ func main() {
 	ctrl.SetLogger(klogr.New())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 myscheme,
-		MetricsBindAddress:     metricsBindAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "controller-leader-election-ipam-capm3",
-		SyncPeriod:             &syncPeriod,
-		Port:                   webhookPort,
-		HealthProbeBindAddress: healthAddr,
-		Namespace:              watchNamespace,
-		CertDir:                webhookCertDir,
+		Scheme:                     myscheme,
+		MetricsBindAddress:         metricsBindAddr,
+		LeaderElection:             enableLeaderElection,
+		LeaderElectionID:           "controller-leader-election-ipam-capm3",
+		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
+		SyncPeriod:                 &syncPeriod,
+		Port:                       webhookPort,
+		HealthProbeBindAddress:     healthAddr,
+		Namespace:                  watchNamespace,
+		CertDir:                    webhookCertDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
