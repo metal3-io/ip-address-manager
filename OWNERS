@@ -2,10 +2,12 @@
 
 approvers:
  - russellb
- - maelk
  - kashifest
  - fmuyassarov
  - furkatgofurov7
 
 reviewers:
-- macaptain
+ - macaptain
+
+emeritus_approvers:
+ - maelk
