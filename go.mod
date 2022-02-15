@@ -71,3 +71,5 @@ require (
 )
 
 replace github.com/metal3-io/ip-address-manager/api => ./api
+
+replace github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible
