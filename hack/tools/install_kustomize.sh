@@ -2,7 +2,7 @@
 
 [[ -f bin/kustomize ]] && exit 0
 
-version=3.5.4
+version=4.4.1
 arch=amd64
 
 mkdir -p ./bin
