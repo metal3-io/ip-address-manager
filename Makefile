@@ -32,6 +32,7 @@ export GO111MODULE=on
 
 # Directories.
 TOOLS_DIR := hack/tools
+APIS_DIR := api
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 BIN_DIR := bin
 
@@ -81,7 +82,7 @@ testprereqs: $(KUBEBUILDER) $(KUSTOMIZE)
 
 .PHONY: test
 test: testprereqs generate fmt lint ## Run tests
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd api; go test -v ./... -coverprofile ./cover.out
+	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out
 
 .PHONY: test-integration
 test-integration: ## Run integration tests
@@ -135,21 +136,21 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint codebase
 	$(GOLANGCI_LINT) run -v
-	cd api; ../$(GOLANGCI_LINT) run -v --timeout=10m
+	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v --timeout=10m
 
 lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
 	$(GOLANGCI_LINT) run -v --fast=false
-	cd api; ../$(GOLANGCI_LINT) run -v --fast=false --timeout=30m
+	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v --fast=false --timeout=30m
 
 # Run go fmt against code
 fmt:
 	go fmt ./controllers/... ./ipam/... .
-	cd api; go fmt ./...
+	cd $(APIS_DIR); go fmt ./...
 
 # Run go vet against code
 vet:
 	go vet ./controllers/... ./ipam/... .
-	cd api; go vet ./...
+	cd $(APIS_DIR); go vet ./...
 
 
 ## --------------------------------------
@@ -159,7 +160,7 @@ vet:
 .PHONY: modules
 modules: ## Runs go mod to ensure proper vendoring.
 	go mod tidy
-	cd api; go mod tidy
+	cd $(APIS_DIR); go mod tidy
 	cd $(TOOLS_DIR); go mod tidy
 
 .PHONY: generate
@@ -170,7 +171,7 @@ generate: ## Generate code
 .PHONY: generate-go
 generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUSTOMIZE) ## Runs Go related generate targets
 	go generate ./...
-	cd api; go generate ./...
+	cd $(APIS_DIR); go generate ./...
 	cd ./api; ../$(CONTROLLER_GEN) \
 		paths=./... \
 		object:headerFile=../hack/boilerplate/boilerplate.generatego.txt
@@ -191,7 +192,7 @@ generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUS
 
 .PHONY: generate-manifests
 generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
-	cd api; ../$(CONTROLLER_GEN) \
+	cd $(APIS_DIR); ../$(CONTROLLER_GEN) \
 		paths=./... \
 		crd:crdVersions=v1 \
 		output:crd:dir=../$(CRD_ROOT) \
