@@ -1,11 +1,18 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
 approvers:
- - russellb
- - maelk
  - kashifest
  - fmuyassarov
  - furkatgofurov7
 
 reviewers:
-- macaptain
+ - smoshiur1237
+ - Rozzii
+ - namnx228
+
+emeritus_approvers:
+ - maelk
+ - russellb
+
+emeritus_reviewers:
+ - macaptain
