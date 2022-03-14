@@ -186,6 +186,8 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 
 	// Iterate over the IPClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
+
+		addressClaim := addressClaim
 		// If IPPool does not point to this object, discard
 		if addressClaim.Spec.Pool.Name != m.IPPool.Name {
 			continue
