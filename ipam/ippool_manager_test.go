@@ -265,6 +265,41 @@ var _ = Describe("IPPool manager", func() {
 				"abc": ipamv1.IPAddressStr("abcd1"),
 			},
 		}),
+		Entry("IPPool with deletion timestamp", testGetIndexes{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					DeletionTimestamp: &timeNow,
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"bcd": ipamv1.IPAddressStr("bcde"),
+					},
+				},
+			},
+			addresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-1-11",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+						Claim: corev1.ObjectReference{
+							Name:      "inUseClaim",
+							Namespace: "myns",
+						},
+						Address: ipamv1.IPAddressStr("192.168.1.11"),
+						Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+						Prefix:  24,
+					},
+				},
+			},
+			expectedAddresses:   map[ipamv1.IPAddressStr]string{},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{},
+		}),
 	)
 
 	var ipPoolMeta = metav1.ObjectMeta{

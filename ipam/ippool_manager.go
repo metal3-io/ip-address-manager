@@ -112,8 +112,14 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 
 	addresses := make(map[ipamv1.IPAddressStr]string)
 
-	for _, address := range m.IPPool.Spec.PreAllocations {
-		addresses[address] = ""
+	// After addresses map is populated, we consider that there are still addresses in use.
+	// However, when IPPool.Spec.PreAllocations is given, it can still hold addresses even
+	// though they are already deleted. This consideration should be valid only when
+	// IPPool does not have DeletionTimestamp set.
+	if m.IPPool.DeletionTimestamp.IsZero() {
+		for _, address := range m.IPPool.Spec.PreAllocations {
+			addresses[address] = ""
+		}
 	}
 
 	// get list of IPAddress objects
