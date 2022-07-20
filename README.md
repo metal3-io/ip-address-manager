@@ -27,7 +27,7 @@ and [baremetal-operator](https://github.com/metal3-io/baremetal-operator).
 ## API
 
 See the [API Documentation](docs/api.md) for details about the objects used with
-this controller. You can also see the [cluster deployment
+this controller. You, can also see the [cluster deployment
 workflow](docs/deployment_workflow.md) for the outline of the
 deployment process.
 

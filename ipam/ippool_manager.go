@@ -298,7 +298,7 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
-		addressClaim.Status.ErrorMessage = pointer.StringPtr("Exhausted IP Pools")
+		addressClaim.Status.ErrorMessage = pointer.StringPtr("Exhausted IP Pools.")
 		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Exhausted IP Pools")
 	}
 	return allocatedAddress, prefix, gateway, dnsServers, nil
