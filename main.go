@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	"k8s.io/klog/v2"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2/klogr"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,6 +48,7 @@ var (
 	watchNamespace       string
 	webhookCertDir       string
 	watchFilterValue     string
+	logOptions           = logs.NewOptions()
 )
 
 func init() {
@@ -58,7 +59,6 @@ func init() {
 }
 
 func main() {
-	klog.InitFlags(nil)
 	flag.StringVar(&metricsBindAddr, "metrics-bind-addr", "localhost:8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -84,7 +84,19 @@ func main() {
 		"The address the health endpoint binds to.")
 	flag.Parse()
 
-	ctrl.SetLogger(klogr.New())
+	if err := logOptions.ValidateAndApply(nil); err != nil {
+		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	// The JSON log format requires the Klog format in klog, otherwise log lines
+	// are serialized twice, e.g.:
+	// { ... "msg":"controller/cluster \"msg\"=\"Starting workers\"\n"}
+	if logOptions.Config.Format == logs.JSONLogFormat {
+		ctrl.SetLogger(klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)))
+	} else {
+		ctrl.SetLogger(klogr.New())
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                     myscheme,
