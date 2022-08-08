@@ -8,6 +8,8 @@ spec:
   template:
     spec:
       tolerations:
+      # TODO (fmuyassarov): remove node-role.kubernetes.io/master
+      # taint before moving to k8s v1.24
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
         - effect: NoSchedule

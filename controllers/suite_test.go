@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -49,7 +48,7 @@ var testEnv *envtest.Environment
 var timestampNow = metav1.Now()
 
 func init() {
-	klog.InitFlags(nil)
+
 	logf.SetLogger(klogr.New())
 
 	// Register required object kinds with global scheme.
