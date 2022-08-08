@@ -212,17 +212,17 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	if err != nil {
 		return addresses, errors.Wrap(err, "failed to init patch helper")
 	}
-	// Always patch addressClaim exiting this function so we can persist any changes.
-	defer func() {
-		err := helper.Patch(ctx, addressClaim)
-		if err != nil {
-			m.Log.Info("failed to Patch IPClaim")
-		}
-	}()
 
 	addressClaim.Status.ErrorMessage = nil
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Always patch addressClaim exiting this function so we can persist any changes.
+		defer func() {
+			err := helper.Patch(ctx, addressClaim)
+			if err != nil {
+				m.Log.Error(err, "failed to Patch IPClaim")
+			}
+		}()
 		addresses, err = m.createAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
