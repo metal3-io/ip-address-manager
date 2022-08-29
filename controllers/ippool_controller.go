@@ -26,7 +26,7 @@ import (
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
@@ -41,7 +41,7 @@ const (
 	requeueAfter         = time.Second * 30
 )
 
-// IPPoolReconciler reconciles a IPPool object
+// IPPoolReconciler reconciles a IPPool object.
 type IPPoolReconciler struct {
 	Client           client.Client
 	ManagerFactory   ipam.ManagerFactoryInterface
@@ -60,7 +60,7 @@ type IPPoolReconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile handles Metal3Machine events
+// Reconcile handles Metal3Machine events.
 func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
 	ctx = context.Background()
 	metadataLog := r.Log.WithName(ipPoolControllerName).WithValues("metal3-ippool", req.NamespacedName)
@@ -86,7 +86,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		}
 	}()
 
-	cluster := &capi.Cluster{}
+	cluster := &clusterv1.Cluster{}
 	if ipamv1IPPool.Spec.ClusterName != nil {
 		key := client.ObjectKey{
 			Name:      *ipamv1IPPool.Spec.ClusterName,
@@ -96,8 +96,8 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		if ipamv1IPPool.ObjectMeta.Labels == nil {
 			ipamv1IPPool.ObjectMeta.Labels = make(map[string]string)
 		}
-		ipamv1IPPool.ObjectMeta.Labels[capi.ClusterLabelName] = *ipamv1IPPool.Spec.ClusterName
-		ipamv1IPPool.ObjectMeta.Labels[capi.ProviderLabelName] = "infrastructure-metal3"
+		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ClusterLabelName] = *ipamv1IPPool.Spec.ClusterName
+		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ProviderLabelName] = "infrastructure-metal3"
 
 		// Fetch the Cluster. Ignore an error if the deletion timestamp is set
 		err = r.Client.Get(ctx, key, cluster)
@@ -156,7 +156,6 @@ func (r *IPPoolReconciler) reconcileNormal(ctx context.Context,
 func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 	ipPoolMgr ipam.IPPoolManagerInterface,
 ) (ctrl.Result, error) {
-
 	allocationsNb, err := ipPoolMgr.UpdateAddresses(ctx)
 	if err != nil {
 		return checkRequeueError(err, "Failed to delete the old secrets")
@@ -171,7 +170,7 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager will add watches for this controller
+// SetupWithManager will add watches for this controller.
 func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ipamv1.IPPool{}).
@@ -185,7 +184,7 @@ func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manage
 
 // IPClaimToIPPool will return a reconcile request for a
 // Metal3DataTemplate if the event is for a
-// IPClaim and that IPClaim references a Metal3DataTemplate
+// IPClaim and that IPClaim references a Metal3DataTemplate.
 func (r *IPPoolReconciler) IPClaimToIPPool(obj client.Object) []ctrl.Request {
 	if m3ipc, ok := obj.(*ipamv1.IPClaim); ok {
 		if m3ipc.Spec.Pool.Name != "" {
@@ -210,7 +209,8 @@ func checkRequeueError(err error, errMessage string) (ctrl.Result, error) {
 	if err == nil {
 		return ctrl.Result{}, nil
 	}
-	if requeueErr, ok := errors.Cause(err).(ipam.HasRequeueAfterError); ok {
+	var requeueErr ipam.HasRequeueAfterError
+	if ok := errors.As(err, &requeueErr); ok {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueErr.GetRequeueAfter()}, nil
 	}
 	return ctrl.Result{}, errors.Wrap(err, errMessage)

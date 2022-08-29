@@ -39,12 +39,12 @@ var _ webhook.Validator = &IPPool{}
 func (c *IPPool) Default() {
 }
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPPool) ValidateCreate() error {
 	return c.validate()
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPPool) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
 	oldM3ipp, ok := old.(*IPPool)
@@ -133,12 +133,12 @@ func (c *IPPool) isAddressInBonds(address IPAddressStr) bool {
 	return inBonds
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
+// ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPPool) ValidateDelete() error {
 	return nil
 }
 
-//No further validation for now
+// No further validation for now.
 func (c *IPPool) validate() error {
 	var allErrs field.ErrorList
 

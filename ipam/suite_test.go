@@ -96,7 +96,7 @@ var _ = AfterSuite(func() {
 
 //-----------------------------------
 //------ Helper functions -----------
-//-----------------------------------
+//-----------------------------------.
 func setupScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	if err := ipamv1.AddToScheme(s); err != nil {

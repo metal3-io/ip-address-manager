@@ -28,30 +28,30 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// IPPoolManagerInterface is an interface for a IPPoolManager
+var notFoundErr *NotFoundError
+
+// IPPoolManagerInterface is an interface for a IPPoolManager.
 type IPPoolManagerInterface interface {
 	SetFinalizer()
 	UnsetFinalizer()
-	SetClusterOwnerRef(*capi.Cluster) error
+	SetClusterOwnerRef(*clusterv1.Cluster) error
 	UpdateAddresses(context.Context) (int, error)
 }
 
-// IPPoolManager is responsible for performing machine reconciliation
+// IPPoolManager is responsible for performing machine reconciliation.
 type IPPoolManager struct {
 	client client.Client
 	IPPool *ipamv1.IPPool
 	Log    logr.Logger
 }
 
-// NewIPPoolManager returns a new helper for managing a ipPool object
-func NewIPPoolManager(client client.Client,
-	ipPool *ipamv1.IPPool, ipPoolLog logr.Logger) (*IPPoolManager, error) {
-
+// NewIPPoolManager returns a new helper for managing a ipPool object.
+func NewIPPoolManager(client client.Client, ipPool *ipamv1.IPPool, ipPoolLog logr.Logger) (*IPPoolManager, error) {
 	return &IPPoolManager{
 		client: client,
 		IPPool: ipPool,
@@ -59,7 +59,7 @@ func NewIPPoolManager(client client.Client,
 	}, nil
 }
 
-// SetFinalizer sets finalizer
+// SetFinalizer sets finalizer.
 func (m *IPPoolManager) SetFinalizer() {
 	// If the Metal3Machine doesn't have finalizer, add it.
 	if !Contains(m.IPPool.Finalizers, ipamv1.IPPoolFinalizer) {
@@ -69,7 +69,7 @@ func (m *IPPoolManager) SetFinalizer() {
 	}
 }
 
-// UnsetFinalizer unsets finalizer
+// UnsetFinalizer unsets finalizer.
 func (m *IPPoolManager) UnsetFinalizer() {
 	// Remove the finalizer.
 	m.IPPool.Finalizers = Filter(m.IPPool.Finalizers,
@@ -77,7 +77,7 @@ func (m *IPPoolManager) UnsetFinalizer() {
 	)
 }
 
-func (m *IPPoolManager) SetClusterOwnerRef(cluster *capi.Cluster) error {
+func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1.Cluster) error {
 	if cluster == nil {
 		return errors.New("Missing cluster")
 	}
@@ -86,7 +86,7 @@ func (m *IPPoolManager) SetClusterOwnerRef(cluster *capi.Cluster) error {
 	_, err := findOwnerRefFromList(m.IPPool.OwnerReferences,
 		cluster.TypeMeta, cluster.ObjectMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundErr); !ok {
 			return err
 		}
 		m.IPPool.OwnerReferences, err = setOwnerRefInList(
@@ -100,12 +100,11 @@ func (m *IPPoolManager) SetClusterOwnerRef(cluster *capi.Cluster) error {
 	return nil
 }
 
-// RecreateStatus recreates the status if empty
+// RecreateStatus recreates the status if empty.
 func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr]string, error) {
-
 	m.Log.Info("Fetching IPAddress objects")
 
-	//start from empty maps
+	// start from empty maps
 	if m.IPPool.Status.Allocations == nil {
 		m.IPPool.Status.Allocations = make(map[string]ipamv1.IPAddressStr)
 	}
@@ -131,7 +130,6 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 
 	// Iterate over the IPAddress objects to find all addresses and objects
 	for _, addressObject := range addressObjects.Items {
-
 		// If IPPool does not point to this object, discard
 		if addressObject.Spec.Pool.Name == "" {
 			continue
@@ -164,9 +162,8 @@ func (m *IPPoolManager) updateStatusTimestamp() {
 }
 
 // UpdateAddresses manages the claims and creates or deletes IPAddress accordingly.
-// It returns the number of current allocations
+// It returns the number of current allocations.
 func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
-
 	addresses, err := m.getIndexes(ctx)
 	if err != nil {
 		return 0, err
@@ -186,7 +183,6 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 
 	// Iterate over the IPClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
-
 		addressClaim := addressClaim
 		// If IPPool does not point to this object, discard
 		if addressClaim.Spec.Pool.Name != m.IPPool.Name {
@@ -382,8 +378,9 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	// Create the IPAddress object. If we get a conflict (that will set
 	// HasRequeueAfterError), then requeue to retrigger the reconciliation with
 	// the new state
-	if err := createObject(m.client, ctx, addressObject); err != nil {
-		if _, ok := err.(*RequeueAfterError); !ok {
+	if err := createObject(ctx, m.client, addressObject); err != nil {
+		var reqAfter *RequeueAfterError
+		if ok := errors.As(err, &reqAfter); !ok {
 			addressClaim.Status.ErrorMessage = pointer.StringPtr("Failed to create associated IPAddress object")
 		}
 		return addresses, err
@@ -400,11 +397,10 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	return addresses, nil
 }
 
-// DeleteDatas deletes old secrets
+// DeleteDatas deletes old secrets.
 func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	addressClaim *ipamv1.IPClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
-
 	m.Log.Info("Deleting Claim", "IPClaim", addressClaim.Name)
 
 	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
@@ -421,13 +417,12 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 			return addresses, err
 		} else if err == nil {
 			// Delete the secret with metadata
-			err = deleteObject(m.client, ctx, tmpM3Data)
+			err = deleteObject(ctx, m.client, tmpM3Data)
 			if err != nil {
 				addressClaim.Status.ErrorMessage = pointer.StringPtr("Failed to delete associated IPAddress object")
 				return addresses, err
 			}
 		}
-
 	}
 	addressClaim.Status.Address = nil
 	addressClaim.Finalizers = Filter(addressClaim.Finalizers,
@@ -446,7 +441,7 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	return addresses, nil
 }
 
-// formatAddressName renders the name of the IPAddress objects
+// formatAddressName renders the name of the IPAddress objects.
 func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
 	return strings.TrimRight(m.IPPool.Spec.NamePrefix+"-"+strings.Replace(
 		strings.Replace(string(address), ":", "-", -1), ".", "-", -1,

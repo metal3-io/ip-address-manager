@@ -28,7 +28,7 @@ type ManagerFactoryInterface interface {
 	)
 }
 
-// ManagerFactory only contains a client
+// ManagerFactory only contains a client.
 type ManagerFactory struct {
 	client client.Client
 }
@@ -38,7 +38,7 @@ func NewManagerFactory(client client.Client) ManagerFactory {
 	return ManagerFactory{client: client}
 }
 
-// NewIPPoolManager creates a new IPPoolManager
+// NewIPPoolManager creates a new IPPoolManager.
 func (f ManagerFactory) NewIPPoolManager(ipPool *ipamv1.IPPool, metadataLog logr.Logger) (IPPoolManagerInterface, error) {
 	return NewIPPoolManager(f.client, ipPool, metadataLog)
 }

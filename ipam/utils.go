@@ -19,12 +19,15 @@ package ipam
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+var notFoundError *NotFoundError
 
 // Filter filters a list for a string.
 func Filter(list []string, strToFilter string) (newList []string) {
@@ -46,16 +49,16 @@ func Contains(list []string, strToSearch string) bool {
 	return false
 }
 
-// NotFoundError represents that an object was not found
+// NotFoundError represents that an object was not found.
 type NotFoundError struct {
 }
 
-// Error implements the error interface
+// Error implements the error interface.
 func (e *NotFoundError) Error() string {
 	return "Object not found"
 }
 
-func updateObject(cl client.Client, ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func updateObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.UpdateOption) error {
 	err := cl.Update(ctx, obj.DeepCopyObject().(client.Object), opts...)
 	if apierrors.IsConflict(err) {
 		return &RequeueAfterError{}
@@ -63,7 +66,7 @@ func updateObject(cl client.Client, ctx context.Context, obj client.Object, opts
 	return err
 }
 
-func createObject(cl client.Client, ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+func createObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.CreateOption) error {
 	err := cl.Create(ctx, obj.DeepCopyObject().(client.Object), opts...)
 	if apierrors.IsAlreadyExists(err) {
 		return &RequeueAfterError{}
@@ -71,7 +74,7 @@ func createObject(cl client.Client, ctx context.Context, obj client.Object, opts
 	return err
 }
 
-func deleteObject(cl client.Client, ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+func deleteObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.DeleteOption) error {
 	err := cl.Delete(ctx, obj.DeepCopyObject().(client.Object), opts...)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -79,7 +82,7 @@ func deleteObject(cl client.Client, ctx context.Context, obj client.Object, opts
 	return err
 }
 
-// DeleteOwnerRefFromList removes the ownerreference to this Metal3 machine
+// DeleteOwnerRefFromList removes the ownerreference to this Metal3 machine.
 func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	objType metav1.TypeMeta, objMeta metav1.ObjectMeta,
 ) ([]metav1.OwnerReference, error) {
@@ -88,7 +91,7 @@ func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	}
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundError); !ok {
 			return nil, err
 		}
 		return refList, nil
@@ -105,13 +108,13 @@ func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	return refList, nil
 }
 
-// SetOwnerRef adds an ownerreference to this Metal3 machine
+// SetOwnerRef adds an ownerreference to this Metal3 machine.
 func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 	objType metav1.TypeMeta, objMeta metav1.ObjectMeta,
 ) ([]metav1.OwnerReference, error) {
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundError); !ok {
 			return nil, err
 		}
 		refList = append(refList, metav1.OwnerReference{
@@ -122,7 +125,7 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 			Controller: pointer.BoolPtr(controller),
 		})
 	} else {
-		//The UID and the APIVersion might change due to move or version upgrade
+		// The UID and the APIVersion might change due to move or version upgrade
 		refList[index].APIVersion = objType.APIVersion
 		refList[index].UID = objMeta.UID
 		refList[index].Controller = pointer.BoolPtr(controller)
@@ -133,7 +136,6 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 func findOwnerRefFromList(refList []metav1.OwnerReference, objType metav1.TypeMeta,
 	objMeta metav1.ObjectMeta,
 ) (int, error) {
-
 	for i, curOwnerRef := range refList {
 		aGV, err := schema.ParseGroupVersion(curOwnerRef.APIVersion)
 		if err != nil {

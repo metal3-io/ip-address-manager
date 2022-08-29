@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: IPClaim is the Schema for the ipclaims API
+        description: IPClaim is the Schema for the ipclaims API.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

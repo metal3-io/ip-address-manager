@@ -37,7 +37,7 @@ var _ webhook.Validator = &IPAddress{}
 func (c *IPAddress) Default() {
 }
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPAddress) ValidateCreate() error {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
@@ -76,7 +76,7 @@ func (c *IPAddress) ValidateCreate() error {
 	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPAddress) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
 	oldIPAddress, ok := old.(*IPAddress)
@@ -152,7 +152,7 @@ func (c *IPAddress) ValidateUpdate(old runtime.Object) error {
 	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
+// ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPAddress) ValidateDelete() error {
 	return nil
 }

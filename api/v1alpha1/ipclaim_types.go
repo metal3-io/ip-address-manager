@@ -50,7 +50,7 @@ type IPClaimStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3IPClaim"
-// IPClaim is the Schema for the ipclaims API
+// IPClaim is the Schema for the ipclaims API.
 type IPClaim struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -61,7 +61,7 @@ type IPClaim struct {
 
 // +kubebuilder:object:root=true
 
-// IPClaimList contains a list of IPClaim
+// IPClaimList contains a list of IPClaim.
 type IPClaimList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

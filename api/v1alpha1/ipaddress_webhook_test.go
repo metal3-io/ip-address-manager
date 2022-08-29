@@ -36,7 +36,6 @@ func TestIPAddressDefault(t *testing.T) {
 }
 
 func TestIPAddressCreateValidation(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		addressName string
@@ -122,17 +121,16 @@ func TestIPAddressCreateValidation(t *testing.T) {
 }
 
 func TestIPAddressUpdateValidation(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		expectErr bool
-		new       *IPAddressSpec
+		newAdd    *IPAddressSpec
 		old       *IPAddressSpec
 	}{
 		{
 			name:      "should succeed when values are the same",
 			expectErr: false,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -154,7 +152,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail with nil old",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -165,7 +163,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when index changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -181,7 +179,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when pool name changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -197,7 +195,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool Namespace changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abc",
@@ -215,7 +213,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool kind changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abc",
@@ -233,7 +231,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Claim name changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -249,7 +247,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Claim Namespace changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abc",
@@ -267,7 +265,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Claim kind changes",
 			expectErr: true,
-			new: &IPAddressSpec{
+			newAdd: &IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abc",
@@ -286,14 +284,14 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var new, old *IPAddress
+			var newAdd, old *IPAddress
 			g := NewWithT(t)
-			new = &IPAddress{
+			newAdd = &IPAddress{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "abc-1",
 				},
-				Spec: *tt.new,
+				Spec: *tt.newAdd,
 			}
 
 			if tt.old != nil {
@@ -309,9 +307,9 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				g.Expect(new.ValidateUpdate(old)).NotTo(Succeed())
+				g.Expect(newAdd.ValidateUpdate(old)).NotTo(Succeed())
 			} else {
-				g.Expect(new.ValidateUpdate(old)).To(Succeed())
+				g.Expect(newAdd.ValidateUpdate(old)).To(Succeed())
 			}
 		})
 	}

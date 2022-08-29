@@ -27,7 +27,7 @@ const (
 )
 
 // MetaDataIPAddress contains the info to render th ip address. It is IP-version
-// agnostic
+// agnostic.
 type Pool struct {
 
 	// Start is the first ip address that can be rendered
@@ -59,7 +59,7 @@ type IPPoolSpec struct {
 	// ClusterName is the name of the Cluster this object belongs to.
 	ClusterName *string `json:"clusterName,omitempty"`
 
-	//Pools contains the list of IP addresses pools
+	// Pools contains the list of IP addresses pools
 	Pools []Pool `json:"pools,omitempty"`
 
 	// PreAllocations contains the preallocated IP addresses
@@ -86,7 +86,7 @@ type IPPoolStatus struct {
 	// +optional
 	LastUpdated *metav1.Time `json:"lastUpdated,omitempty"`
 
-	//Allocations contains the map of objects and IP addresses they have
+	// Allocations contains the map of objects and IP addresses they have
 	Allocations map[string]IPAddressStr `json:"indexes,omitempty"`
 }
 
@@ -97,7 +97,7 @@ type IPPoolStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels.cluster\\.x-k8s\\.io/cluster-name",description="Cluster to which this template belongs"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3IPPool"
-// IPPool is the Schema for the ippools API
+// IPPool is the Schema for the ippools API.
 type IPPool struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -108,7 +108,7 @@ type IPPool struct {
 
 // +kubebuilder:object:root=true
 
-// IPPoolList contains a list of IPPool
+// IPPoolList contains a list of IPPool.
 type IPPoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

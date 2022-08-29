@@ -36,7 +36,6 @@ func TestIPPoolDefault(t *testing.T) {
 }
 
 func TestIPPoolValidation(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		expectErr bool
@@ -70,7 +69,6 @@ func TestIPPoolValidation(t *testing.T) {
 }
 
 func TestIPPoolUpdateValidation(t *testing.T) {
-
 	startAddr := IPAddressStr("192.168.0.1")
 	endAddr := IPAddressStr("192.168.0.10")
 
