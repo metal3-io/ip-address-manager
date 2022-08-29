@@ -19,12 +19,15 @@ package ipam
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+var notFoundError *NotFoundError
 
 // Filter filters a list for a string.
 func Filter(list []string, strToFilter string) (newList []string) {
@@ -88,7 +91,7 @@ func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	}
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundError); !ok {
 			return nil, err
 		}
 		return refList, nil
@@ -111,7 +114,7 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 ) ([]metav1.OwnerReference, error) {
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundError); !ok {
 			return nil, err
 		}
 		refList = append(refList, metav1.OwnerReference{

@@ -33,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var notFoundErr *NotFoundError
+
 // IPPoolManagerInterface is an interface for a IPPoolManager.
 type IPPoolManagerInterface interface {
 	SetFinalizer()
@@ -84,7 +86,7 @@ func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1.Cluster) error {
 	_, err := findOwnerRefFromList(m.IPPool.OwnerReferences,
 		cluster.TypeMeta, cluster.ObjectMeta)
 	if err != nil {
-		if _, ok := err.(*NotFoundError); !ok {
+		if ok := errors.As(err, &notFoundErr); !ok {
 			return err
 		}
 		m.IPPool.OwnerReferences, err = setOwnerRefInList(
@@ -377,7 +379,8 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	// HasRequeueAfterError), then requeue to retrigger the reconciliation with
 	// the new state
 	if err := createObject(ctx, m.client, addressObject); err != nil {
-		if _, ok := err.(*RequeueAfterError); !ok {
+		var reqAfter *RequeueAfterError
+		if ok := errors.As(err, &reqAfter); !ok {
 			addressClaim.Status.ErrorMessage = pointer.StringPtr("Failed to create associated IPAddress object")
 		}
 		return addresses, err

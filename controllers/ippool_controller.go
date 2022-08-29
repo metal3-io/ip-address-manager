@@ -209,7 +209,8 @@ func checkRequeueError(err error, errMessage string) (ctrl.Result, error) {
 	if err == nil {
 		return ctrl.Result{}, nil
 	}
-	if requeueErr, ok := errors.Cause(err).(ipam.HasRequeueAfterError); ok {
+	var requeueErr ipam.HasRequeueAfterError
+	if ok := errors.As(err, &requeueErr); ok {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueErr.GetRequeueAfter()}, nil
 	}
 	return ctrl.Result{}, errors.Wrap(err, errMessage)
