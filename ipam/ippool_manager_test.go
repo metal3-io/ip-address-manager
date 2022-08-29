@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -74,7 +74,7 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseSetClusterOwnerRef struct {
-		cluster     *capi.Cluster
+		cluster     *clusterv1.Cluster
 		ipPool      *ipamv1.IPPool
 		expectError bool
 	}
@@ -104,7 +104,7 @@ var _ = Describe("IPPool manager", func() {
 					Name: "abc",
 				},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},
@@ -121,7 +121,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},
@@ -141,7 +141,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},

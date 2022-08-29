@@ -36,7 +36,6 @@ func TestIPClaimDefault(t *testing.T) {
 }
 
 func TestIPClaimCreateValidation(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		claimName string
@@ -93,17 +92,16 @@ func TestIPClaimCreateValidation(t *testing.T) {
 }
 
 func TestIPClaimUpdateValidation(t *testing.T) {
-
 	tests := []struct {
 		name      string
 		expectErr bool
-		new       *IPClaimSpec
+		newClm    *IPClaimSpec
 		old       *IPClaimSpec
 	}{
 		{
 			name:      "should succeed when values are the same",
 			expectErr: false,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -117,7 +115,7 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail with nil old",
 			expectErr: true,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -127,7 +125,7 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when pool is unset",
 			expectErr: true,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{},
 			},
 			old: &IPClaimSpec{
@@ -139,7 +137,7 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when pool name changes",
 			expectErr: true,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
@@ -153,7 +151,7 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool Namespace changes",
 			expectErr: true,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abc",
@@ -169,7 +167,7 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 		{
 			name:      "should fail when Pool kind changes",
 			expectErr: true,
-			new: &IPClaimSpec{
+			newClm: &IPClaimSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abc",
@@ -186,14 +184,14 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var new, old *IPClaim
+			var newClm, old *IPClaim
 			g := NewWithT(t)
-			new = &IPClaim{
+			newClm = &IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "abc-1",
 				},
-				Spec: *tt.new,
+				Spec: *tt.newClm,
 			}
 
 			if tt.old != nil {
@@ -209,9 +207,9 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				g.Expect(new.ValidateUpdate(old)).NotTo(Succeed())
+				g.Expect(newClm.ValidateUpdate(old)).NotTo(Succeed())
 			} else {
-				g.Expect(new.ValidateUpdate(old)).To(Succeed())
+				g.Expect(newClm.ValidateUpdate(old)).To(Succeed())
 			}
 		})
 	}

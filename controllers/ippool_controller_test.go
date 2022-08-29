@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -53,7 +53,7 @@ var _ = Describe("IPPool controller", func() {
 		expectRequeue        bool
 		expectManager        bool
 		m3ipp                *ipamv1.IPPool
-		cluster              *capi.Cluster
+		cluster              *clusterv1.Cluster
 		managerError         bool
 		reconcileNormal      bool
 		reconcileNormalError bool
@@ -172,9 +172,9 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
-				Spec: capi.ClusterSpec{
+				Spec: clusterv1.ClusterSpec{
 					Paused: true,
 				},
 			},
@@ -186,7 +186,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			managerError: true,
@@ -196,7 +196,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			reconcileNormal:      true,
@@ -216,7 +216,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
 			},
-			cluster: &capi.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			reconcileNormal: true,

@@ -30,7 +30,7 @@ import (
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	capi "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
@@ -48,19 +48,18 @@ var testEnv *envtest.Environment
 var timestampNow = metav1.Now()
 
 func init() {
-
 	logf.SetLogger(klogr.New())
 
 	// Register required object kinds with global scheme.
 	_ = apiextensionsv1.AddToScheme(scheme.Scheme)
-	_ = capi.AddToScheme(scheme.Scheme)
+	_ = clusterv1.AddToScheme(scheme.Scheme)
 	_ = ipamv1.AddToScheme(scheme.Scheme)
 }
 
 func setupScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 
-	if err := capi.AddToScheme(s); err != nil {
+	if err := clusterv1.AddToScheme(s); err != nil {
 		panic(err)
 	}
 

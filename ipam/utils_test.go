@@ -128,7 +128,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				tc.TestObject.ObjectMeta = ipPool.ObjectMeta
 			}
 			obj := tc.TestObject.DeepCopy()
-			err := updateObject(c, context.TODO(), obj)
+			err := updateObject(context.TODO(), c, obj)
 			if tc.ExpectedError {
 				Expect(err).To(HaveOccurred())
 				Expect(err).NotTo(BeAssignableToTypeOf(&RequeueAfterError{}))
@@ -147,7 +147,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(savedObject.Spec).To(Equal(tc.TestObject.Spec))
 				Expect(savedObject.ResourceVersion).NotTo(Equal(tc.TestObject.ResourceVersion))
-				err := updateObject(c, context.TODO(), obj)
+				err := updateObject(context.TODO(), c, obj)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))
 			}
@@ -209,7 +209,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 			obj := tc.TestObject.DeepCopy()
-			err := createObject(c, context.TODO(), obj)
+			err := createObject(context.TODO(), c, obj)
 			if tc.ExpectedError {
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))

@@ -55,7 +55,7 @@ type IPAddressSpec struct {
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3IPAddress"
 // +kubebuilder:storageversion
 // +kubebuilder:object:root=true
-// IPAddress is the Schema for the ipaddresses API
+// IPAddress is the Schema for the ipaddresses API.
 type IPAddress struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -65,7 +65,7 @@ type IPAddress struct {
 
 // +kubebuilder:object:root=true
 
-// IPAddressList contains a list of IPAddress
+// IPAddressList contains a list of IPAddress.
 type IPAddressList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

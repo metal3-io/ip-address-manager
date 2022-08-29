@@ -37,7 +37,7 @@ var _ webhook.Validator = &IPClaim{}
 func (c *IPClaim) Default() {
 }
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPClaim) ValidateCreate() error {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
@@ -56,7 +56,7 @@ func (c *IPClaim) ValidateCreate() error {
 	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPClaim) ValidateUpdate(old runtime.Object) error {
 	allErrs := field.ErrorList{}
 	oldIPClaim, ok := old.(*IPClaim)
@@ -96,7 +96,7 @@ func (c *IPClaim) ValidateUpdate(old runtime.Object) error {
 	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
+// ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
 func (c *IPClaim) ValidateDelete() error {
 	return nil
 }
