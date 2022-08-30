@@ -458,6 +458,7 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 			delete(addresses, allocatedAddress)
 		}
 		delete(m.IPPool.Status.Allocations, addressClaim.Name)
+		m.Log.Info("IPAddressClaim removed from IPPool allocations", "IPAddressClaim", addressClaim.Name)
 	}
 	m.updateStatusTimestamp()
 	return addresses, nil
