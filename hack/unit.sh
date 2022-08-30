@@ -10,7 +10,7 @@ if [ "${IS_CONTAINER}" != "false" ]; then
   mkdir /tmp/unit
   cp -r ./* /tmp/unit
   cd /tmp/unit
-  make test
+  make unit
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
