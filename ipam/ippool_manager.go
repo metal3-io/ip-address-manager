@@ -224,6 +224,14 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 			return addresses, err
 		}
 	} else {
+		// Check if this claim is in use. Does it have any owners?
+		// If it is no longer in use, proceed to delete the associated IPAddress
+		if len(addressClaim.OwnerReferences) > 0 {
+			m.Log.Info("IPClaim is still in use (has owners). Cannot delete IPAddress.",
+				"IPClaim", addressClaim.Name, "Owners", addressClaim.OwnerReferences)
+			return addresses, nil
+		}
+
 		addresses, err = m.deleteAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -346,8 +354,8 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 		},
 	)
 
-	// Create the IPAddress object, with an Owner ref to the Metal3Machine
-	// (curOwnerRef) and to the IPPool
+	// Create the IPAddress object, with an Owner ref to the IPClaim,
+	// the IPPool, and the IPClaims owners. Also add a finalizer.
 	addressObject := &ipamv1.IPAddress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IPAddress",
@@ -356,6 +364,7 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            addressName,
 			Namespace:       m.IPPool.Namespace,
+			Finalizers:      []string{ipamv1.IPAddressFinalizer},
 			OwnerReferences: ownerRefs,
 			Labels:          addressClaim.Labels,
 		},
@@ -397,39 +406,52 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	return addresses, nil
 }
 
-// DeleteDatas deletes old secrets.
+// deleteAddress removes the finalizer from the IPClaim and deletes the associated IPAddress.
 func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	addressClaim *ipamv1.IPClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
-	m.Log.Info("Deleting Claim", "IPClaim", addressClaim.Name)
+	m.Log.Info("Deleting IPAddress associated with IPClaim", "IPClaim", addressClaim.Name)
 
 	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
 	if ok {
 		// Try to get the IPAddress. if it succeeds, delete it
-		tmpM3Data := &ipamv1.IPAddress{}
+		ipAddress := &ipamv1.IPAddress{}
 		key := client.ObjectKey{
 			Name:      m.formatAddressName(allocatedAddress),
 			Namespace: m.IPPool.Namespace,
 		}
-		err := m.client.Get(ctx, key, tmpM3Data)
+		err := m.client.Get(ctx, key, ipAddress)
 		if err != nil && !apierrors.IsNotFound(err) {
 			addressClaim.Status.ErrorMessage = pointer.StringPtr("Failed to get associated IPAddress object")
 			return addresses, err
 		} else if err == nil {
-			// Delete the secret with metadata
-			err = deleteObject(ctx, m.client, tmpM3Data)
+			// Remove the finalizer
+			ipAddress.Finalizers = Filter(ipAddress.Finalizers,
+				ipamv1.IPAddressFinalizer,
+			)
+			err = updateObject(ctx, m.client, ipAddress)
+			if err != nil && !apierrors.IsNotFound(err) {
+				m.Log.Info("Unable to remove finalizer from IPAddress", "IPAddress", ipAddress.Name)
+				return addresses, err
+			}
+			// Delete the IPAddress
+			err = deleteObject(ctx, m.client, ipAddress)
 			if err != nil {
 				addressClaim.Status.ErrorMessage = pointer.StringPtr("Failed to delete associated IPAddress object")
 				return addresses, err
 			}
+			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
 	}
 	addressClaim.Status.Address = nil
 	addressClaim.Finalizers = Filter(addressClaim.Finalizers,
 		ipamv1.IPClaimFinalizer,
 	)
-
-	m.Log.Info("Deleted Claim", "IPClaim", addressClaim.Name)
+	err := updateObject(ctx, m.client, addressClaim)
+	if err != nil && !apierrors.IsNotFound(err) {
+		m.Log.Info("Unable to remove finalizer from IPClaim", "IPClaim", addressClaim.Name)
+		return addresses, err
+	}
 
 	if ok {
 		if _, ok := m.IPPool.Spec.PreAllocations[addressClaim.Name]; !ok {

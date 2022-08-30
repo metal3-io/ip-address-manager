@@ -470,6 +470,109 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedNbAllocations: 2,
 		}),
+		Entry("IPClaim with deletion timestamp without owner", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abc",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-1-11",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+						Claim: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+						Address: ipamv1.IPAddressStr("192.168.1.11"),
+						Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+						Prefix:  24,
+					},
+				},
+			},
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			expectedNbAllocations: 0,
+		}),
+		Entry("IPClaim with deletion timestamp and owner", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "inUseClaim",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								Kind:       "Metal3Data",
+								APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
+								Name:       "owner",
+							},
+						},
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-1-11",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+						Claim: corev1.ObjectReference{
+							Name:      "inUseClaim",
+							Namespace: "myns",
+						},
+						Address: ipamv1.IPAddressStr("192.168.1.11"),
+						Gateway: (*ipamv1.IPAddressStr)(pointer.StringPtr("192.168.0.1")),
+						Prefix:  24,
+					},
+				},
+			},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"inUseClaim": ipamv1.IPAddressStr("192.168.1.11"),
+			},
+			expectedNbAllocations: 1,
+		}),
 	)
 
 	type testCaseCreateAddresses struct {
