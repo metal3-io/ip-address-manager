@@ -77,12 +77,12 @@ help:  ## Display this help
 ## Testing
 ## --------------------------------------
 
-.PHONY: testprereqs
-testprereqs: $(KUBEBUILDER) $(KUSTOMIZE)
-
-.PHONY: test
-test: testprereqs generate fmt lint ## Run tests
+.PHONY: unit
+unit: ## Run tests
 	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out
+
+.PHONY: test  ## Run formatter, linter and tests
+test: generate fmt lint unit
 
 .PHONY: test-integration
 test-integration: ## Run integration tests
@@ -135,7 +135,7 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint codebase
-	$(GOLANGCI_LINT) run -v
+	$(GOLANGCI_LINT) run -v --timeout=5m
 	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v --timeout=10m
 
 lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
