@@ -224,11 +224,12 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 			return addresses, err
 		}
 	} else {
-		// Check if this claim is in use. Does it have any owners?
+		// Check if this claim is in use. Does it have any other finalizers than our own?
 		// If it is no longer in use, proceed to delete the associated IPAddress
-		if len(addressClaim.OwnerReferences) > 0 {
-			m.Log.Info("IPClaim is still in use (has owners). Cannot delete IPAddress.",
-				"IPClaim", addressClaim.Name, "Owners", addressClaim.OwnerReferences)
+		if len(addressClaim.Finalizers) > 1 ||
+			(len(addressClaim.Finalizers) == 1 && !Contains(addressClaim.Finalizers, ipamv1.IPClaimFinalizer)) {
+			m.Log.Info("IPClaim is still in use (has other finalizers). Cannot delete IPAddress.",
+				"IPClaim", addressClaim.Name, "Finalizers", addressClaim.Finalizers)
 			return addresses, nil
 		}
 

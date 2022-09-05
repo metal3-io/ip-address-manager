@@ -470,7 +470,7 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedNbAllocations: 2,
 		}),
-		Entry("IPClaim with deletion timestamp without owner", testCaseUpdateAddresses{
+		Entry("IPClaim with deletion timestamp without finalizers", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
@@ -517,7 +517,7 @@ var _ = Describe("IPPool manager", func() {
 			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
 			expectedNbAllocations: 0,
 		}),
-		Entry("IPClaim with deletion timestamp and owner", testCaseUpdateAddresses{
+		Entry("IPClaim with deletion timestamp and finalizers", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
 				Spec: ipamv1.IPPoolSpec{
@@ -531,12 +531,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:              "inUseClaim",
 						Namespace:         "myns",
 						DeletionTimestamp: &timeNow,
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								Kind:       "Metal3Data",
-								APIVersion: "infrastructure.cluster.x-k8s.io/v1beta1",
-								Name:       "owner",
-							},
+						Finalizers: []string{
+							ipamv1.IPClaimFinalizer,
+							"metal3data.infrastructure.cluster.x-k8s.io",
 						},
 					},
 					Spec: ipamv1.IPClaimSpec{
