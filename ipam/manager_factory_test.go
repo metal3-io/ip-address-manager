@@ -17,11 +17,11 @@ limitations under the License.
 package ipam
 
 import (
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
-	"k8s.io/klog/v2/klogr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -29,7 +29,7 @@ import (
 var _ = Describe("Manager factory testing", func() {
 	var managerClient client.Client
 	var managerFactory ManagerFactory
-	clusterLog := klogr.New()
+	clusterLog := logr.Discard()
 
 	BeforeEach(func() {
 		managerClient = fakeclient.NewClientBuilder().WithScheme(setupScheme()).Build()

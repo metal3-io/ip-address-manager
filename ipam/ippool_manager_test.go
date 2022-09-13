@@ -18,9 +18,9 @@ package ipam
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -28,7 +28,6 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,7 +48,7 @@ var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test Finalizers",
 		func(ipPool *ipamv1.IPPool) {
 			ipPoolMgr, err := NewIPPoolManager(nil, ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -82,7 +81,7 @@ var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test SetClusterOwnerRef",
 		func(tc testCaseSetClusterOwnerRef) {
 			ipPoolMgr, err := NewIPPoolManager(nil, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 			err = ipPoolMgr.SetClusterOwnerRef(tc.cluster)
@@ -165,7 +164,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -328,7 +327,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -356,7 +355,6 @@ var _ = Describe("IPPool manager", func() {
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range addressObjects.Items {
 				if claim.DeletionTimestamp.IsZero() {
-					fmt.Printf("%#v", claim)
 					Expect(claim.Status.Address).NotTo(BeNil())
 				}
 			}
@@ -627,7 +625,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -836,7 +834,7 @@ var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test AllocateAddress",
 		func(tc testCaseAllocateAddress) {
 			ipPoolMgr, err := NewIPPoolManager(nil, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 			allocatedAddress, prefix, gateway, dnsServers, err := ipPoolMgr.allocateAddress(
@@ -1180,7 +1178,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
-				klogr.New(),
+				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

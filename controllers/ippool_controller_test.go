@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -31,7 +32,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2/klogr"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -112,7 +112,7 @@ var _ = Describe("IPPool controller", func() {
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
 				ManagerFactory: f,
-				Log:            klogr.New(),
+				Log:            logr.Discard(),
 			}
 
 			req := reconcile.Request{
@@ -239,7 +239,7 @@ var _ = Describe("IPPool controller", func() {
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
 				ManagerFactory: ipam.NewManagerFactory(c),
-				Log:            klogr.New(),
+				Log:            logr.Discard(),
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
@@ -291,7 +291,7 @@ var _ = Describe("IPPool controller", func() {
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
 				ManagerFactory: ipam.NewManagerFactory(c),
-				Log:            klogr.New(),
+				Log:            logr.Discard(),
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
