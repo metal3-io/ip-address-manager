@@ -197,3 +197,52 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestIPPoolDeleteValidation(t *testing.T) {
+	startAddr := IPAddressStr("192.168.0.1")
+	endAddr := IPAddressStr("192.168.0.10")
+
+	tests := []struct {
+		name       string
+		expectErr  bool
+		poolStatus IPPoolStatus
+	}{{
+		name:      "should fail when ip in use",
+		expectErr: true,
+		poolStatus: IPPoolStatus{
+			Allocations: map[string]IPAddressStr{
+				"inuse": IPAddressStr("192.168.0.30"),
+			},
+		},
+	}, {
+		name:      "should succeed when no ip in use",
+		expectErr: false,
+		poolStatus: IPPoolStatus{
+			Allocations: map[string]IPAddressStr{},
+		},
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var pool *IPPool
+			g := NewWithT(t)
+			pool = &IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: IPPoolSpec{
+					Pools: []Pool{
+						{Start: &startAddr, End: &endAddr},
+					},
+				},
+				Status: tt.poolStatus,
+			}
+
+			if tt.expectErr {
+				g.Expect(pool.ValidateDelete()).NotTo(Succeed())
+			} else {
+				g.Expect(pool.ValidateDelete()).To(Succeed())
+			}
+		})
+	}
+}

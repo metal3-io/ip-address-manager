@@ -141,6 +141,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - ippools
   sideEffects: None
