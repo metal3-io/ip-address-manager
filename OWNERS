@@ -2,7 +2,6 @@
 
 approvers:
  - kashifest
- - fmuyassarov
  - furkatgofurov7
 
 reviewers:
@@ -12,6 +11,7 @@ reviewers:
 emeritus_approvers:
  - maelk
  - russellb
+ - fmuyassarov
 
 emeritus_reviewers:
  - macaptain
