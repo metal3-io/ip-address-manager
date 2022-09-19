@@ -31,9 +31,9 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/data:rw,z" \
+    --volume "${PWD}:/metal3-ipam:rw,z" \
     --entrypoint sh \
-    --workdir /data \
+    --workdir /metal3-ipam \
     registry.hub.docker.com/library/golang:1.17 \
-    /data/hack/codegen.sh
+    /metal3-ipam/hack/codegen.sh
 fi;

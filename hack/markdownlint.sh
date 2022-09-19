@@ -11,9 +11,9 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/workdir:ro,z" \
+    --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
-    --workdir /workdir \
+    --workdir /metal3-ipam \
     registry.hub.docker.com/pipelinecomponents/markdownlint:latest \
-    /workdir/hack/markdownlint.sh "${@}"
+    /metal3-ipam/hack/markdownlint.sh "${@}"
 fi;

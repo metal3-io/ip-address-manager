@@ -25,9 +25,9 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/workdir:ro,z" \
+    --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
-    --workdir /workdir \
+    --workdir /metal3-ipam \
     garethr/kubeval:latest \
-    /workdir/hack/manifestlint.sh "${@}"
+    /metal3-ipam/hack/manifestlint.sh "${@}"
 fi;
