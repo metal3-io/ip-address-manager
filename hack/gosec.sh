@@ -12,9 +12,9 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/capm3:ro,z" \
+    --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
-    --workdir /capm3 \
+    --workdir /metal3-ipam \
     registry.hub.docker.com/securego/gosec:latest \
-    /capm3/hack/gosec.sh
+    /metal3-ipam/hack/gosec.sh
 fi;
