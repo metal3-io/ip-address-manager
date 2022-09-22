@@ -276,7 +276,7 @@ deploy: generate-examples
 
 .PHONY: kind-create
 kind-create: ## create ipam kind cluster if needed
-	./hack/kind_with_registry.sh
+	./hack/hack/kind_with_registry.sh
 
 deploy-examples:
 	kubectl apply -f ./examples/_out/ippool.yaml
