@@ -13,9 +13,9 @@ For more information about this controller and related repositories, see
 
 | IPAM version      | CAPM3 version     | Cluster API version | IPAM Release |
 |-------------------|-------------------|---------------------|--------------|
-| v1alpha1 (v0.0.X) | v1alpha4 (v0.4.X) | v1alpha3 (v0.3.X)   | v0.0.X       |
 | v1alpha1 (v0.1.X) | v1alpha5 (v0.5.X) | v1alpha4 (v0.4.X)   | v0.1.X       |
 | v1alpha1 (v1.1.X) | v1beta1 (v1.1.X)  | v1beta1 (v1.1.X)    | v1.1.X       |
+| v1alpha1 (v1.2.X) | v1beta1 (v1.2.X)  | v1beta1 (v1.2.X)    | v1.2.X       |
 
 ## Development Environment
 
