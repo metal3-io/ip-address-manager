@@ -17,6 +17,6 @@ else
     --volume "${PWD}:/ipam:ro,z" \
     --entrypoint sh \
     --workdir /ipam \
-    docker.io/golang:1.17 \
+    docker.io/golang:1.18 \
     /ipam/hack/ensure-golangci-lint.sh
 fi;
