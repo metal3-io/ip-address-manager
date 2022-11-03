@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	_ "github.com/go-logr/logr"
@@ -94,9 +94,9 @@ var _ = AfterSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 })
 
-//-----------------------------------
-//------ Helper functions -----------
-//-----------------------------------.
+// -----------------------------------
+// ------ Helper functions -----------
+// -----------------------------------.
 func setupScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	if err := ipamv1.AddToScheme(s); err != nil {

@@ -17,6 +17,6 @@ else
     --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
     --workdir /metal3-ipam \
-    registry.hub.docker.com/library/golang:1.18 \
+    registry.hub.docker.com/library/golang:1.19 \
     /metal3-ipam/hack/govet.sh
 fi;
