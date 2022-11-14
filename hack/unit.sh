@@ -17,6 +17,6 @@ else
     --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
     --workdir /metal3-ipam \
-    docker.io/golang:1.18 \
+    docker.io/golang:1.19 \
     /metal3-ipam/hack/unit.sh "${@}"
 fi;

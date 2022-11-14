@@ -31,7 +31,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/logs"
-	"k8s.io/klog/v2/klogr"
+	logsv1 "k8s.io/component-base/logs/api/v1"
+	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	// +kubebuilder:scaffold:imports
@@ -84,19 +85,13 @@ func main() {
 		"The address the health endpoint binds to.")
 	flag.Parse()
 
-	if err := logOptions.ValidateAndApply(nil); err != nil {
+	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	// The JSON log format requires the Klog format in klog, otherwise log lines
-	// are serialized twice, e.g.:
-	// { ... "msg":"controller/cluster \"msg\"=\"Starting workers\"\n"}
-	if logOptions.Config.Format == logs.JSONLogFormat {
-		ctrl.SetLogger(klogr.NewWithOptions(klogr.WithFormat(klogr.FormatKlog)))
-	} else {
-		ctrl.SetLogger(klogr.New())
-	}
+	// klog.Background will automatically use the right logger.
+	ctrl.SetLogger(klog.Background())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                     myscheme,

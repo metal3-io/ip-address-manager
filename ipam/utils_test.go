@@ -19,8 +19,7 @@ package ipam
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
