@@ -17,6 +17,7 @@ For more information about this controller and related repositories, see
 | v1alpha1 (v1.1.X) | v1beta1 (v1.1.X)  | v1beta1 (v1.1.X)    | v1.1.X       |
 | v1alpha1 (v1.2.X) | v1beta1 (v1.2.X)  | v1beta1 (v1.2.X)    | v1.2.X       |
 | v1alpha1 (v1.3.X) | v1beta1 (v1.3.X)  | v1beta1 (v1.3.X)    | v1.3.X       |
+
 ## Development Environment
 
 See [metal3-dev-env](https://github.com/metal3-io/metal3-dev-env) for an

@@ -4,12 +4,12 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Prerequisites](#prerequisites)
-  - [`docker`](#docker)
+   - [`docker`](#docker)
 - [Output](#output)
-  - [Expected artifacts](#expected-artifacts)
-  - [Artifact locations](#artifact-locations)
+   - [Expected artifacts](#expected-artifacts)
+   - [Artifact locations](#artifact-locations)
 - [Process](#process)
-  - [Permissions](#permissions)
+   - [Permissions](#permissions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
