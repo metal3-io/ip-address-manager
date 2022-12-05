@@ -16,6 +16,7 @@ For more information about this controller and related repositories, see
 | v1alpha1 (v0.1.X) | v1alpha5 (v0.5.X) | v1alpha4 (v0.4.X)   | v0.1.X       |
 | v1alpha1 (v1.1.X) | v1beta1 (v1.1.X)  | v1beta1 (v1.1.X)    | v1.1.X       |
 | v1alpha1 (v1.2.X) | v1beta1 (v1.2.X)  | v1beta1 (v1.2.X)    | v1.2.X       |
+| v1alpha1 (v1.3.X) | v1beta1 (v1.3.X)  | v1beta1 (v1.3.X)    | v1.3.X       |
 
 ## Development Environment
 
