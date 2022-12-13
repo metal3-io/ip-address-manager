@@ -31,7 +31,7 @@ have a semi-curated list of issues that
 should not need deep knowledge of the system. [Have a look and see if anything
 sounds interesting](https://github.com/metal3-io/ip-address-manager/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
 Alternatively, read some of the docs on other controllers and try to write your
-own, file and fix any/all issues that come up, including gaps in documentation!
+own,  file and fix any/all issues that come up, including gaps in documentation!
 
 ## Contributing a Patch
 
