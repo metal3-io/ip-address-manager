@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
-	github.com/onsi/ginkgo/v2 v2.5.0
+	github.com/onsi/ginkgo/v2 v2.6.0
 	github.com/onsi/gomega v1.24.1
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.25.0
@@ -16,7 +16,7 @@ require (
 	k8s.io/component-base v0.25.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
-	sigs.k8s.io/cluster-api v1.3.0
+	sigs.k8s.io/cluster-api v1.3.1
 	sigs.k8s.io/controller-runtime v0.13.1
 
 )
