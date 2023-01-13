@@ -15,6 +15,6 @@ else
     --volume "${PWD}:/metal3-ipam:ro,z" \
     --entrypoint sh \
     --workdir /metal3-ipam \
-    registry.hub.docker.com/securego/gosec:latest \
+    docker.io/securego/gosec:2.14.0@sha256:73858f8b1b9b7372917677151ec6deeceeaa40c5b02753080bd647dede14e213 \
     /metal3-ipam/hack/gosec.sh
 fi;
