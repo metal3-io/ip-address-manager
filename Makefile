@@ -160,8 +160,11 @@ vet:
 .PHONY: modules
 modules: ## Runs go mod to ensure proper vendoring.
 	go mod tidy
-	cd $(APIS_DIR); go mod tidy
+	go mod verify
 	cd $(TOOLS_DIR); go mod tidy
+	cd $(TOOLS_DIR); go mod verify
+	cd $(APIS_DIR); go mod tidy
+	cd $(APIS_DIR); go mod verify
 
 .PHONY: generate
 generate: ## Generate code
