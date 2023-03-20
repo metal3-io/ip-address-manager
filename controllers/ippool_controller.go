@@ -96,8 +96,8 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		if ipamv1IPPool.ObjectMeta.Labels == nil {
 			ipamv1IPPool.ObjectMeta.Labels = make(map[string]string)
 		}
-		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ClusterLabelName] = *ipamv1IPPool.Spec.ClusterName
-		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ProviderLabelName] = "infrastructure-metal3"
+		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ClusterNameLabel] = *ipamv1IPPool.Spec.ClusterName
+		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ProviderNameLabel] = "infrastructure-metal3"
 
 		// Fetch the Cluster. Ignore an error if the deletion timestamp is set
 		err = r.Client.Get(ctx, key, cluster)
