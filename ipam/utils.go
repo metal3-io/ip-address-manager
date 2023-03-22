@@ -122,13 +122,13 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 			Kind:       objType.Kind,
 			Name:       objMeta.Name,
 			UID:        objMeta.UID,
-			Controller: pointer.BoolPtr(controller),
+			Controller: pointer.Bool(controller),
 		})
 	} else {
 		// The UID and the APIVersion might change due to move or version upgrade
 		refList[index].APIVersion = objType.APIVersion
 		refList[index].UID = objMeta.UID
-		refList[index].Controller = pointer.BoolPtr(controller)
+		refList[index].Controller = pointer.Bool(controller)
 	}
 	return refList, nil
 }

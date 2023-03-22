@@ -139,7 +139,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Cluster not found", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 		}),
 		Entry("Deletion, Cluster not found", testCaseReconcile{
@@ -149,7 +149,7 @@ var _ = Describe("IPPool controller", func() {
 					Namespace:         "myns",
 					DeletionTimestamp: &timestampNow,
 				},
-				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			expectManager: true,
 		}),
@@ -160,7 +160,7 @@ var _ = Describe("IPPool controller", func() {
 					Namespace:         "myns",
 					DeletionTimestamp: &timestampNow,
 				},
-				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			expectManager:        true,
 			reconcileDeleteError: true,
@@ -169,7 +169,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Paused cluster", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
@@ -183,7 +183,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Error in manager", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
@@ -193,7 +193,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Reconcile normal error", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
@@ -205,7 +205,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Reconcile normal no cluster", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			reconcileNormal: false,
 			expectManager:   false,
@@ -213,7 +213,7 @@ var _ = Describe("IPPool controller", func() {
 		Entry("Reconcile normal no error", testCaseReconcile{
 			m3ipp: &ipamv1.IPPool{
 				ObjectMeta: testObjectMeta,
-				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.StringPtr("abc")},
+				Spec:       ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
