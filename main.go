@@ -35,6 +35,7 @@ import (
 	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -44,6 +45,7 @@ var (
 	metricsBindAddr      string
 	enableLeaderElection bool
 	syncPeriod           time.Duration
+	ippoolConcurrency    int
 	webhookPort          int
 	healthAddr           string
 	watchNamespace       string
@@ -83,6 +85,10 @@ func main() {
 	)
 	flag.StringVar(&healthAddr, "health-addr", ":9440",
 		"The address the health endpoint binds to.")
+
+	flag.IntVar(&ippoolConcurrency, "ippool-concurrency", 10,
+		"Number of ippools to process simultaneously")
+
 	flag.Parse()
 
 	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
@@ -142,7 +148,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
 		Log:              ctrl.Log.WithName("controllers").WithName("IPPool"),
 		WatchFilterValue: watchFilterValue,
-	}).SetupWithManager(ctx, mgr); err != nil {
+	}).SetupWithManager(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconciler")
 		os.Exit(1)
 	}
@@ -163,4 +169,8 @@ func setupWebhooks(mgr ctrl.Manager) {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IPClaim")
 		os.Exit(1)
 	}
+}
+
+func concurrency(c int) controller.Options {
+	return controller.Options{MaxConcurrentReconciles: c}
 }
