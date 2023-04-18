@@ -1,7 +1,7 @@
 # Versioning
 
 Those guidelines are coming from
-[Cluster API](https://github.com/kubernetes-sigs/cluster-api/blob/main/VERSIONING.md)
+[Cluster API](https://github.com/kubernetes-sigs/cluster-api/blob/main/CONTRIBUTING.md)
 as we try to follow closely the release process
 
 <!-- markdownlint-disable -->
