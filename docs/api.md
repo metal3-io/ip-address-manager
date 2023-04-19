@@ -109,6 +109,4 @@ The *spec* field contains the following :
 ## Metal3 dev env examples
 
 You can find CR examples in the
-[Metal3-io dev env project](https://github.com/metal3-io/metal3-dev-env),
-in the [template
-folder](https://github.com/metal3-io/metal3-dev-env/tree/master/vm-setup/roles/v1aX_integration_test/templates).
+[Metal3-io dev env project](https://github.com/metal3-io/metal3-dev-env)
