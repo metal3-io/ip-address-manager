@@ -11,9 +11,9 @@ GitHub pull requests. Those guidelines are the same as the
 - [Finding Things That Need Help](#finding-things-that-need-help)
 - [Contributing a Patch](#contributing-a-patch)
 - [Backporting a Patch](#backporting-a-patch)
-  - [Merge Approval](#merge-approval)
-  - [Google Doc Viewing Permissions](#google-doc-viewing-permissions)
-  - [Issue and Pull Request Management](#issue-and-pull-request-management)
+   - [Merge Approval](#merge-approval)
+   - [Google Doc Viewing Permissions](#google-doc-viewing-permissions)
+   - [Issue and Pull Request Management](#issue-and-pull-request-management)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
