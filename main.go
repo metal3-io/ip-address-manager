@@ -46,6 +46,8 @@ var (
 	enableLeaderElection bool
 	syncPeriod           time.Duration
 	ippoolConcurrency    int
+	restConfigQPS        float64
+	restConfigBurst      int
 	webhookPort          int
 	healthAddr           string
 	watchNamespace       string
@@ -89,6 +91,12 @@ func main() {
 	flag.IntVar(&ippoolConcurrency, "ippool-concurrency", 10,
 		"Number of ippools to process simultaneously")
 
+	flag.Float64Var(&restConfigQPS, "kube-api-qps", 20,
+		"Maximum queries per second from the controller client to the Kubernetes API server. Default 20")
+
+	flag.IntVar(&restConfigBurst, "kube-api-burst", 30,
+		"Maximum number of queries that should be allowed in one burst from the controller client to the Kubernetes API server. Default 30")
+
 	flag.Parse()
 
 	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
@@ -99,7 +107,10 @@ func main() {
 	// klog.Background will automatically use the right logger.
 	ctrl.SetLogger(klog.Background())
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	restConfig := ctrl.GetConfigOrDie()
+	restConfig.QPS = float32(restConfigQPS)
+	restConfig.Burst = restConfigBurst
+	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     myscheme,
 		MetricsBindAddress:         metricsBindAddr,
 		LeaderElection:             enableLeaderElection,
