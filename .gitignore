@@ -25,3 +25,6 @@ tilt.d/*
 
 out
 releasenotes
+
+# Development containers (https://containers.dev/)
+.devcontainer
