@@ -7,6 +7,9 @@ This document details the steps to create a release for
 
 Things you should do before making a release:
 
+- Check the
+  [Metal3 release process](https://github.com/metal3-io/metal3-docs/blob/main/processes/releasing.md)
+  for high-level process and possible follow-up actions
 - Uplift controller Go modules to use latest corresponding CAPI modules
 - Uplift any other direct/indirect dependency to close any public
   vulnerabilities
@@ -64,7 +67,8 @@ We also need to create one or more tags for the Go modules ecosystem:
 
 - For any subdirectory with `go.mod` in it (excluding `hack/tools`), create
   another Git tag with directory prefix, ie.
-  `git tag -s -a api/v1.x.y -m api/v1.x.y`.
+  `git tag -s api/v1.x.y -m api/v1.x.y`.
+  **NOTE**: Do not create annotated tags for go modules.
 
 ### Release artifacts
 
@@ -101,14 +105,30 @@ Next step is to clean up the release note manually.
 - If it is a release candidate (RC) or a pre-release, tick pre-release box.
 - Publish the release.
 
-## Impact on Metal3 if new minor was released
+## Post-release actions for new release branches
 
 Patch release process is complete, but further additional actions are required
-in the Metal3 project to take in the new major/minor release. These steps are
+in the Metal3 project to take in the new major or minor release. These steps are
 documented in
-[CAPM3 release process](https://github.com/metal3-io/cluster-api-provider-metal3/blob/main/docs/releasing.md)
+[Metal3 release process](https://github.com/metal3-io/metal3-docs/blob/main/processes/releasing.md)
 
-## Announcements
+### Branch protection rules
 
-We announce the release in Kubernetes slack on `#cluster-api-baremetal` channel
-and through the `metal3-dev` group mailing list.
+Branch protection rules need to be applied to the new release branch. Copy the
+settings after the previous release branch, with the exception of
+`Required tests` selection. Required tests can only be selected after new
+keywords are implemented in Jenkins JJB, and project-infra, and have been run
+at least once in the PR targeting the branch in question.
+
+### Build badges
+
+Update the build badges in the `README.md` to point to correct Jenkins jobs,
+so the status of the release branch is visible.
+
+[Example](https://github.com/metal3-io/ip-address-manager/pull/232)
+
+## Additional actions outside this repository
+
+Further additional actions are required in the Metal3 project after IPAM
+release. For that, please continue following the instructions provided in
+[Metal3 release process](https://github.com/metal3-io/metal3-docs/blob/main/processes/releasing.md)
