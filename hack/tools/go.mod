@@ -6,7 +6,7 @@ require (
 	github.com/golangci/golangci-lint v1.47.2
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
 	k8s.io/code-generator v0.26.1
-	sigs.k8s.io/controller-tools v0.11.3
+	sigs.k8s.io/controller-tools v0.11.4
 	sigs.k8s.io/testing_frameworks v0.1.1
 )
 
