@@ -47,8 +47,8 @@ Deploys IPAM CRDs and deploys IPAM controllers
 Runs IPAM controller locally
 
 ```sh
-    kubectl scale -n capm3-system deployment.v1.apps/metal3-ipam-controller-manager \
-      --replicas 0
+    kubectl scale -n capm3-system \
+      deployment.v1.apps/metal3-ipam-controller-manager --replicas 0
     make run
 ```
 
