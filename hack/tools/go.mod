@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/golang/mock v1.5.0
+	github.com/golang/mock v1.6.0
 	sigs.k8s.io/kustomize/kustomize/v3 v3.10.0
 )
 
