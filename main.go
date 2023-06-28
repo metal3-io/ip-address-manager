@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -92,7 +93,11 @@ func main() {
 
 	// klog.Background will automatically use the right logger.
 	ctrl.SetLogger(klog.Background())
-
+	tlsOptionOverrides, err := GetTLSOptionOverrideFuncs()
+	if err != nil {
+		setupLog.Error(err, "unable to add TLS settings to the webhook server")
+		os.Exit(1)
+	}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                     myscheme,
 		MetricsBindAddress:         metricsBindAddr,
@@ -104,6 +109,7 @@ func main() {
 		HealthProbeBindAddress:     healthAddr,
 		Namespace:                  watchNamespace,
 		CertDir:                    webhookCertDir,
+		TLSOpts:                    tlsOptionOverrides,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -163,4 +169,20 @@ func setupWebhooks(mgr ctrl.Manager) {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IPClaim")
 		os.Exit(1)
 	}
+}
+
+// GetTLSOptionOverrideFuncs returns a list of TLS configuration overrides to be used
+// by the webhook server.
+func GetTLSOptionOverrideFuncs() ([]func(*tls.Config), error) {
+	var tlsOptions []func(config *tls.Config)
+
+	tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
+		cfg.MinVersion = tls.VersionTLS12
+	})
+
+	tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
+		cfg.MaxVersion = tls.VersionTLS13
+	})
+
+	return tlsOptions, nil
 }
