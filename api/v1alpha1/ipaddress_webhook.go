@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (c *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -38,7 +39,7 @@ func (c *IPAddress) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPAddress) ValidateCreate() error {
+func (c *IPAddress) ValidateCreate() (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
@@ -71,17 +72,17 @@ func (c *IPAddress) ValidateCreate() error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPAddress) ValidateUpdate(old runtime.Object) error {
+func (c *IPAddress) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
 	oldIPAddress, ok := old.(*IPAddress)
 	if !ok || oldIPAddress == nil {
-		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
+		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
 	if c.Spec.Address != oldIPAddress.Spec.Address {
@@ -147,12 +148,12 @@ func (c *IPAddress) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPAddress) ValidateDelete() error {
-	return nil
+func (c *IPAddress) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }

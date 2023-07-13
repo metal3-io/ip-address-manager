@@ -324,7 +324,7 @@ var _ = Describe("IPPool manager", func() {
 			for _, claim := range tc.ipClaims {
 				objects = append(objects, claim)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(objects...).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -384,6 +384,12 @@ var _ = Describe("IPPool manager", func() {
 							Namespace: "myns",
 						},
 					},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-1-11",
+							Namespace: "myns",
+						},
+					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -426,6 +432,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:              "abcf",
 						Namespace:         "myns",
 						DeletionTimestamp: &timeNow,
+						Finalizers: []string{
+							ipamv1.IPClaimFinalizer,
+						},
 					},
 					Spec: ipamv1.IPClaimSpec{
 						Pool: corev1.ObjectReference{
@@ -501,53 +510,6 @@ var _ = Describe("IPPool manager", func() {
 				"abce": ipamv1.IPAddressStr("192.168.1.12"),
 			},
 			expectedNbAllocations: 2,
-		}),
-		Entry("IPClaim with deletion timestamp without finalizers", testCaseUpdateAddresses{
-			ipPool: &ipamv1.IPPool{
-				ObjectMeta: ipPoolMeta,
-				Spec: ipamv1.IPPoolSpec{
-					NamePrefix: "abcpref",
-				},
-				Status: ipamv1.IPPoolStatus{},
-			},
-			ipClaims: []*ipamv1.IPClaim{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "abc",
-						Namespace:         "myns",
-						DeletionTimestamp: &timeNow,
-					},
-					Spec: ipamv1.IPClaimSpec{
-						Pool: corev1.ObjectReference{
-							Name:      "abc",
-							Namespace: "myns",
-						},
-					},
-				},
-			},
-			ipAddresses: []*ipamv1.IPAddress{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "abcpref-192-168-1-11",
-						Namespace: "myns",
-					},
-					Spec: ipamv1.IPAddressSpec{
-						Pool: corev1.ObjectReference{
-							Name:      "abc",
-							Namespace: "myns",
-						},
-						Claim: corev1.ObjectReference{
-							Name:      "abc",
-							Namespace: "myns",
-						},
-						Address: ipamv1.IPAddressStr("192.168.1.11"),
-						Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
-						Prefix:  24,
-					},
-				},
-			},
-			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
-			expectedNbAllocations: 0,
 		}),
 		Entry("IPClaim with deletion timestamp and finalizers", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{

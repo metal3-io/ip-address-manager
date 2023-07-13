@@ -10,7 +10,7 @@ linters:
   enable:
     - asciicheck
     - bodyclose
-    - deadcode
+    
     - depguard
     - dogsled
     - errcheck
@@ -29,20 +29,18 @@ linters:
     - misspell
     - nakedret
     - nilerr
-    - noctx 
+    - noctx
     - nolintlint
     - prealloc
     - predeclared
     - revive
     - rowserrcheck
     - staticcheck
-    - structcheck
     - stylecheck
     - thelper
     - typecheck
     - unconvert
     - unused
-    - varcheck
     - whitespace
   # Run with --fast=false for more extensive checks
   fast: true
