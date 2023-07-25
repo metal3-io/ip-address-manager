@@ -63,7 +63,6 @@ type IPPoolReconciler struct {
 
 // Reconcile handles IPPool events.
 func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
-	ctx = context.Background()
 	metadataLog := r.Log.WithName(ipPoolControllerName).WithValues("metal3-ippool", req.NamespacedName)
 
 	// Fetch the IPPool instance.

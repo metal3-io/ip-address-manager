@@ -105,7 +105,7 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 	// Verify that the IPv4 or IPv6 fulfills theirs constraints.
 	if (ip4 && IPBytesLen > 6 && IPBytes[4] != 255 && IPBytes[5] != 255) ||
 		(!ip4 && IPBytesLen > 16) {
-		return nil, errors.New(fmt.Sprintf("IP address overflow for : %s", ip.String()))
+		return nil, fmt.Errorf("IP address overflow for : %s", ip.String())
 	}
 
 	// transform the end ip into an Int to compare.
@@ -114,7 +114,7 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 		endIPInt = endIPInt.SetBytes(endIP)
 		// Computed IP is higher than the end IP.
 		if IPInt.Cmp(endIPInt) > 0 {
-			return nil, errors.New(fmt.Sprintf("IP address out of bonds for : %s", ip.String()))
+			return nil, fmt.Errorf("IP address out of bonds for : %s", ip.String())
 		}
 	}
 
