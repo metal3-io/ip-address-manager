@@ -1,6 +1,6 @@
 module github.com/metal3-io/ip-address-manager/hack/tools
 
-go 1.19
+go 1.20
 
 require (
 	github.com/golangci/golangci-lint v1.47.2
