@@ -250,7 +250,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	addresses map[ipamv1.IPAddressStr]string,
 ) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, []ipamv1.IPAddressStr, error) {
-	var allocatedAddress ipamv1.IPAddressStr = ""
+	var allocatedAddress ipamv1.IPAddressStr
 	var err error
 
 	// Get pre-allocated addresses
