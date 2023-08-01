@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (c *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -38,7 +39,7 @@ func (c *IPClaim) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateCreate() error {
+func (c *IPClaim) ValidateCreate() (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
@@ -51,17 +52,17 @@ func (c *IPClaim) ValidateCreate() error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateUpdate(old runtime.Object) error {
+func (c *IPClaim) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
 	oldIPClaim, ok := old.(*IPClaim)
 	if !ok || oldIPClaim == nil {
-		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
+		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
 	if c.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
@@ -91,12 +92,12 @@ func (c *IPClaim) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateDelete() error {
-	return nil
+func (c *IPClaim) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }

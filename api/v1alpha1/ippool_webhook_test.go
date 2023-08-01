@@ -58,12 +58,14 @@ func TestIPPoolValidation(t *testing.T) {
 			g := NewWithT(t)
 
 			if tt.expectErr {
-				g.Expect(tt.c.ValidateCreate()).NotTo(Succeed())
+				_, err := tt.c.ValidateCreate()
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(tt.c.ValidateCreate()).To(Succeed())
+				_, err := tt.c.ValidateCreate()
+				g.Expect(err).NotTo(HaveOccurred())
 			}
-
-			g.Expect(tt.c.ValidateDelete()).To(Succeed())
+			_, err := tt.c.ValidateDelete()
+			g.Expect(err).NotTo(HaveOccurred())
 		})
 	}
 }
@@ -190,9 +192,11 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				g.Expect(newPool.ValidateUpdate(oldPool)).NotTo(Succeed())
+				_, err := newPool.ValidateUpdate(oldPool)
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(newPool.ValidateUpdate(oldPool)).To(Succeed())
+				_, err := newPool.ValidateUpdate(oldPool)
+				g.Expect(err).NotTo(HaveOccurred())
 			}
 		})
 	}

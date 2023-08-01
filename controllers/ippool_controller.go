@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const (
@@ -176,7 +175,7 @@ func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manage
 		For(&ipamv1.IPPool{}).
 		WithOptions(options).
 		Watches(
-			&source.Kind{Type: &ipamv1.IPClaim{}},
+			&ipamv1.IPClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
 		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
@@ -186,7 +185,7 @@ func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manage
 // IPClaimToIPPool will return a reconcile request for a
 // Metal3DataTemplate if the event is for a
 // IPClaim and that IPClaim references a Metal3DataTemplate.
-func (r *IPPoolReconciler) IPClaimToIPPool(obj client.Object) []ctrl.Request {
+func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
 	if m3ipc, ok := obj.(*ipamv1.IPClaim); ok {
 		if m3ipc.Spec.Pool.Name != "" {
 			namespace := m3ipc.Spec.Pool.Namespace

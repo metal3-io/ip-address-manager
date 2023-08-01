@@ -81,12 +81,14 @@ func TestIPClaimCreateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				g.Expect(obj.ValidateCreate()).NotTo(Succeed())
+				_, err := obj.ValidateCreate()
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(obj.ValidateCreate()).To(Succeed())
+				_, err := obj.ValidateCreate()
+				g.Expect(err).NotTo(HaveOccurred())
 			}
-
-			g.Expect(obj.ValidateDelete()).To(Succeed())
+			_, err := obj.ValidateDelete()
+			g.Expect(err).NotTo(HaveOccurred())
 		})
 	}
 }
@@ -207,9 +209,11 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				g.Expect(newClm.ValidateUpdate(old)).NotTo(Succeed())
+				_, err := newClm.ValidateUpdate(old)
+				g.Expect(err).To(HaveOccurred())
 			} else {
-				g.Expect(newClm.ValidateUpdate(old)).To(Succeed())
+				_, err := newClm.ValidateUpdate(old)
+				g.Expect(err).NotTo(HaveOccurred())
 			}
 		})
 	}

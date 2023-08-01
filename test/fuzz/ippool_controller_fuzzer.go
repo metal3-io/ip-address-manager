@@ -1,6 +1,7 @@
 package ipam
 
 import (
+	"context"
 	"fmt"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
@@ -25,7 +26,7 @@ func FuzzIPClaimToIPPool(data []byte) int {
 	fmt.Printf("tc: %+v\n", tc)
 
 	obj := client.Object(tc.IPClaim)
-	reqs := r.IPClaimToIPPool(obj)
+	reqs := r.IPClaimToIPPool(context.Background(), obj)
 
 	if tc.ExpectRequest {
 		if len(reqs) != 1 {

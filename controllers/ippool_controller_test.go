@@ -148,6 +148,9 @@ var _ = Describe("IPPool controller", func() {
 					Name:              "abc",
 					Namespace:         "myns",
 					DeletionTimestamp: &timestampNow,
+					Finalizers: []string{
+						ipamv1.IPClaimFinalizer,
+					},
 				},
 				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
@@ -159,6 +162,9 @@ var _ = Describe("IPPool controller", func() {
 					Name:              "abc",
 					Namespace:         "myns",
 					DeletionTimestamp: &timestampNow,
+					Finalizers: []string{
+						ipamv1.IPClaimFinalizer,
+					},
 				},
 				Spec: ipamv1.IPPoolSpec{ClusterName: pointer.String("abc")},
 			},
@@ -343,7 +349,7 @@ var _ = Describe("IPPool controller", func() {
 		func(tc TestCaseM3IPCToM3IPP) {
 			r := IPPoolReconciler{}
 			obj := client.Object(tc.IPClaim)
-			reqs := r.IPClaimToIPPool(obj)
+			reqs := r.IPClaimToIPPool(context.Background(), obj)
 
 			if tc.ExpectRequest {
 				Expect(len(reqs)).To(Equal(1), "Expected 1 request, found %d", len(reqs))

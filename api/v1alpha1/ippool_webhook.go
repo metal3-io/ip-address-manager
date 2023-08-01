@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (c *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -40,16 +41,16 @@ func (c *IPPool) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPPool) ValidateCreate() error {
+func (c *IPPool) ValidateCreate() (admission.Warnings, error) {
 	return c.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPPool) ValidateUpdate(old runtime.Object) error {
+func (c *IPPool) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
 	oldM3ipp, ok := old.(*IPPool)
 	if !ok || oldM3ipp == nil {
-		return apierrors.NewInternalError(errors.New("unable to convert existing object"))
+		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
 	if !reflect.DeepEqual(c.Spec.NamePrefix, oldM3ipp.Spec.NamePrefix) {
@@ -86,9 +87,9 @@ func (c *IPPool) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("Metal3Data").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("Metal3Data").GroupKind(), c.Name, allErrs)
 }
 
 func (c *IPPool) checkPoolBonds(old *IPPool) ([]IPAddressStr, []IPAddressStr) {
@@ -134,16 +135,16 @@ func (c *IPPool) isAddressInBonds(address IPAddressStr) bool {
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPPool) ValidateDelete() error {
-	return nil
+func (c *IPPool) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 // No further validation for now.
-func (c *IPPool) validate() error {
+func (c *IPPool) validate() (admission.Warnings, error) {
 	var allErrs field.ErrorList
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("IPPool").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPPool").GroupKind(), c.Name, allErrs)
 }
