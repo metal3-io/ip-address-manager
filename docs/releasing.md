@@ -7,6 +7,7 @@ This document details the steps to create a release for
 
 Things you should do before making a release:
 
+- Uplift CAPI in root go module.
 - Uplift controller Go modules to use latest corresponding CAPI modules
 - Uplift any other direct/indirect dependency to close any public
   vulnerabilities
