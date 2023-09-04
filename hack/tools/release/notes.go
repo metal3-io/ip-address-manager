@@ -1,7 +1,8 @@
+//go:build tools
 // +build tools
 
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,6 +42,7 @@ const (
 	warning       = ":warning: Breaking Changes"
 	other         = ":seedling: Others"
 	unknown       = ":question: Sort these by hand"
+	superseded    = ":recycle: Superseded or Reverted"
 )
 
 var (
@@ -51,6 +53,7 @@ var (
 		documentation,
 		other,
 		unknown,
+		superseded,
 	}
 
 	fromTag = flag.String("from", "", "The tag or commit to start from.")
@@ -92,8 +95,8 @@ func firstCommit() string {
 }
 
 func run() int {
-	latestTag := latestTag()
 	lastTag := lastTag()
+	latestTag := latestTag()
 	cmd := exec.Command("git", "rev-list", lastTag+"..HEAD", "--merges", "--pretty=format:%B")
 
 	merges := map[string][]string{
@@ -103,6 +106,7 @@ func run() int {
 		warning:       {},
 		other:         {},
 		unknown:       {},
+		superseded:    {},
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -170,6 +174,9 @@ func run() int {
 		merges[key] = append(merges[key], formatMerge(body, prNumber))
 	}
 
+	// Add empty superseded section
+	merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
+
 	// TODO Turn this into a link (requires knowing the project name + organization)
 	fmt.Printf("Changes since %v\n---\n", lastTag)
 
@@ -184,9 +191,8 @@ func run() int {
 		}
 	}
 
-	fmt.Printf("The image for this release is: %v\n", latestTag)
-	fmt.Println("")
-	fmt.Println("_Thanks to all our contributors!_ 😊")
+	fmt.Printf("The container image for this release is: %v\n", latestTag)
+	fmt.Println("\nThanks to all our contributors! 😊")
 
 	return 0
 }
