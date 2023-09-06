@@ -38,7 +38,6 @@ TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 BIN_DIR := bin
 
 # Binaries.
-CLUSTERCTL := $(BIN_DIR)/clusterctl
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
 MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
@@ -85,15 +84,6 @@ unit: ## Run tests
 .PHONY: test  ## Run formatter, linter and tests
 test: generate fmt lint unit
 
-.PHONY: test-integration
-test-integration: ## Run integration tests
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v -tags=integration ./test/integration/...
-
-.PHONY: test-e2e
-test-e2e: ## Run e2e tests
-	PULL_POLICY=IfNotPresent $(MAKE) docker-build
-	go test -v -tags=e2e -timeout=1h ./test/e2e/... -args --managerImage $(CONTROLLER_IMG)-$(ARCH):$(TAG)
-
 ## --------------------------------------
 ## Binaries
 ## --------------------------------------
@@ -108,9 +98,6 @@ manager: ## Build manager binary.
 ## --------------------------------------
 ## Tooling Binaries
 ## --------------------------------------
-
-$(CLUSTERCTL): go.mod ## Build clusterctl binary.
-	go build -o $(BIN_DIR)/clusterctl sigs.k8s.io/cluster-api/cmd/clusterctl
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -265,10 +252,6 @@ set-manifest-pull-policy:
 ## --------------------------------------
 ## Deploying
 ## --------------------------------------
-
-# Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet
-	go run ./main.go
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: generate-examples
