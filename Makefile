@@ -85,15 +85,22 @@ unit: ## Run tests
 test: generate fmt lint unit
 
 ## --------------------------------------
-## Binaries
+## Build
 ## --------------------------------------
 
 .PHONY: binaries
 binaries: manager ## Builds and installs all binaries
 
+.PHONY: build
+build: binaries build-api ## Builds all IPAM modules
+
 .PHONY: manager
 manager: ## Build manager binary.
 	go build -o $(BIN_DIR)/manager .
+
+.PHONY: build-api
+build-api: ## Builds api directory.
+	cd $(APIS_DIR) && go build ./...
 
 ## --------------------------------------
 ## Tooling Binaries
