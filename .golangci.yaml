@@ -49,12 +49,6 @@ linters-settings:
     severity: medium
     confidence: medium
     concurrency: 8
-    config:
-      # Globals are applicable to all rules.
-      global:
-        # If true, ignore #nosec in comments
-        # Default: false
-        nosec: true
   importas:
       no-unaliased: true
       alias:
