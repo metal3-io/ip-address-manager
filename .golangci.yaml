@@ -48,8 +48,7 @@ linters-settings:
     go: "1.20"
     severity: medium
     confidence: medium
-    excludes:
-      - G107
+    concurrency: 8
   importas:
       no-unaliased: true
       alias:
