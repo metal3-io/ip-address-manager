@@ -80,10 +80,11 @@ We also need to create one or more tags for the Go modules ecosystem:
 
 - For any subdirectory with `go.mod` in it (excluding `hack/tools`), create
   another Git tag with directory prefix, ie.
-  `git tag -s api/v1.x.y`.
-  **NOTE**: Do not create annotated tags (`-a` or `-m`) for Go modules. Release
-  notes expects only the main tag to be annotated, otherwise it might create
-  incorrect release notes.
+  `git tag api/v1.x.y`.
+  **NOTE**: Do not create annotated tags (`-a`, or implicitly via `-m` or `-s`)
+  for Go modules. Release notes expects only the main tag to be annotated,
+  otherwise it might create incorrect release notes.
+  Push the tag to `origin`.
 
 ### Release artifacts
 
