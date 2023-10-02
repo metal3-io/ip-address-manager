@@ -8,7 +8,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
 	github.com/onsi/ginkgo/v2 v2.12.1
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/gomega v1.28.0
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.27.2
 	k8s.io/apiextensions-apiserver v0.27.2
