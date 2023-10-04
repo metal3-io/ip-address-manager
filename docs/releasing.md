@@ -19,6 +19,9 @@ Things you should check before making a release:
 - Verify any other direct or indirect dependency is uplifted to close any
   public vulnerabilities
 
+Use the `./hack/verify-release.sh` script as helper to identify possible
+issues to be addressed before creating any release tags.
+
 ## Permissions
 
 Creating a release requires repository `write` permissions for:
@@ -118,6 +121,8 @@ Next step is to clean up the release note manually.
   minor or major, or new patch release in the latest minor release),
   uncheck the box for latest release.
 - If it is a release candidate (RC) or a pre-release, tick pre-release box.
+- Save the release note as a draft, and have others review it. Use the
+  `./hack/verify-release.sh` script as helper to verify release content.
 - Publish the release.
 
 ## Post-release actions for new release branches
