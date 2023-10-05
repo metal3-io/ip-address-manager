@@ -71,7 +71,6 @@ declare -a git_annotated_tags=(
 
 declare -a git_lightweight_tags=(
     "api/v${VERSION}"
-    "test/v${VERSION}"
 )
 
 declare -a git_nonexisting_tags=(
