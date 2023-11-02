@@ -5,7 +5,7 @@ on:
     types: [opened, edited, reopened, synchronize]
 
 permissions:
-  contents: read
+  checks: write
 
 jobs:
   verify:
