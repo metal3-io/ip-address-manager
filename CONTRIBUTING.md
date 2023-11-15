@@ -27,7 +27,7 @@ contribution. See the [DCO](DCO) file for details.
 
 ### Git commit Sign-off
 
-Commit message should contain signed off section with full name and email. For example:
+Commit message should contain signed off section with full name and email test. For example:
 
  ```text
   Signed-off-by: John Doe <jdoe@example.com>
