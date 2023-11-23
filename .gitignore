@@ -23,5 +23,13 @@ tilt-settings.json
 tilt_config.json
 tilt.d/*
 
+# Common editor / temporary files
+*~
+*.tmp
+.DS_Store
+
+go.work
+go.work.sum
+
 out
 releasenotes
