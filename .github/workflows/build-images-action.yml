@@ -9,6 +9,7 @@ jobs:
   build:
     name: Build container images
     runs-on: ubuntu-latest
+    if: github.repository == 'metal3-io/ip-address-manager'
     permissions:
       contents: read
     steps:
@@ -21,7 +22,7 @@ jobs:
           job_name: "metal3_ip-address-manager_container_image_building"
           job_params: |
             {
-              "BUILD_CONTAINER_IMAGE_NAME": "ip-address-manager"
+              "BUILD_CONTAINER_IMAGE_NAME": "ip-address-manager",
               "BUILD_CONTAINER_IMAGE_BRANCH": "${{ github.ref }}"
             }
           job_timeout: "1000"
