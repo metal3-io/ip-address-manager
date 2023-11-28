@@ -9,8 +9,6 @@ updates:
       interval: "monthly"
     commit-message:
       prefix: ":seedling:"
-    labels:
-      - "ok-to-test"
     # Go
   - package-ecosystem: "gomod"
     directory: "/"
@@ -24,8 +22,6 @@ updates:
       - dependency-name: "k8s.io/*"
     commit-message:
       prefix: ":seedling:"
-    labels:
-      - "ok-to-test"
   - package-ecosystem: "gomod"
     directory: "/api"
     schedule:
@@ -38,8 +34,6 @@ updates:
       - dependency-name: "k8s.io/*"
     commit-message:
       prefix: ":seedling:"
-    labels:
-      - "ok-to-test"
   - package-ecosystem: "gomod"
     directory: "/hack/tools"
     schedule:
@@ -48,5 +42,3 @@ updates:
       - dependency-name: "sigs.k8s.io/controller-tools"
     commit-message:
       prefix: ":seedling:"
-    labels:
-      - "ok-to-test"
