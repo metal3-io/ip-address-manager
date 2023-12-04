@@ -3,7 +3,7 @@ module github.com/metal3-io/ip-address-manager/api
 go 1.20
 
 require (
-	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.27.2
