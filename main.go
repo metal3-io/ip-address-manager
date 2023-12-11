@@ -28,7 +28,11 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/metal3-io/ip-address-manager/controllers"
 	"github.com/metal3-io/ip-address-manager/ipam"
+	"github.com/spf13/pflag"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -37,8 +41,12 @@ import (
 	logsv1 "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -57,7 +65,6 @@ type TLSOptions struct {
 var (
 	myscheme             = runtime.NewScheme()
 	setupLog             = ctrl.Log.WithName("setup")
-	metricsBindAddr      string
 	enableLeaderElection bool
 	syncPeriod           time.Duration
 	ippoolConcurrency    int
@@ -68,6 +75,7 @@ var (
 	watchNamespace       string
 	webhookCertDir       string
 	watchFilterValue     string
+	diagnosticsOptions   = flags.DiagnosticsOptions{}
 	logOptions           = logs.NewOptions()
 	tlsOptions           = TLSOptions{}
 	tlsSupportedVersions = []string{TLSVersion12, TLSVersion13}
@@ -77,60 +85,16 @@ func init() {
 	_ = scheme.AddToScheme(myscheme)
 	_ = ipamv1.AddToScheme(myscheme)
 	_ = clusterv1.AddToScheme(myscheme)
-	// +kubebuilder:scaffold:scheme
 }
 
+// Add RBAC for the authorized diagnostics endpoint.
+// +kubebuilder:rbac:groups=authentication.k8s.io,resources=tokenreviews,verbs=create
+// +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
+
 func main() {
-	flag.StringVar(&metricsBindAddr, "metrics-bind-addr", "localhost:8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&watchNamespace, "namespace", "",
-		"Namespace that the controller watches to reconcile IPAM objects. If unspecified, the controller watches for IPAM objects across all namespaces.")
-	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Minute,
-		"The minimum interval at which watched resources are reconciled (e.g. 15m)")
-	flag.IntVar(&webhookPort, "webhook-port", 9443,
-		"Webhook Server port")
-	flag.StringVar(
-		&webhookCertDir,
-		"webhook-cert-dir",
-		"/tmp/k8s-webhook-server/serving-certs/",
-		"Webhook cert dir, only used when webhook-port is specified.",
-	)
-	flag.StringVar(
-		&watchFilterValue,
-		"watch-filter",
-		"",
-		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel),
-	)
-	flag.StringVar(&healthAddr, "health-addr", ":9440",
-		"The address the health endpoint binds to.")
-
-	flag.IntVar(&ippoolConcurrency, "ippool-concurrency", 10,
-		"Number of ippools to process simultaneously")
-
-	flag.Float64Var(&restConfigQPS, "kube-api-qps", 20,
-		"Maximum queries per second from the controller client to the Kubernetes API server. Default 20")
-
-	flag.IntVar(&restConfigBurst, "kube-api-burst", 30,
-		"Maximum number of queries that should be allowed in one burst from the controller client to the Kubernetes API server. Default 30")
-	flag.StringVar(&tlsOptions.TLSMinVersion, "tls-min-version", TLSVersion12,
-		"The minimum TLS version in use by the webhook server.\n"+
-			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
-	)
-
-	flag.StringVar(&tlsOptions.TLSMaxVersion, "tls-max-version", TLSVersion13,
-		"The maximum TLS version in use by the webhook server.\n"+
-			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
-	)
-
-	tlsCipherPreferredValues := cliflag.PreferredTLSCipherNames()
-	tlsCipherInsecureValues := cliflag.InsecureTLSCipherNames()
-	flag.StringVar(&tlsOptions.TLSCipherSuites, "tls-cipher-suites", "",
-		"Comma-separated list of cipher suites for the webhook server. "+
-			"If omitted, the default Go cipher suites will be used. \n"+
-			"Preferred values: "+strings.Join(tlsCipherPreferredValues, ", ")+". \n"+
-			"Insecure values: "+strings.Join(tlsCipherInsecureValues, ", ")+".")
-	flag.Parse()
+	initFlags(pflag.CommandLine)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
 
 	if err := logsv1.ValidateAndApply(logOptions, nil); err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -145,21 +109,55 @@ func main() {
 		os.Exit(1)
 	}
 
+	diagnosticsOpts := flags.GetDiagnosticsOptions(diagnosticsOptions)
+
+	var watchNamespaces map[string]cache.Config
+	if watchNamespace != "" {
+		watchNamespaces = map[string]cache.Config{
+			watchNamespace: {},
+		}
+	}
+
+	req, _ := labels.NewRequirement(clusterv1.ClusterNameLabel, selection.Exists, nil)
+	clusterSecretCacheSelector := labels.NewSelector().Add(*req)
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.QPS = float32(restConfigQPS)
 	restConfig.Burst = restConfigBurst
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     myscheme,
-		MetricsBindAddress:         metricsBindAddr,
 		LeaderElection:             enableLeaderElection,
 		LeaderElectionID:           "controller-leader-election-ipam-capm3",
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
-		SyncPeriod:                 &syncPeriod,
-		Port:                       webhookPort,
 		HealthProbeBindAddress:     healthAddr,
-		Namespace:                  watchNamespace,
-		CertDir:                    webhookCertDir,
-		TLSOpts:                    tlsOptionOverrides,
+		Metrics:                    diagnosticsOpts,
+		Cache: cache.Options{
+			DefaultNamespaces: watchNamespaces,
+			SyncPeriod:        &syncPeriod,
+			ByObject: map[client.Object]cache.ByObject{
+				// Note: Only Secrets with the cluster name label are cached.
+				// The default client of the manager won't use the cache for secrets at all (see Client.Cache.DisableFor).
+				// The cached secrets will only be used by the secretCachingClient we create below.
+				&corev1.Secret{}: {
+					Label: clusterSecretCacheSelector,
+				},
+			},
+		},
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					&corev1.ConfigMap{},
+					&corev1.Secret{},
+				},
+			},
+		},
+		WebhookServer: webhook.NewServer(
+			webhook.Options{
+				Port:    webhookPort,
+				CertDir: webhookCertDir,
+				TLSOpts: tlsOptionOverrides,
+			},
+		),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -180,6 +178,61 @@ func main() {
 	}
 }
 
+func initFlags(fs *pflag.FlagSet) {
+	logs.AddFlags(fs, logs.SkipLoggingConfigurationFlags())
+	logsv1.AddFlags(logOptions, fs)
+
+	fs.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	fs.StringVar(&watchNamespace, "namespace", "",
+		"Namespace that the controller watches to reconcile IPAM objects. If unspecified, the controller watches for IPAM objects across all namespaces.")
+	fs.DurationVar(&syncPeriod, "sync-period", 10*time.Minute,
+		"The minimum interval at which watched resources are reconciled (e.g. 15m)")
+	fs.IntVar(&webhookPort, "webhook-port", 9443,
+		"Webhook Server port")
+	fs.StringVar(
+		&webhookCertDir,
+		"webhook-cert-dir",
+		"/tmp/k8s-webhook-server/serving-certs/",
+		"Webhook cert dir, only used when webhook-port is specified.",
+	)
+	fs.StringVar(
+		&watchFilterValue,
+		"watch-filter",
+		"",
+		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel),
+	)
+	fs.StringVar(&healthAddr, "health-addr", ":9440",
+		"The address the health endpoint binds to.")
+
+	fs.IntVar(&ippoolConcurrency, "ippool-concurrency", 10,
+		"Number of ippools to process simultaneously")
+
+	fs.Float64Var(&restConfigQPS, "kube-api-qps", 20,
+		"Maximum queries per second from the controller client to the Kubernetes API server. Default 20")
+
+	fs.IntVar(&restConfigBurst, "kube-api-burst", 30,
+		"Maximum number of queries that should be allowed in one burst from the controller client to the Kubernetes API server. Default 30")
+	fs.StringVar(&tlsOptions.TLSMinVersion, "tls-min-version", TLSVersion12,
+		"The minimum TLS version in use by the webhook server.\n"+
+			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
+	)
+
+	fs.StringVar(&tlsOptions.TLSMaxVersion, "tls-max-version", TLSVersion13,
+		"The maximum TLS version in use by the webhook server.\n"+
+			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
+	)
+
+	tlsCipherPreferredValues := cliflag.PreferredTLSCipherNames()
+	tlsCipherInsecureValues := cliflag.InsecureTLSCipherNames()
+	fs.StringVar(&tlsOptions.TLSCipherSuites, "tls-cipher-suites", "",
+		"Comma-separated list of cipher suites for the webhook server. "+
+			"If omitted, the default Go cipher suites will be used. \n"+
+			"Preferred values: "+strings.Join(tlsCipherPreferredValues, ", ")+". \n"+
+			"Insecure values: "+strings.Join(tlsCipherInsecureValues, ", ")+".")
+
+	flags.AddDiagnosticsOptions(fs, &diagnosticsOptions)
+}
 func setupChecks(mgr ctrl.Manager) {
 	if err := mgr.AddReadyzCheck("webhook", mgr.GetWebhookServer().StartedChecker()); err != nil {
 		setupLog.Error(err, "unable to create ready check")
