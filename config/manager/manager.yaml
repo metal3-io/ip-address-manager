@@ -22,6 +22,8 @@ spec:
             - /manager
           args:
             - "--webhook-port=9443"
+            - "--diagnostics-address=${IPAM_DIAGNOSTICS_ADDRESS:=:8443}"
+            - "--insecure-diagnostics=${IPAM_INSECURE_DIAGNOSTICS:=false}"
           image: controller:latest
           imagePullPolicy: IfNotPresent
           name: manager
@@ -33,6 +35,9 @@ spec:
           ports:
             - containerPort: 9440
               name: healthz
+              protocol: TCP
+            - containerPort: 8443
+              name: metrics
               protocol: TCP
           readinessProbe:
             httpGet:
