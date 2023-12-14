@@ -116,5 +116,5 @@ type IPPoolList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&IPPool{}, &IPPoolList{})
+	objectTypes = append(objectTypes, &IPPool{}, &IPPoolList{})
 }
