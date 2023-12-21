@@ -73,5 +73,5 @@ type IPAddressList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&IPAddress{}, &IPAddressList{})
+	objectTypes = append(objectTypes, &IPAddress{}, &IPAddressList{})
 }
