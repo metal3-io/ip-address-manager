@@ -16,7 +16,6 @@ jobs:
     permissions:
       contents: read
 
-    if: github.repository == 'metal3-io/ip-address-manager'
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
     - uses: gaurav-nelson/github-action-markdown-link-check@5c5dfc0ac2e225883c0e5f03a85311ec2830d368 # v1
