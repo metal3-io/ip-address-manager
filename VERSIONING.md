@@ -20,13 +20,13 @@ Cluster API follows [Semantic Versioning](https://semver.org).
 I'd recommend reading the aforementioned link if you're not familiar,
 but essentially, for any given release X.Y.Z:
 
-- an X (*major*) release indicates a set of backwards-compatible code.
+- an X (**major**) release indicates a set of backwards-compatible code.
   Changing X means there's a breaking change.
 
-- a Y (*minor*) release indicates a minimum feature set.  Changing Y means
+- a Y (**minor**) release indicates a minimum feature set.  Changing Y means
   the addition of a backwards-compatible feature.
 
-- a Z (*patch*) release indicates minimum set of bugfixes.  Changing
+- a Z (**patch**) release indicates minimum set of bugfixes.  Changing
   Z means a backwards-compatible change that doesn't add functionality.
 
 *NB*: If the major release is `0`, any minor release may contain breaking
@@ -34,7 +34,7 @@ changes.
 
 These guarantees extend to all code exposed in public APIs of
 IP Address Manager. This includes code both in IP Address Manager
-Baremetal itself, *plus types from dependencies in public APIs*.  Types and
+Baremetal itself, _plus types from dependencies in public APIs_. Types and
 functions not in public APIs are not considered part of the guarantee.
 
 In order to easily maintain the guarantees, we have a couple of processes
@@ -42,15 +42,15 @@ that we follow.
 
 ## Branches
 
-IP Address Manager contains two types of branches: the *main*
-branch and *release-X* branches.
+IP Address Manager contains two types of branches: the _main_
+branch and _release-X_ branches.
 
-The *main* branch is where development happens.  All the latest and
+The _main_ branch is where development happens. All the latest and
 greatest code, including breaking changes, happen on main.
 
-The *release-X* branches contain stable, backwards compatible code.  Every
-major (X) release, a new such branch is created.  It is from these
-branches that minor and patch releases are tagged.  In some cases, it may
+The _release-X_ branches contain stable, backwards compatible code. Every
+major (X) release, a new such branch is created. It is from these
+branches that minor and patch releases are tagged. In some cases, it may
 be necessary to open PRs for bugfixes directly against stable branches, but
 this should generally be avoided.
 
@@ -98,12 +98,12 @@ for a command reference.
 Minor and patch releases are generally done immediately after a feature or
 bugfix is landed, or sometimes a series of features tied together.
 
-Minor releases will only be tagged on the *most recent* major release
+Minor releases will only be tagged on the _most recent_ major release
 branch, except in exceptional circumstances.  Patches will be backported
 to maintained stable versions, as needed.
 
 Major releases are done shortly after a breaking change is merged -- once
-a breaking change is merged, the next release *must* be a major revision.
+a breaking change is merged, the next release _must_ be a major revision.
 We don't intend to have a lot of these, so we may put off merging breaking
 PRs until a later date.
 

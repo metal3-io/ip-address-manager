@@ -21,19 +21,19 @@
 
     b. Run below command to make C binary files for the same function.
 
-    ```
+    ```bash
     clang -o yaml_FuzzNewIPPoolManager  yaml_FuzzNewIPPoolManager.a -fsanitize=fuzzer
     ```
 
     c. Run the fuzzer as below
 
-    ```
+    ```bash
     ./yaml_FuzzNewIPPoolManager
     ```
 
 - Execution: Here is an example for execution of some test outputs:
 
-    ```
+    ```text
     [63 32 45 58 119 50 9 119 50 9 119 50 9 45 58
     50 9 119 9 119 50 9 91 13 45 58]
     &{TypeMeta:{Kind: APIVersion:}
