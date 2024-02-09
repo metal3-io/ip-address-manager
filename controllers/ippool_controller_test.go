@@ -92,9 +92,9 @@ var _ = Describe("IPPool controller", func() {
 			}
 
 			if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() && tc.reconcileDeleteError {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
 			} else if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, nil)
+				m.EXPECT().UpdateAddresses(context.Background()).Return(0, nil)
 				m.EXPECT().UnsetFinalizer()
 			}
 
@@ -102,9 +102,9 @@ var _ = Describe("IPPool controller", func() {
 				tc.reconcileNormal {
 				m.EXPECT().SetFinalizer()
 				if tc.reconcileNormalError {
-					m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+					m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
 				} else {
-					m.EXPECT().UpdateAddresses(context.TODO()).Return(1, nil)
+					m.EXPECT().UpdateAddresses(context.Background()).Return(1, nil)
 				}
 			}
 
