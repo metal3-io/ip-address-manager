@@ -14,6 +14,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"net"
+	"net/netip"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -113,25 +115,49 @@ func (c *IPPool) checkPoolBonds(old *IPPool) ([]IPAddressStr, []IPAddressStr) {
 }
 
 func (c *IPPool) isAddressInBonds(address IPAddressStr) bool {
-	inBonds := false
-	for _, pool := range c.Spec.Pools {
-		if inBonds {
-			break
-		}
-		index := 0
-		for !inBonds {
-			allocatedAddress, err := GetIPAddress(pool, index)
-			if err != nil {
-				break
-			}
-			index++
-			if allocatedAddress == address {
-				inBonds = true
-				break
-			}
-		}
+	ip, err := netip.ParseAddr(string(address))
+	if err != nil {
+		return false
 	}
-	return inBonds
+
+	for _, pool := range c.Spec.Pools {
+		if pool.Start != nil {
+			startIP, err := netip.ParseAddr(string(*pool.Start))
+			if err != nil {
+				// skip this invalid pool, as the validation error should be caught somewhere else
+				continue
+			}
+			if startIP.Compare(ip) > 0 {
+				continue
+			}
+		}
+
+		if pool.End != nil {
+			endIP, err := netip.ParseAddr(string(*pool.End))
+			if err != nil {
+				// skip this invalid pool, as the validation error should be caught somewhere else
+				continue
+			}
+			if endIP.Compare(ip) < 0 {
+				continue
+			}
+		}
+
+		if pool.Subnet != nil {
+			_, subnet, err := net.ParseCIDR(string(*pool.Subnet))
+			if err != nil {
+				// skip this invalid pool, as the validation error should be caught somewhere else
+				continue
+			}
+			if !subnet.Contains(net.ParseIP(ip.String())) {
+				continue
+			}
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
