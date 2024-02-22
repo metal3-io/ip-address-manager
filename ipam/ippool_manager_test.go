@@ -27,7 +27,7 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -290,7 +290,7 @@ var _ = Describe("IPPool manager", func() {
 							Namespace: "myns",
 						},
 						Address: ipamv1.IPAddressStr("192.168.1.11"),
-						Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+						Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 						Prefix:  24,
 					},
 				},
@@ -466,7 +466,7 @@ var _ = Describe("IPPool manager", func() {
 							Namespace: "myns",
 						},
 						Address: ipamv1.IPAddressStr("192.168.1.11"),
-						Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+						Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 						Prefix:  24,
 					},
 				},
@@ -554,7 +554,7 @@ var _ = Describe("IPPool manager", func() {
 							Namespace: "myns",
 						},
 						Address: ipamv1.IPAddressStr("192.168.1.11"),
-						Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+						Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 						Prefix:  24,
 					},
 				},
@@ -644,8 +644,8 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 						},
 					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
@@ -677,8 +677,8 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 						},
 					},
 					NamePrefix: "abcpref",
@@ -710,8 +710,8 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 						},
 					},
 					NamePrefix: "abcpref",
@@ -754,8 +754,8 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
 						},
 					},
 					NamePrefix: "abcpref",
@@ -827,24 +827,24 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:     (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 							Prefix:  26,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.21")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.30")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.21")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.30")),
 						},
 					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
 						"TestRef": ipamv1.IPAddressStr("192.168.0.21"),
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -856,7 +856,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.21"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
 				ipamv1.IPAddressStr("8.8.4.4"),
 			},
@@ -867,10 +867,10 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:     (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 							Prefix:  26,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
@@ -880,7 +880,7 @@ var _ = Describe("IPPool manager", func() {
 						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -892,7 +892,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.15"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
 				ipamv1.IPAddressStr("8.8.8.8"),
 			},
@@ -903,10 +903,10 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:     (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 							Prefix:  26,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
@@ -916,7 +916,7 @@ var _ = Describe("IPPool manager", func() {
 						"TestRef": ipamv1.IPAddressStr("192.168.0.21"),
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -934,12 +934,12 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 						},
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
@@ -952,7 +952,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.13"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedPrefix:  24,
 		}),
 		Entry("One pool, with subnet and override prefix", testCaseAllocateAddress{
@@ -960,17 +960,17 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.11")),
-							End:     (*ipamv1.IPAddressStr)(pointer.String("192.168.0.20")),
+							Start:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:     (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
 							Prefix:  24,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
 					},
 					Prefix:  26,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -986,7 +986,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.13"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
 				ipamv1.IPAddressStr("8.8.8.8"),
 			},
@@ -997,20 +997,20 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
-							End:     (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
+							Start:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:     (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
 							Prefix:  24,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
 						{
-							Subnet: (*ipamv1.IPSubnetStr)(pointer.String("192.168.1.10/24")),
+							Subnet: (*ipamv1.IPSubnetStr)(ptr.To("192.168.1.10/24")),
 						},
 					},
 					Prefix:  26,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.2.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.2.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -1026,7 +1026,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.10"): "abcd",
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.1.12"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.2.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.2.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
 				ipamv1.IPAddressStr("8.8.4.4"),
 			},
@@ -1037,20 +1037,20 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
 						},
 						{
-							Subnet:  (*ipamv1.IPSubnetStr)(pointer.String("192.168.1.10/24")),
+							Subnet:  (*ipamv1.IPSubnetStr)(ptr.To("192.168.1.10/24")),
 							Prefix:  24,
-							Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+							Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 							DNSServers: []ipamv1.IPAddressStr{
 								ipamv1.IPAddressStr("8.8.8.8"),
 							},
 						},
 					},
 					Prefix:  26,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.2.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.2.1")),
 					DNSServers: []ipamv1.IPAddressStr{
 						ipamv1.IPAddressStr("8.8.4.4"),
 					},
@@ -1066,7 +1066,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.10"): "abcd",
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.1.12"),
-			expectedGateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.1.1")),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 			expectedDNSServers: []ipamv1.IPAddressStr{
 				ipamv1.IPAddressStr("8.8.8.8"),
 			},
@@ -1077,12 +1077,12 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Start: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
-							End:   (*ipamv1.IPAddressStr)(pointer.String("192.168.0.10")),
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
 						},
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
@@ -1100,11 +1100,11 @@ var _ = Describe("IPPool manager", func() {
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
 						{
-							Subnet: (*ipamv1.IPSubnetStr)(pointer.String("192.168.0.0/30")),
+							Subnet: (*ipamv1.IPSubnetStr)(ptr.To("192.168.0.0/30")),
 						},
 					},
 					Prefix:  24,
-					Gateway: (*ipamv1.IPAddressStr)(pointer.String("192.168.0.1")),
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
 			ipClaim: &ipamv1.IPClaim{
