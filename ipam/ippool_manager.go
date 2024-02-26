@@ -27,7 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -305,11 +305,11 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		addressClaim.Status.ErrorMessage = pointer.String("Pre-allocated IP out of bond")
+		addressClaim.Status.ErrorMessage = ptr.To("Pre-allocated IP out of bond")
 		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
-		addressClaim.Status.ErrorMessage = pointer.String("Exhausted IP Pools")
+		addressClaim.Status.ErrorMessage = ptr.To("Exhausted IP Pools")
 		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Exhausted IP Pools")
 	}
 	return allocatedAddress, prefix, gateway, dnsServers, nil
@@ -397,7 +397,7 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reqAfter *RequeueAfterError
 		if ok := errors.As(err, &reqAfter); !ok {
-			addressClaim.Status.ErrorMessage = pointer.String("Failed to create associated IPAddress object")
+			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
 		}
 		return addresses, err
 	}
@@ -429,7 +429,7 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 		}
 		err := m.client.Get(ctx, key, ipAddress)
 		if err != nil && !apierrors.IsNotFound(err) {
-			addressClaim.Status.ErrorMessage = pointer.String("Failed to get associated IPAddress object")
+			addressClaim.Status.ErrorMessage = ptr.To("Failed to get associated IPAddress object")
 			return addresses, err
 		} else if err == nil {
 			// Remove the finalizer
@@ -444,7 +444,7 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 			// Delete the IPAddress
 			err = deleteObject(ctx, m.client, ipAddress)
 			if err != nil {
-				addressClaim.Status.ErrorMessage = pointer.String("Failed to delete associated IPAddress object")
+				addressClaim.Status.ErrorMessage = ptr.To("Failed to delete associated IPAddress object")
 				return addresses, err
 			}
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)

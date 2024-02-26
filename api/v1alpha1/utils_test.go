@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 var _ = Describe("IPPool manager", func() {
@@ -50,68 +50,68 @@ var _ = Describe("IPPool manager", func() {
 		}),
 		Entry("Start set, no end or subnet", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start: (*IPAddressStr)(pointer.String("192.168.0.10")),
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
 			},
 			index:      1,
 			expectedIP: IPAddressStr("192.168.0.11"),
 		}),
 		Entry("Start set, end set, subnet unset", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start: (*IPAddressStr)(pointer.String("192.168.0.10")),
-				End:   (*IPAddressStr)(pointer.String("192.168.0.100")),
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.100")),
 			},
 			index:      1,
 			expectedIP: IPAddressStr("192.168.0.11"),
 		}),
 		Entry("Start set, end set, subnet unset, out of bound", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start: (*IPAddressStr)(pointer.String("192.168.0.10")),
-				End:   (*IPAddressStr)(pointer.String("192.168.0.100")),
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.100")),
 			},
 			index:       100,
 			expectError: true,
 		}),
 		Entry("Start set, end unset, subnet set", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start:  (*IPAddressStr)(pointer.String("192.168.0.10")),
-				Subnet: (*IPSubnetStr)(pointer.String("192.168.0.0/24")),
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
 			},
 			index:      1,
 			expectedIP: IPAddressStr("192.168.0.11"),
 		}),
 		Entry("Start set, end unset, subnet set, out of bound", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start:  (*IPAddressStr)(pointer.String("192.168.0.10")),
-				Subnet: (*IPSubnetStr)(pointer.String("192.168.0.0/24")),
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
 			},
 			index:       250,
 			expectError: true,
 		}),
 		Entry("Start set, end unset, subnet empty", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Start:  (*IPAddressStr)(pointer.String("192.168.0.10")),
-				Subnet: (*IPSubnetStr)(pointer.String("")),
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("")),
 			},
 			index:       1,
 			expectError: true,
 		}),
 		Entry("subnet empty", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Subnet: (*IPSubnetStr)(pointer.String("")),
+				Subnet: (*IPSubnetStr)(ptr.To("")),
 			},
 			index:       1,
 			expectError: true,
 		}),
 		Entry("Start unset, end unset, subnet set", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Subnet: (*IPSubnetStr)(pointer.String("192.168.0.10/24")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.10/24")),
 			},
 			index:      1,
 			expectedIP: IPAddressStr("192.168.0.12"),
 		}),
 		Entry("Start unset, end unset, subnet set, out of bound", testCaseGetIPAddress{
 			ipAddress: Pool{
-				Subnet: (*IPSubnetStr)(pointer.String("192.168.0.10/24")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.10/24")),
 			},
 			index:       250,
 			expectError: true,

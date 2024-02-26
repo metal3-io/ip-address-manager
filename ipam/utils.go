@@ -23,7 +23,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -122,13 +122,13 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 			Kind:       objType.Kind,
 			Name:       objMeta.Name,
 			UID:        objMeta.UID,
-			Controller: pointer.Bool(controller),
+			Controller: ptr.To(controller),
 		})
 	} else {
 		// The UID and the APIVersion might change due to move or version upgrade
 		refList[index].APIVersion = objType.APIVersion
 		refList[index].UID = objMeta.UID
-		refList[index].Controller = pointer.Bool(controller)
+		refList[index].Controller = ptr.To(controller)
 	}
 	return refList, nil
 }
