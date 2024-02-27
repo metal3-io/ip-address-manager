@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
-	k8s.io/code-generator v0.29.1
+	k8s.io/code-generator v0.29.2
 	sigs.k8s.io/controller-tools v0.13.0
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
