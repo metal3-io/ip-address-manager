@@ -28,3 +28,8 @@ releasenotes
 
 # Development containers (https://containers.dev/)
 .devcontainer
+
+# Common editor / temporary files
+*~
+*.tmp
+.DS_Store
