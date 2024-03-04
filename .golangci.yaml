@@ -110,7 +110,10 @@ issues:
       path: .*(api|types)\/.*\/conversion.*\.go$
     # Dot imports for gomega or ginkgo are allowed
     # within test files.
-
+    - path: _test\.go
+      text: should not use dot imports
+    - path: (test|e2e)/.*.go
+      text: should not use dot imports
     - linters:
       - revive
       text: "exported: exported method .*\\.(Reconcile|SetupWithManager|SetupWebhookWithManager) should have comment or be unexported"
