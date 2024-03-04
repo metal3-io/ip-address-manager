@@ -66,6 +66,9 @@ RBAC_ROOT ?= $(MANIFEST_ROOT)/rbac
 # Allow overriding the imagePullPolicy
 PULL_POLICY ?= IfNotPresent
 
+# Testing
+COVER_PROFILE = cover.out
+
 ## --------------------------------------
 ## Help
 ## --------------------------------------
@@ -83,6 +86,13 @@ unit: ## Run tests
 
 .PHONY: test  ## Run formatter, linter and tests
 test: generate fmt lint unit
+
+.PHONY: unit-cover
+unit-cover: ## Run unit tests with code coverage
+	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test ./controllers/... ./ipam/...  -coverprofile=$(COVER_PROFILE) ./...
+	go tool cover -func=$(COVER_PROFILE)
+	cd $(APIS_DIR)/ && go test -coverprofile=$(COVER_PROFILE) ./...
+	go tool cover -func=$(COVER_PROFILE)
 
 ## --------------------------------------
 ## Build
