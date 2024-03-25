@@ -73,6 +73,7 @@ func TestIPPoolValidation(t *testing.T) {
 func TestIPPoolUpdateValidation(t *testing.T) {
 	startAddr := IPAddressStr("192.168.0.1")
 	endAddr := IPAddressStr("192.168.0.10")
+	subnet := IPSubnetStr("192.168.0.1/25")
 
 	tests := []struct {
 		name          string
@@ -104,7 +105,7 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			},
 		},
 		{
-			name:      "should succeed when preAllocations are correct",
+			name:      "should succeed when preAllocations are between start and end",
 			expectErr: false,
 			newPoolSpec: &IPPoolSpec{
 				NamePrefix: "abcd",
@@ -125,7 +126,7 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			},
 		},
 		{
-			name:      "should fail when preAllocations are incorrect",
+			name:      "should fail when preAllocations are out of start and end",
 			expectErr: true,
 			newPoolSpec: &IPPoolSpec{
 				NamePrefix: "abcd",
@@ -134,6 +135,48 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 				},
 				PreAllocations: map[string]IPAddressStr{
 					"alloc": IPAddressStr("192.168.0.20"),
+				},
+			},
+			oldPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+			oldPoolStatus: IPPoolStatus{
+				Allocations: map[string]IPAddressStr{
+					"inuse": IPAddressStr("192.168.0.3"),
+				},
+			},
+		},
+		{
+			name:      "should succeed when preAllocations are in the cidr",
+			expectErr: false,
+			newPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []Pool{
+					{Subnet: &subnet},
+				},
+				PreAllocations: map[string]IPAddressStr{
+					"alloc": IPAddressStr("192.168.0.2"),
+				},
+			},
+			oldPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+			oldPoolStatus: IPPoolStatus{
+				Allocations: map[string]IPAddressStr{
+					"inuse": IPAddressStr("192.168.0.3"),
+				},
+			},
+		},
+		{
+			name:      "should fail when preAllocations are out of cidr",
+			expectErr: true,
+			newPoolSpec: &IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []Pool{
+					{Subnet: &subnet},
+				},
+				PreAllocations: map[string]IPAddressStr{
+					"alloc": IPAddressStr("192.168.0.250"),
 				},
 			},
 			oldPoolSpec: &IPPoolSpec{
