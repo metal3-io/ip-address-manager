@@ -84,8 +84,8 @@ help:  ## Display this help
 unit: ## Run tests
 	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out
 
-.PHONY: test  ## Run formatter, linter and tests
-test: generate fmt lint unit
+.PHONY: test  ## Run linter and tests
+test: generate lint unit
 
 .PHONY: unit-cover
 unit-cover: ## Run unit tests with code coverage
@@ -146,17 +146,6 @@ lint: $(GOLANGCI_LINT) ## Lint codebase
 lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
 	$(GOLANGCI_LINT) run -v --fast=false
 	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v --fast=false --timeout=30m
-
-# Run go fmt against code
-fmt:
-	go fmt ./controllers/... ./ipam/... .
-	cd $(APIS_DIR); go fmt ./...
-
-# Run go vet against code
-vet:
-	go vet ./controllers/... ./ipam/... .
-	cd $(APIS_DIR); go vet ./...
-
 
 ## --------------------------------------
 ## Generate
