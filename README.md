@@ -1,4 +1,4 @@
-# Metal3 IP Address Manager for Cluster API Provider Metal3
+# Metal3 IP Address Manager for Cluster API Provider Metal4
 
 [![Ubuntu E2E Integration 1.5 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_release-1-5_e2e_integration_test_ubuntu&subject=Ubuntu%20e2e%20integration%201.5)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3_daily_release-1-5_integration_test_ubuntu/)
 [![CentOS E2E Integration 1.5 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_release-1-5_e2e_integration_test_centos&subject=Centos%20e2e%20integration%201.5)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3_daily_release-1-5_integration_test_centos/)
