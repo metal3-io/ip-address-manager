@@ -1,7 +1,7 @@
 # Metal3 IP Address Manager for Cluster API Provider Metal3
 
-[![Ubuntu daily 1.4 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_release-1-4_integration_test_ubuntu&subject=Ubuntu%20daily%201.4)](https://jenkins.nordix.org/view/Metal3/job/metal3_daily_release-1-4_integration_test_ubuntu/)
-[![CentOS daily 1.4 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_release-1-4_integration_test_centos&subject=CentOS%20daily%201.4)](https://jenkins.nordix.org/view/Metal3/job/metal3_daily_release-1-4_integration_test_centos/)
+[![Ubuntu E2E Integration 1.4 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_periodic_release-1-4_integration_test_ubuntu&subject=Ubuntu%20e2e%20integration%201.4)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3_periodic_release-1-4_integration_test_ubuntu/)
+[![CentOS E2E Integration 1.4 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_periodic_release-1-4_integration_test_centos&subject=Centos%20e2e%20integration%201.4)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3_periodic_release-1-4_integration_test_centos/)
 
 This repository contains a controller to manage static IP address allocations
 in [Cluster API Provider Metal3](https://github.com/metal3-io/cluster-api-provider-metal3/).
