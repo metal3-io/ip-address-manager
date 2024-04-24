@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
 - core-components.yaml
 - infrastructure-components.yaml
-patchesStrategicMerge:
-- manager_tolerations_patch.yaml
+patches:
+- path: manager_tolerations_patch.yaml
