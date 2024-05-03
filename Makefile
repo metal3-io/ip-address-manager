@@ -53,7 +53,7 @@ PROD_REGISTRY := quay.io/metal3-io
 IMAGE_NAME ?= ip-address-manager
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 TAG ?= v1alpha1
-ARCH ?= amd64
+ARCH ?= $(shell go env GOARCH)
 ALL_ARCH = amd64 arm arm64 ppc64le s390x
 
 # Allow overriding manifest generation destination directory
