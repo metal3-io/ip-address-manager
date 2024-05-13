@@ -1,20 +1,23 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
 approvers:
- - kashifest
- - lentzi90
+- kashifest
+- lentzi90
+- Rozzii
+- Sunnatillo
+- tuminoid
 
 reviewers:
- - Rozzii
- - smoshiur1237
- - tuminoid
+- mquhuy
+- smoshiur1237
+
 
 emeritus_approvers:
- - fmuyassarov
- - furkatgofurov7
- - maelk
- - russellb
- 
+- fmuyassarov
+- furkatgofurov7
+- maelk
+- russellb
+
 emeritus_reviewers:
- - macaptain
- - namnx228
+- macaptain
+- namnx228
