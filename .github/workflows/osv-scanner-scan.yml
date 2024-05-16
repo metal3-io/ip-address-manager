@@ -1,0 +1,20 @@
+# This file is adapted from https://github.com/google/osv-scanner
+
+
+name: OSV-Scanner Scan
+
+on:
+  schedule:
+  - cron: "12 12 * * 1"
+
+# Restrict jobs in this workflow to have no permissions by default; permissions
+# should be granted per job as needed using a dedicated `permissions` block
+permissions: {}
+
+jobs:
+  scan-scheduled:
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      security-events: write # for uploading SARIF files
+    if: ${{ github.repository == 'metal3-io/ip-address-manager' && github.event_name == 'schedule' }}
+    uses: "./.github/workflows/osv-scanner.yml"
