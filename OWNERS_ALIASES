@@ -1,0 +1,13 @@
+# See the OWNERS docs: https://git.k8s.io/community/contributors/guide/owners.md
+
+aliases:
+  ip-address-manager-maintainers:
+  - kashifest
+  - lentzi90
+  - Rozzii
+  - Sunnatillo
+  - tuminoid
+
+  ip-address-manager-reviewers:
+  - mquhuy
+  - smoshiur1237

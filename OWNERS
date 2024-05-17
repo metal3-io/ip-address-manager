@@ -1,16 +1,11 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
 approvers:
-- kashifest
-- lentzi90
-- Rozzii
-- Sunnatillo
-- tuminoid
+- ip-address-manager-maintainers
 
 reviewers:
-- mquhuy
-- smoshiur1237
-
+- ip-address-manager-maintainers
+- ip-address-manager-reviewers
 
 emeritus_approvers:
 - fmuyassarov
