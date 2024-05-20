@@ -3,10 +3,12 @@
 
 version: 2
 updates:
+## main branch config starts here
 - package-ecosystem: "github-actions"
   directory: "/" # Location of package manifests
   schedule:
     interval: "monthly"
+  target-branch: main
   commit-message:
     prefix: ":seedling:"
     # Go
@@ -17,6 +19,7 @@ updates:
   - "/hack/tools"
   schedule:
     interval: "weekly"
+  target-branch: main
   groups:
     kubernetes:
       patterns: ["k8s.io/*"]
@@ -33,3 +36,72 @@ updates:
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
+    ## main branch config ends here
+    ## release-1.7 branch config starts here
+- package-ecosystem: "github-actions"
+  directory: "/" # Location of package manifests
+  schedule:
+    interval: "monthly"
+  target-branch: release-1.7
+  commit-message:
+    prefix: ":seedling:"
+  ignore:
+  # Ignore major and minor bumps for release branch
+  - dependency-name: "*"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    # Go
+- package-ecosystem: "gomod"
+  directories:
+  - "/"
+  - "/api"
+  - "/hack/tools"
+  schedule:
+    interval: "weekly"
+  target-branch: release-1.7
+  groups:
+    kubernetes:
+      patterns: ["k8s.io/*"]
+  ignore:
+  # golang.org/x/* only releases minors no patches, so minors have to be allowed
+  - dependency-name: "golang.org/x/*"
+    update-types: ["version-update:semver-major"]
+  # Ignore major and minor bumps for release branch
+  - dependency-name: "*"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  commit-message:
+    prefix: ":seedling:"
+    ## release-1.7 branch config ends here
+    ## release-1.6 branch config starts here
+- package-ecosystem: "github-actions"
+  directory: "/" # Location of package manifests
+  schedule:
+    interval: "monthly"
+  target-branch: release-1.6
+  commit-message:
+    prefix: ":seedling:"
+  ignore:
+  # Ignore major and minor bumps for release branch
+  - dependency-name: "*"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    # Go
+- package-ecosystem: "gomod"
+  directories:
+  - "/"
+  - "/api"
+  - "/hack/tools"
+  schedule:
+    interval: "weekly"
+  target-branch: release-1.6
+  groups:
+    kubernetes:
+      patterns: ["k8s.io/*"]
+  ignore:
+  # golang.org/x/* only releases minors no patches, so minors have to be allowed
+  - dependency-name: "golang.org/x/*"
+    update-types: ["version-update:semver-major"]
+  # Ignore major and minor bumps for release branch
+  - dependency-name: "*"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  commit-message:
+    prefix: ":seedling:"
+  ## release-1.6 branch config ends here
