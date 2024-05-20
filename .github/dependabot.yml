@@ -3,42 +3,33 @@
 
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/" # Location of package manifests
-    schedule:
-      interval: "monthly"
-    commit-message:
-      prefix: ":seedling:"
+- package-ecosystem: "github-actions"
+  directory: "/" # Location of package manifests
+  schedule:
+    interval: "monthly"
+  commit-message:
+    prefix: ":seedling:"
     # Go
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    ignore:
-      # Ignore controller-runtime as its upgraded manually.
-      - dependency-name: "sigs.k8s.io/controller-runtime"
-      # Ignore k8s and its transitives modules as they are upgraded manually
-      # together with controller-runtime.
-      - dependency-name: "k8s.io/*"
-    commit-message:
-      prefix: ":seedling:"
-  - package-ecosystem: "gomod"
-    directory: "/api"
-    schedule:
-      interval: "weekly"
-    ignore:
-      # Ignore controller-runtime as its upgraded manually.
-      - dependency-name: "sigs.k8s.io/controller-runtime"
-      # Ignore k8s and its transitives modules as they are upgraded manually
-      # together with controller-runtime.
-      - dependency-name: "k8s.io/*"
-    commit-message:
-      prefix: ":seedling:"
-  - package-ecosystem: "gomod"
-    directory: "/hack/tools"
-    schedule:
-      interval: "weekly"
-    ignore:
-      - dependency-name: "sigs.k8s.io/controller-tools"
-    commit-message:
-      prefix: ":seedling:"
+- package-ecosystem: "gomod"
+  directories:
+  - "/"
+  - "/api"
+  - "/hack/tools"
+  schedule:
+    interval: "weekly"
+  groups:
+    kubernetes:
+      patterns: ["k8s.io/*"]
+  ignore:
+  # Ignore controller-runtime as its upgraded manually.
+  - dependency-name: "sigs.k8s.io/controller-runtime"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  # Ignore k8s and its transitives modules as they are upgraded manually
+  # together with controller-runtime.
+  - dependency-name: "k8s.io/*"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  # Ignore controller-runtime as its upgraded manually.
+  - dependency-name: "sigs.k8s.io/controller-tools"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  commit-message:
+    prefix: ":seedling:"
