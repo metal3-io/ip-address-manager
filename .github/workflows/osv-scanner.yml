@@ -79,21 +79,21 @@ jobs:
     # format to the repository Actions tab.
     - name: "Upload artifact"
       if: "!cancelled()"
-      uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: SARIF file
         path: ${{ inputs.results-file-name }}
         retention-days: 5
     - name: "Upload old scan json results"
       if: "!cancelled()"
-      uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: old-json-results
         path: old-results.json
         retention-days: 5
     - name: "Upload new scan json results"
       if: "!cancelled()"
-      uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: new-json-results
         path: new-results.json
