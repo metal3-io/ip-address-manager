@@ -1,6 +1,7 @@
 # Metal3 IP Address Manager for Cluster API Provider Metal3
 
 [![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/metal3-io/badge)](https://clomonitor.io/projects/cncf/metal3-io)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9160/badge)](https://www.bestpractices.dev/projects/9160)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/metal3-io/ip-address-manager/badge)](https://securityscorecards.dev/viewer/?uri=github.com/metal3-io/ip-address-manager)
 [![Ubuntu daily main build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_main_integration_test_ubuntu&subject=Ubuntu%20daily%20main)](https://jenkins.nordix.org/view/Metal3/job/metal3_daily_main_integration_test_ubuntu/)
 [![CentOS daily main build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3_daily_main_integration_test_centos&subject=CentOS%20daily%20main)](https://jenkins.nordix.org/view/Metal3/job/metal3_daily_main_integration_test_centos/)
