@@ -49,7 +49,7 @@ jobs:
       with:
         go-version: ${{ steps.vars.outputs.go_version }}
     - name: "Run scanner on existing code"
-      uses: google/osv-scanner/actions/scanner@645d5b0bb9c14741b2147a5305b684e4abc039e0 # v1.7.3
+      uses: google/osv-scanner/actions/scanner@46aee59befed6edb5fc737ef35b5febf987cffa9 # v1.8.1
       continue-on-error: true
       with:
         scan-args: |-
@@ -59,7 +59,7 @@ jobs:
     - name: "Checkout current branch"
       run: git checkout $GITHUB_SHA
     - name: "Run scanner on new code"
-      uses: google/osv-scanner/actions/scanner@645d5b0bb9c14741b2147a5305b684e4abc039e0 # v1.7.3
+      uses: google/osv-scanner/actions/scanner@46aee59befed6edb5fc737ef35b5febf987cffa9 # v1.8.1
       with:
         scan-args: |-
           --format=json
@@ -67,7 +67,7 @@ jobs:
           ${{ inputs.scan-args }}
       continue-on-error: true
     - name: "Run osv-scanner-reporter"
-      uses: google/osv-scanner/actions/reporter@645d5b0bb9c14741b2147a5305b684e4abc039e0 # v1.7.3
+      uses: google/osv-scanner/actions/reporter@46aee59befed6edb5fc737ef35b5febf987cffa9 # v1.8.1
       with:
         scan-args: |-
           --output=${{ inputs.results-file-name }}
