@@ -11,7 +11,7 @@ GitHub pull requests. Those guidelines are the same as the
    - [Git commit Sign-off](#git-commit-sign-off)
 - [Finding Things That Need Help](#finding-things-that-need-help)
 - [Contributing a Patch](#contributing-a-patch)
-- [Backporting a Patch](#backporting-a-patch)
+- [Backporting](#backporting)
    - [Merge Approval](#merge-approval)
    - [Google Doc Viewing Permissions](#google-doc-viewing-permissions)
    - [Issue and Pull Request Management](#issue-and-pull-request-management)
@@ -76,15 +76,36 @@ Expect reviewers to request that you
 avoid common [go style
 mistakes](https://github.com/golang/go/wiki/CodeReviewComments) in your PRs.
 
-## Backporting a Patch
+## Backporting
 
-Cluster API maintains older versions through `release-X.Y` branches. We accept
-backports of bug fixes to the most recent
-release branch. For example, if the most recent branch is `release-0.2`, and the
-`main` branch is under active
-development for v0.3.0, a bug fix that merged to `main` that also affects
-`v0.2.x` may be considered for backporting
-to `release-0.2`. We generally do not accept PRs against older release branches.
+We generally do not accept PRs directly against release branches, while we might
+accept backports of fixes/changes already merged into the main branch.
+
+We generally allow backports of following changes to all supported branches:
+
+- Critical bug fixes, security issue fixes, or fixes for bugs without easy
+workarounds.
+- Dependency bumps for CVE (usually limited to CVE resolution; backports of
+non-CVE related version bumps are considered exceptions to be evaluated case by
+case)
+- Changes required to support new Kubernetes patch versions, when possible.
+- Changes to use the latest Go patch version to build controller images.
+- Changes to bump the Go minor version used to build controller images, if the
+Go minor version of a supported branch goes out of support (e.g. to pick up
+bug and CVE fixes). This has no impact on users importing IP Address Manager
+as we won't modify the version in go.mod and the version in the Makefile
+does not affect them.
+- Improvements to existing docs
+- Improvements to the test framework
+
+Like any other activity in the project, backporting a fix/change is a
+community-driven effort and requires that someone volunteers to own the task.
+In most cases, the cherry-pick bot can (and should) be used to automate
+opening a cherry-pick PR.
+
+We generally do not accept backports to IPAM release branches that are out of
+support. Check the [Version support](https://github.com/metal3-io/metal3-docs/blob/main/docs/user-guide/src/version_support.md)
+guide for reference.
 
 ## Breaking Changes
 
