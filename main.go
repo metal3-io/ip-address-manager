@@ -18,11 +18,9 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -36,7 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 	logsv1 "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
@@ -49,18 +46,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	// +kubebuilder:scaffold:imports
 )
-
-// Constants for TLS versions.
-const (
-	TLSVersion12 = "TLS12"
-	TLSVersion13 = "TLS13"
-)
-
-type TLSOptions struct {
-	TLSMaxVersion   string
-	TLSMinVersion   string
-	TLSCipherSuites string
-}
 
 var (
 	myscheme             = runtime.NewScheme()
@@ -75,10 +60,8 @@ var (
 	watchNamespace       string
 	webhookCertDir       string
 	watchFilterValue     string
-	diagnosticsOptions   = flags.DiagnosticsOptions{}
+	managerOptions       = flags.ManagerOptions{}
 	logOptions           = logs.NewOptions()
-	tlsOptions           = TLSOptions{}
-	tlsSupportedVersions = []string{TLSVersion12, TLSVersion13}
 )
 
 func init() {
@@ -103,13 +86,12 @@ func main() {
 
 	// klog.Background will automatically use the right logger.
 	ctrl.SetLogger(klog.Background())
-	tlsOptionOverrides, err := GetTLSOptionOverrideFuncs(tlsOptions)
+
+	tlsOptions, metricsOptions, err := flags.GetManagerOptions(managerOptions)
 	if err != nil {
-		setupLog.Error(err, "unable to add TLS settings to the webhook server")
+		setupLog.Error(err, "Unable to start manager: invalid flags")
 		os.Exit(1)
 	}
-
-	diagnosticsOpts := flags.GetDiagnosticsOptions(diagnosticsOptions)
 
 	var watchNamespaces map[string]cache.Config
 	if watchNamespace != "" {
@@ -130,7 +112,7 @@ func main() {
 		LeaderElectionID:           "controller-leader-election-ipam-capm3",
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
 		HealthProbeBindAddress:     healthAddr,
-		Metrics:                    diagnosticsOpts,
+		Metrics:                    *metricsOptions,
 		Cache: cache.Options{
 			DefaultNamespaces: watchNamespaces,
 			SyncPeriod:        &syncPeriod,
@@ -155,7 +137,7 @@ func main() {
 			webhook.Options{
 				Port:    webhookPort,
 				CertDir: webhookCertDir,
-				TLSOpts: tlsOptionOverrides,
+				TLSOpts: tlsOptions,
 			},
 		),
 	})
@@ -213,25 +195,8 @@ func initFlags(fs *pflag.FlagSet) {
 
 	fs.IntVar(&restConfigBurst, "kube-api-burst", 30,
 		"Maximum number of queries that should be allowed in one burst from the controller client to the Kubernetes API server. Default 30")
-	fs.StringVar(&tlsOptions.TLSMinVersion, "tls-min-version", TLSVersion13,
-		"The minimum TLS version in use by the webhook server.\n"+
-			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
-	)
 
-	fs.StringVar(&tlsOptions.TLSMaxVersion, "tls-max-version", TLSVersion13,
-		"The maximum TLS version in use by the webhook server.\n"+
-			fmt.Sprintf("Possible values are %s.", strings.Join(tlsSupportedVersions, ", ")),
-	)
-
-	tlsCipherPreferredValues := cliflag.PreferredTLSCipherNames()
-	tlsCipherInsecureValues := cliflag.InsecureTLSCipherNames()
-	fs.StringVar(&tlsOptions.TLSCipherSuites, "tls-cipher-suites", "",
-		"Comma-separated list of cipher suites for the webhook server. "+
-			"If omitted, the default Go cipher suites will be used. \n"+
-			"Preferred values: "+strings.Join(tlsCipherPreferredValues, ", ")+". \n"+
-			"Insecure values: "+strings.Join(tlsCipherInsecureValues, ", ")+".")
-
-	flags.AddDiagnosticsOptions(fs, &diagnosticsOptions)
+	flags.AddManagerOptions(fs, &managerOptions)
 }
 func setupChecks(mgr ctrl.Manager) {
 	if err := mgr.AddReadyzCheck("webhook", mgr.GetWebhookServer().StartedChecker()); err != nil {
@@ -276,66 +241,4 @@ func setupWebhooks(mgr ctrl.Manager) {
 
 func concurrency(c int) controller.Options {
 	return controller.Options{MaxConcurrentReconciles: c}
-}
-
-// GetTLSOptionOverrideFuncs returns a list of TLS configuration overrides to be used
-// by the webhook server.
-func GetTLSOptionOverrideFuncs(options TLSOptions) ([]func(*tls.Config), error) {
-	var tlsOptions []func(config *tls.Config)
-
-	// To make a static analyzer happy, this block ensures there is no code
-	// path that sets a TLS version outside the acceptable values, even in
-	// case of unexpected user input.
-	var tlsMinVersion, tlsMaxVersion uint16
-	for version, option := range map[*uint16]string{&tlsMinVersion: options.TLSMinVersion, &tlsMaxVersion: options.TLSMaxVersion} {
-		switch option {
-		case TLSVersion12:
-			*version = tls.VersionTLS12
-		case TLSVersion13:
-			*version = tls.VersionTLS13
-		default:
-			return nil, fmt.Errorf("unexpected TLS version %q (must be one of: %s)", option, strings.Join(tlsSupportedVersions, ", "))
-		}
-	}
-
-	if tlsMaxVersion != 0 && tlsMinVersion > tlsMaxVersion {
-		return nil, fmt.Errorf("TLS version flag min version (%s) is greater than max version (%s)",
-			options.TLSMinVersion, options.TLSMaxVersion)
-	}
-
-	tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
-		cfg.MinVersion = tlsMinVersion
-	})
-
-	tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
-		cfg.MaxVersion = tlsMaxVersion
-	})
-	// Cipher suites should not be set if empty.
-	if tlsMinVersion >= tls.VersionTLS13 &&
-		options.TLSCipherSuites != "" {
-		setupLog.Info("warning: Cipher suites should not be set for TLS version 1.3. Ignoring ciphers")
-		options.TLSCipherSuites = ""
-	}
-
-	if options.TLSCipherSuites != "" {
-		tlsCipherSuites := strings.Split(options.TLSCipherSuites, ",")
-		suites, err := cliflag.TLSCipherSuites(tlsCipherSuites)
-		if err != nil {
-			return nil, err
-		}
-
-		insecureCipherValues := cliflag.InsecureTLSCipherNames()
-		for _, cipher := range tlsCipherSuites {
-			for _, insecureCipherName := range insecureCipherValues {
-				if insecureCipherName == cipher {
-					setupLog.Info(fmt.Sprintf("warning: use of insecure cipher '%s' detected.", cipher))
-				}
-			}
-		}
-		tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
-			cfg.CipherSuites = suites
-		})
-	}
-
-	return tlsOptions, nil
 }
