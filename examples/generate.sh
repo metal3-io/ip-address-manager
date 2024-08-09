@@ -23,7 +23,7 @@ OUTPUT_DIR=${OUTPUT_DIR:-${SOURCE_DIR}/_out}
 
 # Cluster.
 export CLUSTER_NAME="${CLUSTER_NAME:-test1}"
-export NAMESPACE="${NAMESPACE:-capm3-system}"
+export NAMESPACE="${NAMESPACE:-ipam-provider-m3-system}"
 
 # Outputs.
 COMPONENTS_CERT_MANAGER_GENERATED_FILE=${OUTPUT_DIR}/cert-manager.yaml
