@@ -14,9 +14,10 @@ on:
 jobs:
   build_ipam:
     name: Build IPAM container image
+    if: github.repository == 'metal3-io/ip-address-manager'
     uses: metal3-io/project-infra/.github/workflows/container-image-build.yml@main
     with:
-      image-name: "ip-address-manager"
+      image-name: 'ip-address-manager'
       pushImage: true
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
