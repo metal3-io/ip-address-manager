@@ -10,7 +10,7 @@ require (
 	k8s.io/apimachinery v0.30.3
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/utils v0.0.0-20231127182322-b307cd553661
-	sigs.k8s.io/controller-runtime v0.18.4
+	sigs.k8s.io/controller-runtime v0.18.5
 )
 
 require github.com/google/gnostic-models v0.6.8 // indirect
