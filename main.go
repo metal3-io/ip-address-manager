@@ -38,6 +38,7 @@ import (
 	logsv1 "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -68,6 +69,7 @@ func init() {
 	_ = scheme.AddToScheme(myscheme)
 	_ = ipamv1.AddToScheme(myscheme)
 	_ = clusterv1.AddToScheme(myscheme)
+	_ = capipamv1.AddToScheme(myscheme)
 }
 
 // Add RBAC for the authorized diagnostics endpoint.
@@ -214,10 +216,20 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&controllers.IPPoolReconciler{
 		Client:           mgr.GetClient(),
 		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
-		Log:              ctrl.Log.WithName("controllers").WithName("IPPool"),
+		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPClaim"),
 		WatchFilterValue: watchFilterValue,
-	}).SetupWithManager(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
+	}).SetupWithManagerForIPClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&controllers.IPPoolReconciler{
+		Client:           mgr.GetClient(),
+		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
+		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPAddressClaim"),
+		WatchFilterValue: watchFilterValue,
+	}).SetupWithManagerForIPAddressClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconcilerForCAPI")
 		os.Exit(1)
 	}
 }

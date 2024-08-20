@@ -40,7 +40,9 @@ The *spec* field contains the following :
 * **pools**: this is a list of IP address pools
 * **prefix**: This is a default prefix for this IPPool
 * **gateway**: This is a default gateway for this IPPool
-* **preAllocations**: This is a default preallocated IP address for this IPPool
+* **preAllocations**: This is a default preallocated IP address for this IPPool.
+Preallocations asossiate a claim's name to an IP address. It doesn't matter if
+the claim type is (metal3)IPClaim or (capi)IPAddressClaim.
 
 The *prefix* and *gateway* can be overridden per pool. The pool definition is
 as follows :
@@ -51,12 +53,13 @@ as follows :
   It is used to verify that the allocated address belongs to this subnet.
 * **prefix**: override of the default prefix for this pool
 * **gateway**: override of the default gateway for this pool
+* **DNSServers**: override of the default dns servers for this pool
 
 ## IPClaim
 
 An IPClaim is an object representing a request for an IP address allocation.
 
-Example pool:
+Example IPClaim:
 
 ```yaml
 apiVersion: ipam.metal3.io/v1alpha1
@@ -78,7 +81,7 @@ The *spec* field contains the following :
 
 An IPAddress is an object representing an IP address allocation.
 
-Example pool:
+Example IPAddress:
 
 ```yaml
 apiVersion: ipam.metal3.io/v1alpha1
@@ -105,8 +108,56 @@ The *spec* field contains the following :
 * **address**: the allocated IP address
 * **prefix**: the prefix for this address
 * **gateway**: the gateway for this address
+* **DNSServers**: a list of dns servers
 
 ## Metal3 dev env examples
 
 You can find CR examples in the
 [Metal3-io dev env project](https://github.com/metal3-io/metal3-dev-env)
+
+## Handling CAPI CRs
+
+This IPAM can be deployed and used as an
+[IPAM provider](https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/book/src/reference/glossary.md#ipam-provider)for
+[CAPI](https://github.com/kubernetes-sigs/cluster-api).
+
+IPPool reconsiles (metal3)ipclaims into (metal3)ipaddresses
+and (capi)ipaddressclaims into (capi)ipaddresses.
+
+### IPAddressClaim
+
+Check out more on [IPAddressClaim docs](https://docs.openshift.com/container-platform/4.16/rest_api/network_apis/ipaddressclaim-ipam-cluster-x-k8s-io-v1beta1.html).
+
+### IpAddress
+
+Check out more on [IPAddress docs](https://docs.openshift.com/container-platform/4.16/rest_api/network_apis/ipaddress-ipam-cluster-x-k8s-io-v1beta1.html).
+
+### Set up via clusterctl
+
+Since it's not added to the built-in list of providers yet,
+you'll need to add the following to your
+```$XDG_CONFIG_HOME/cluster-api/clusterctl.yaml```
+if you want to install it using ```clusterctl init --ipam metal3```:
+
+```yaml
+providers:
+  - name: metal3
+    url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
+    type: IPAMProvider
+```
+
+If you are also specifying infrastructure provider
+metal3 liko so:
+```clusterctl init --infrastructure metal3 --ipam metal3```.
+It might cause a problem to have the same name
+for both providers if you are creating local
+[overrides layers](https://cluster-api.sigs.k8s.io/clusterctl/configuration#overrides-layer).
+Solution is to change the ipam providers name:
+```clusterctl init --infrastructure metal3 --ipam m3ipam``
+
+```yaml
+providers:
+  - name: m3ipam
+    url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
+    type: IPAMProvider
+```
