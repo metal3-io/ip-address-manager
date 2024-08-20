@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -399,6 +400,65 @@ var _ = Describe("IPPool controller", func() {
 					ObjectMeta: testObjectMeta,
 					Spec: ipamv1.IPClaimSpec{
 						Pool: corev1.ObjectReference{
+							Name: "abc",
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+	)
+
+	type TestCaseK8SIPACToM3IPP struct {
+		IPAddressClaim *capipamv1.IPAddressClaim
+		ExpectRequest  bool
+	}
+
+	DescribeTable("IPAddressClaim To IPPool tests",
+		func(tc TestCaseK8SIPACToM3IPP) {
+			r := IPPoolReconciler{}
+			obj := client.Object(tc.IPAddressClaim)
+			reqs := r.IPAddressClaimToIPPool(context.Background(), obj)
+
+			if tc.ExpectRequest {
+				Expect(len(reqs)).To(Equal(1), "Expected 1 request, found %d", len(reqs))
+
+				req := reqs[0]
+				Expect(req.NamespacedName.Name).To(Equal(tc.IPAddressClaim.Spec.PoolRef.Name),
+					"Expected name %s, found %s", tc.IPAddressClaim.Spec.PoolRef.Name, req.NamespacedName.Name)
+			} else {
+				Expect(len(reqs)).To(Equal(0), "Expected 0 request, found %d", len(reqs))
+
+			}
+		},
+		Entry("No IPPool in Spec",
+			TestCaseK8SIPACToM3IPP{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
+					ObjectMeta: testObjectMeta,
+					Spec:       capipamv1.IPAddressClaimSpec{},
+				},
+				ExpectRequest: false,
+			},
+		),
+		Entry("IPPool in Spec, with namespace",
+			TestCaseK8SIPACToM3IPP{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
+					ObjectMeta: testObjectMeta,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: corev1.TypedLocalObjectReference{
+							Name: "abc",
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+		Entry("IPPool in Spec, no namespace",
+			TestCaseK8SIPACToM3IPP{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
+					ObjectMeta: testObjectMeta,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: corev1.TypedLocalObjectReference{
 							Name: "abc",
 						},
 					},

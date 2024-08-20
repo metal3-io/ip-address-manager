@@ -32,6 +32,7 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -57,6 +58,7 @@ func init() {
 	_ = apiextensionsv1.AddToScheme(scheme.Scheme)
 	_ = clusterv1.AddToScheme(scheme.Scheme)
 	_ = ipamv1.AddToScheme(scheme.Scheme)
+	_ = capipamv1.AddToScheme(scheme.Scheme)
 }
 
 func setupScheme() *runtime.Scheme {
@@ -67,6 +69,10 @@ func setupScheme() *runtime.Scheme {
 	}
 
 	if err := ipamv1.AddToScheme(s); err != nil {
+		panic(err)
+	}
+
+	if err := capipamv1.AddToScheme(s); err != nil {
 		panic(err)
 	}
 
@@ -92,6 +98,9 @@ var _ = BeforeSuite(func() {
 		Expect(cfg).ToNot(BeNil())
 
 		err = ipamv1.AddToScheme(scheme.Scheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = capipamv1.AddToScheme(scheme.Scheme)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = apiextensionsv1.AddToScheme(scheme.Scheme)

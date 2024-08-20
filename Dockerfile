@@ -17,7 +17,7 @@ ARG BUILD_IMAGE=docker.io/golang:1.22.6@sha256:d5e49f92b9566b0ddfc59a0d9d85cd8a8
 ARG BASE_IMAGE=gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
 
 # Build the manager binary on golang image
-FROM $BUILD_IMAGE as builder
+FROM $BUILD_IMAGE AS builder
 WORKDIR /workspace
 
 # Run this with docker build --build_arg $(go env GOPROXY) to override the goproxy
