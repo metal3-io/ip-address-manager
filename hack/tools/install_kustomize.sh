@@ -2,7 +2,7 @@
 
 [[ -f bin/kustomize ]] && exit 0
 
-version=4.4.1
+version=5.4.3
 arch=$(go env GOARCH)
 os=$(go env GOOS)
 
