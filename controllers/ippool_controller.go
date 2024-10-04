@@ -82,6 +82,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		err := helper.Patch(ctx, ipamv1IPPool)
 		if err != nil {
 			metadataLog.Info("failed to Patch ipamv1IPPool")
+			rerr = err
 		}
 	}()
 
