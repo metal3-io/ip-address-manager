@@ -56,7 +56,7 @@ as follows :
 
 An IPClaim is an object representing a request for an IP address allocation.
 
-Example pool:
+Example IPClaim:
 
 ```yaml
 apiVersion: ipam.metal3.io/v1alpha1
@@ -78,7 +78,7 @@ The *spec* field contains the following :
 
 An IPAddress is an object representing an IP address allocation.
 
-Example pool:
+Example IPAddress:
 
 ```yaml
 apiVersion: ipam.metal3.io/v1alpha1
@@ -110,3 +110,28 @@ The *spec* field contains the following :
 
 You can find CR examples in the
 [Metal3-io dev env project](https://github.com/metal3-io/metal3-dev-env)
+
+## CAPI 
+
+[Cluster-api](https://github.com/kubernetes-sigs/cluster-api) has 
+created it own ip-address-manager: 
+[ipam-provider-in-cluster](https://github.com/kubernetes-sigs/cluster-api-ipam-provider-in-cluster) 
+and support for other IPAMs. This IPAM can be deployed and used
+as an IPAM provider for CAPI. 
+
+Deploying an ippool like the example pool will be able to reconsile (metal3)ipclaims into (metal3)ipaddresses and (capi)ipaddressclaims into (capi)ipaddresses. 
+
+### IPAddressClaim 
+
+### IpAddress
+
+### Set up via clusterctl
+
+Since it's not added to the built-in list of providers yet, you'll need to add the following to your ```$XDG_CONFIG_HOME/cluster-api/clusterctl.yaml``` if you want to install it using ```clusterctl init --ipam metal3```:
+
+```
+providers:
+  - name: metal3
+    url: file:///home/ipam/ipam-metal3/v1.0.0/ipam-components.yaml
+    type: IPAMProvider
+```
