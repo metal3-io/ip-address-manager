@@ -29,7 +29,7 @@ but essentially, for any given release X.Y.Z:
 - a Z (**patch**) release indicates minimum set of bugfixes.  Changing
   Z means a backwards-compatible change that doesn't add functionality.
 
-*NB*: If the major release is `0`, any minor release may contain breaking
+_NB_: If the major release is `0`, any minor release may contain breaking
 changes.
 
 These guarantees extend to all code exposed in public APIs of
@@ -166,7 +166,7 @@ Furthermore, our dependency on Kubernetes libraries makes this difficult
 
 ### Always assume we've broken compatibility
 
-*a.k.a. k8s.io/client-go style* While this makes life easier (a bit) for
+_a.k.a. k8s.io/client-go style_ While this makes life easier (a bit) for
 maintainers, it's problematic for users.  While breaking changes arrive sooner,
 upgrading becomes very painful.
 
