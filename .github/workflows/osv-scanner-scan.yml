@@ -18,4 +18,4 @@ jobs:
       contents: read # to fetch code (actions/checkout)
       security-events: write # for uploading SARIF files
     if: ${{ github.repository == 'metal3-io/ip-address-manager' && github.event_name == 'schedule' }}
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@7c52d44abe9736f8a11bac47f6baadad7b3389f5 # v1.8.5
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8b8e1861d7ab37b197ce153bb19f43cacb6dbddf # v1.8.5
