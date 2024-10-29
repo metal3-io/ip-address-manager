@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
-	k8s.io/code-generator v0.29.9
+	k8s.io/code-generator v0.29.10
 	sigs.k8s.io/controller-tools v0.13.0
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
@@ -60,9 +60,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.29.9 // indirect
-	k8s.io/apiextensions-apiserver v0.29.9 // indirect
-	k8s.io/apimachinery v0.29.9 // indirect
+	k8s.io/api v0.29.10 // indirect
+	k8s.io/apiextensions-apiserver v0.29.10 // indirect
+	k8s.io/apimachinery v0.29.10 // indirect
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
