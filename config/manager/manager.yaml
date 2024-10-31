@@ -24,6 +24,7 @@ spec:
         - "--webhook-port=9443"
         - "--diagnostics-address=${IPAM_DIAGNOSTICS_ADDRESS:=:8443}"
         - "--insecure-diagnostics=${IPAM_INSECURE_DIAGNOSTICS:=false}"
+        - "--tls-min-version=${TLS_MIN_VERSION:=VersionTLS13}"
         image: controller:latest
         imagePullPolicy: IfNotPresent
         name: manager
