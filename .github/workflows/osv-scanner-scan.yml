@@ -5,7 +5,7 @@ name: OSV-Scanner Scan
 
 on:
   schedule:
-  - cron: "12 12 * * 1"
+  - cron: "12 6 * * 1"
 
 # Restrict jobs in this workflow to have no permissions by default; permissions
 # should be granted per job as needed using a dedicated `permissions` block
@@ -17,5 +17,30 @@ jobs:
       actions: read
       contents: read # to fetch code (actions/checkout)
       security-events: write # for uploading SARIF files
-    if: ${{ github.repository == 'metal3-io/ip-address-manager' && github.event_name == 'schedule' }}
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8b8e1861d7ab37b197ce153bb19f43cacb6dbddf # v1.8.5
+    if: ${{ github.repository == 'metal3-io/ip-address-manager' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Calculate go version
+        id: vars
+        run: echo "go_version=$(make go-version)" >> $GITHUB_OUTPUT
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version: ${{ steps.vars.outputs.go_version }}
+      - name: Install OSV Scanner
+        run: go install github.com/google/osv-scanner/cmd/osv-scanner@b13f37e1a1e4cb98556c1d34cd3256a876929be1 # v1.9.1
+      - name: Run OSV Scanner
+        run: osv-scanner scan --format json --output results.json --recursive --skip-git ./
+        continue-on-error: true
+      - name: "Run OSV Scanner Reporter"
+        uses: google/osv-scanner/actions/reporter@b13f37e1a1e4cb98556c1d34cd3256a876929be1 # v1.9.1
+        with:
+           scan-args: |-
+            --output=results.sarif
+            --new=results.json
+            --gh-annotations=false
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif
