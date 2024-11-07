@@ -289,11 +289,8 @@ kind-reset: ## Destroys the "ipam" kind cluster.
 ## Release
 ## --------------------------------------
 
-RELEASE_TAG ?= $(shell git describe --abbrev=0 2>/dev/null)
 RELEASE_DIR := out
 RELEASE_NOTES_DIR := releasenotes
-PREVIOUS_TAG ?= $(shell git tag -l | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | sort -V | grep -B1 $(RELEASE_TAG) | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$$" | head -n 1 2>/dev/null)
-
 $(RELEASE_DIR):
 	mkdir -p $(RELEASE_DIR)/
 
@@ -304,9 +301,13 @@ $(RELEASE_NOTES_DIR):
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publish with a release
 	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/ipam-components.yaml
 
+.PHONY: release-notes-tool
+release-notes-tool:
+	go build -C hack/tools -o $(BIN_DIR) -tags tools github.com/metal3-io/ip-address-manager/hack/tools/release
+
 .PHONY: release-notes
-release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES)
-	go run ./hack/tools/release/notes.go --from=$(PREVIOUS_TAG) > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md
+release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES) release-notes-tool
+	$(TOOLS_BIN_DIR)/release --releaseTag=$(RELEASE_TAG) > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md
 
 .PHONY: release
 release:
