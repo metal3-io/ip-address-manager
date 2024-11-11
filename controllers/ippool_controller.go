@@ -179,7 +179,7 @@ func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manage
 			&ipamv1.IPClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
 		).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
 }
 
