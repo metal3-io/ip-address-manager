@@ -1,19 +1,15 @@
 run:
-  deadline: 5m
-  skip-dirs:
-  - mock*
-  skip-files:
-  - "zz_generated.*\\.go$"
-  - ".*conversion.*\\.go$"
+  go: "1.23"
+  deadline: 10m
 linters:
   disable-all: true
   enable:
   - asciicheck
   - bodyclose
+  - copyloopvar
   - dogsled
   - errcheck
   - errorlint
-  - exportloopref
   - goconst
   - gocritic
   - godot
@@ -45,7 +41,7 @@ linters:
 
 linters-settings:
   gosec:
-    go: "1.22"
+    go: "1.23"
     severity: medium
     confidence: medium
     concurrency: 8
@@ -75,10 +71,6 @@ linters-settings:
     allow-unused: false
     allow-leading-space: false
     require-specific: true
-  staticcheck:
-    go: "1.22"
-  stylecheck:
-    go: "1.22"
   gocritic:
     enabled-tags:
     - experimental
@@ -97,8 +89,13 @@ linters-settings:
     - whyNoLint
     - wrapperFunc
   unused:
-    go: "1.22"
+    go: "1.23"
 issues:
+  skip-dirs:
+  - mock*
+  skip-files:
+  - "zz_generated.*\\.go$"
+  - ".*conversion.*\\.go$"
   exclude-rules:
   - path: _test\.go
     linters:
