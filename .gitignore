@@ -24,10 +24,12 @@ tilt_config.json
 tilt.d/*
 
 out
-releasenotes
 
 # Development containers (https://containers.dev/)
 .devcontainer
+
+# vscode
+.vscode
 
 # Common editor / temporary files
 *~
