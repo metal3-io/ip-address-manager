@@ -57,45 +57,7 @@ rules:
   - ipam.metal3.io
   resources:
   - ipaddresses
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ipam.metal3.io
-  resources:
-  - ipaddresses/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ipam.metal3.io
-  resources:
   - ipclaims
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ipam.metal3.io
-  resources:
-  - ipclaims/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ipam.metal3.io
-  resources:
   - ippools
   verbs:
   - create
@@ -108,6 +70,8 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
+  - ipaddresses/status
+  - ipclaims/status
   - ippools/status
   verbs:
   - get
