@@ -52,7 +52,7 @@ const (
 	superseded    = ":recycle: Superseded or Reverted"
 	repoOwner     = "metal3-io"
     repoName      = "ip-address-manager"
-	warningTemplate = ":rotating_light: This is a %s. Use it only for testing purposes. If you find any bugs, file an [issue](https://github.com/metal3-io/ip-address-manager/issues/new/).\n\n"
+	warningTemplate = ":rotating_light: This is a %s. Use it only for testing purposes.\nIf you find any bugs, file an [issue](https://github.com/metal3-io/ip-address-manager/issues/new/).\n\n"
 
 )
 
@@ -147,6 +147,7 @@ func run() int {
 	if err != nil{
 		log.Fatalf("Failed to get commit has from latestTag %s",latestTag)
 	}
+
 	cmd := exec.Command("git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec
 
 	merges := map[string][]string{
@@ -231,14 +232,15 @@ func run() int {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
+	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->\n")
 	// TODO Turn this into a link (requires knowing the project name + organization)
-	fmt.Printf("Changes since %v\n---\n", lastTag)
+	fmt.Printf("# Changes since %v\n\n", lastTag)
 
 	// print the changes by category
 	for _, key := range outputOrder {
 		mergeslice := merges[key]
 		if len(mergeslice) > 0 {
-			fmt.Println("## " + key)
+			fmt.Printf("## %v\n\n", key)
 			for _, merge := range mergeslice {
 				fmt.Println(merge)
 			}
@@ -265,7 +267,7 @@ func run() int {
 		fmt.Printf("</details>\n\n")
 	}
 
-	fmt.Printf("The image for this release is: %v\n", latestTag)
+	fmt.Printf("The container image for this release is: %v\n", latestTag)
 	fmt.Println("\n_Thanks to all our contributors!_ 😊")
 
 	return 0
@@ -287,16 +289,6 @@ func formatMerge(line, prNumber string) string {
 // For minor and pre releases, it returns the main branch's latest commit.
 // For patch releases, it returns the latest commit on the corresponding release branch.
 func getCommitHashFromNewTag(newTag string) (string, error) {
-	trimmedTag := newTag
-	branch := "main"
-	if !isRC(newTag) && !isBeta(newTag) && !isMinor(newTag){
-		trimmedTag = strings.TrimPrefix(trimmedTag, "v")
-		if index := strings.LastIndex(trimmedTag, "."); index != -1 {
-			trimmedTag = trimmedTag[:index]
-		}
-		branch = fmt.Sprintf("release-%s", trimmedTag)
-	}
-
 	token := os.Getenv("GITHUB_TOKEN")
     if token == "" {
 		return "", errors.New("GITHUB_TOKEN is required")
@@ -308,6 +300,17 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 		tc := oauth2.NewClient(ctx, ts)
 		client := github.NewClient(tc)
 
+		branch := "main"
+		if !isBeta(newTag) {
+			branch = getReleaseBranchFromTag(newTag)
+			// Check if branch exist in upstream or not
+			_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
+			if err != nil {
+		        // If branch does not exist, defaults to main
+				branch = "main"
+			}
+		}
+
     	ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
     	if err != nil {
 			return "", err
@@ -318,3 +321,18 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
     }
 }
 
+func trimPrereleasePrefix(version string) string {
+	if idx := strings.Index(version, "-"); idx != -1 {
+		return version[:idx]
+	}
+	return version
+}
+
+func getReleaseBranchFromTag(tag string) string {
+	tag = strings.TrimPrefix(tag, "v")
+	tag = trimPrereleasePrefix(tag)
+	if index := strings.LastIndex(tag, "."); index != -1 {
+		tag = tag[:index]
+	}
+	return fmt.Sprintf("release-%s", tag)
+}

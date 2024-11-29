@@ -316,7 +316,6 @@ release:
 	git checkout "${RELEASE_TAG}"
 	MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(RELEASE_TAG) $(MAKE) set-manifest-image
 	$(MAKE) release-manifests
-	$(MAKE) release-notes
 
 ## --------------------------------------
 ## Cleanup / Verification
