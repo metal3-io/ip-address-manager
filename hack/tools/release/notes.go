@@ -302,7 +302,6 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 
 		ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
 		if err != nil {
-			return "", err
 			log.Fatalf("Error fetching ref: %v", err)
 		}
 		commitHash := ref.GetObject().GetSHA()
