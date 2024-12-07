@@ -20,7 +20,6 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -121,15 +120,6 @@ func isRC(tag string) bool {
 
 func isMinor(tag string) bool {
 	return strings.HasSuffix(tag, ".0")
-}
-
-func firstCommit() string {
-	cmd := exec.Command("git", "rev-list", "--max-parents=0", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "UNKNOWN"
-	}
-	return string(bytes.TrimSpace(out))
 }
 
 func run() int {
