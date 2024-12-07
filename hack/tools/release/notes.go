@@ -221,7 +221,7 @@ func run() int {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
-	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->\n")
+	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->")
 	// TODO Turn this into a link (requires knowing the project name + organization)
 	fmt.Printf("# Changes since %v\n\n", lastTag)
 
