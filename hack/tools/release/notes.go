@@ -97,17 +97,18 @@ func lastTag(latestTag string) (string, error) {
 		semVersion.Minor--
 		lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
 		return lastReleaseTag, nil
-	} else {
-		latestTag = strings.TrimPrefix(latestTag, "v")
-
-		semVersion, err := semver.New(latestTag)
-		if err != nil {
-			return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
-		}
-		semVersion.Patch--
-		lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
-		return lastReleaseTag, nil
 	}
+
+	latestTag = strings.TrimPrefix(latestTag, "v")
+
+	semVersion, err := semver.New(latestTag)
+	if err != nil {
+		return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
+	}
+	semVersion.Patch--
+	lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
+	return lastReleaseTag, nil
+
 }
 
 func isBeta(tag string) bool {
@@ -281,32 +282,33 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return "", errors.New("GITHUB_TOKEN is required")
-	} else {
-		ctx := context.Background()
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		client := github.NewClient(tc)
-
-		branch := "main"
-		if !isBeta(newTag) {
-			branch = getReleaseBranchFromTag(newTag)
-			// Check if branch exist in upstream or not
-			_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
-			if err != nil {
-				// If branch does not exist, defaults to main
-				branch = "main"
-			}
-		}
-
-		ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
-		if err != nil {
-			log.Fatalf("Error fetching ref: %v", err)
-		}
-		commitHash := ref.GetObject().GetSHA()
-		return commitHash, nil
 	}
+
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
+
+	branch := "main"
+	if !isBeta(newTag) {
+		branch = getReleaseBranchFromTag(newTag)
+		// Check if branch exist in upstream or not
+		_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
+		if err != nil {
+			// If branch does not exist, defaults to main
+			branch = "main"
+		}
+	}
+
+	ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
+	if err != nil {
+		log.Fatalf("Error fetching ref: %v", err)
+	}
+	commitHash := ref.GetObject().GetSHA()
+	return commitHash, nil
+
 }
 
 func trimPrereleasePrefix(version string) string {
