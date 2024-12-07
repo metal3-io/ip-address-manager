@@ -108,7 +108,6 @@ func lastTag(latestTag string) (string, error) {
 	semVersion.Patch--
 	lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
 	return lastReleaseTag, nil
-
 }
 
 func isBeta(tag string) bool {
@@ -213,7 +212,12 @@ func run() int {
 			continue
 		}
 		body = fmt.Sprintf("- %s", body)
-		fmt.Sscanf(c.merge, "Merge pull request %s from %s", &prNumber, &fork)
+
+		_, err := fmt.Sscanf(c.merge, "Merge pull request %s from %s", &prNumber, &fork)
+		if err != nil {
+			log.Fatalf("Error parsing merge commit message: %v", err)
+		}
+
 		merges[key] = append(merges[key], formatMerge(body, prNumber))
 	}
 
@@ -308,7 +312,6 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 	}
 	commitHash := ref.GetObject().GetSHA()
 	return commitHash, nil
-
 }
 
 func trimPrereleasePrefix(version string) string {
