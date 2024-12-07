@@ -43,17 +43,16 @@ Use these as the base of your release notes.
 */
 
 const (
-	features      = ":sparkles: New Features"
-	bugs          = ":bug: Bug Fixes"
-	documentation = ":book: Documentation"
-	warning       = ":warning: Breaking Changes"
-	other         = ":seedling: Others"
-	unknown       = ":question: Sort these by hand"
-	superseded    = ":recycle: Superseded or Reverted"
-	repoOwner     = "metal3-io"
-    repoName      = "ip-address-manager"
+	features        = ":sparkles: New Features"
+	bugs            = ":bug: Bug Fixes"
+	documentation   = ":book: Documentation"
+	warning         = ":warning: Breaking Changes"
+	other           = ":seedling: Others"
+	unknown         = ":question: Sort these by hand"
+	superseded      = ":recycle: Superseded or Reverted"
+	repoOwner       = "metal3-io"
+	repoName        = "ip-address-manager"
 	warningTemplate = ":rotating_light: This is a %s. Use it only for testing purposes.\nIf you find any bugs, file an [issue](https://github.com/metal3-io/ip-address-manager/issues/new/).\n\n"
-
 )
 
 var (
@@ -135,17 +134,17 @@ func firstCommit() string {
 
 func run() int {
 	latestTag, err := latestTag()
-	if err != nil{
+	if err != nil {
 		log.Fatal("Failed to get latestTag \n")
 	}
 	lastTag, err := lastTag(latestTag)
-	if err != nil{
+	if err != nil {
 		log.Fatal("Failed to get lastTag \n")
 	}
 
-	commitHash,err := getCommitHashFromNewTag(latestTag)
-	if err != nil{
-		log.Fatalf("Failed to get commit has from latestTag %s",latestTag)
+	commitHash, err := getCommitHashFromNewTag(latestTag)
+	if err != nil {
+		log.Fatalf("Failed to get commit has from latestTag %s", latestTag)
 	}
 
 	cmd := exec.Command("git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec
@@ -290,11 +289,11 @@ func formatMerge(line, prNumber string) string {
 // For patch releases, it returns the latest commit on the corresponding release branch.
 func getCommitHashFromNewTag(newTag string) (string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
-    if token == "" {
+	if token == "" {
 		return "", errors.New("GITHUB_TOKEN is required")
-    } else {
+	} else {
 		ctx := context.Background()
-        ts := oauth2.StaticTokenSource(
+		ts := oauth2.StaticTokenSource(
 			&oauth2.Token{AccessToken: token},
 		)
 		tc := oauth2.NewClient(ctx, ts)
@@ -306,19 +305,19 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 			// Check if branch exist in upstream or not
 			_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
 			if err != nil {
-		        // If branch does not exist, defaults to main
+				// If branch does not exist, defaults to main
 				branch = "main"
 			}
 		}
 
-    	ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
-    	if err != nil {
+		ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
+		if err != nil {
 			return "", err
-        	log.Fatalf("Error fetching ref: %v", err)
-    	}
-    	commitHash := ref.GetObject().GetSHA()
+			log.Fatalf("Error fetching ref: %v", err)
+		}
+		commitHash := ref.GetObject().GetSHA()
 		return commitHash, nil
-    }
+	}
 }
 
 func trimPrereleasePrefix(version string) string {
