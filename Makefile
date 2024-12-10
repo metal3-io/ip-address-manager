@@ -142,6 +142,7 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod
 lint: $(GOLANGCI_LINT) ## Lint codebase
 	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
 	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
+	cd $(TOOLS_DIR)/release; ../../../$(GOLANGCI_LINT) run -v --build-tags=tools --modules-download-mode=readonly $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
 
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
@@ -150,6 +151,7 @@ lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported
 lint-full: $(GOLANGCI_LINT) ## Run slower linters to detect possible issues
 	$(GOLANGCI_LINT) run -v --fast=false
 	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v --fast=false --timeout=30m
+	cd $(TOOLS_DIR)/release; ../../../$(GOLANGCI_LINT) run -v --fast=false --build-tags=tools --modules-download-mode=readonly --timeout=30m
 
 ## --------------------------------------
 ## Generate

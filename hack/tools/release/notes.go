@@ -20,7 +20,6 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -43,17 +42,16 @@ Use these as the base of your release notes.
 */
 
 const (
-	features      = ":sparkles: New Features"
-	bugs          = ":bug: Bug Fixes"
-	documentation = ":book: Documentation"
-	warning       = ":warning: Breaking Changes"
-	other         = ":seedling: Others"
-	unknown       = ":question: Sort these by hand"
-	superseded    = ":recycle: Superseded or Reverted"
-	repoOwner     = "metal3-io"
-    repoName      = "ip-address-manager"
+	features        = ":sparkles: New Features"
+	bugs            = ":bug: Bug Fixes"
+	documentation   = ":book: Documentation"
+	warning         = ":warning: Breaking Changes"
+	other           = ":seedling: Others"
+	unknown         = ":question: Sort these by hand"
+	superseded      = ":recycle: Superseded or Reverted"
+	repoOwner       = "metal3-io"
+	repoName        = "ip-address-manager"
 	warningTemplate = ":rotating_light: This is a %s. Use it only for testing purposes.\nIf you find any bugs, file an [issue](https://github.com/metal3-io/ip-address-manager/issues/new/).\n\n"
-
 )
 
 var (
@@ -99,17 +97,17 @@ func lastTag(latestTag string) (string, error) {
 		semVersion.Minor--
 		lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
 		return lastReleaseTag, nil
-	} else {
-		latestTag = strings.TrimPrefix(latestTag, "v")
-
-		semVersion, err := semver.New(latestTag)
-		if err != nil {
-			return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
-		}
-		semVersion.Patch--
-		lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
-		return lastReleaseTag, nil
 	}
+
+	latestTag = strings.TrimPrefix(latestTag, "v")
+
+	semVersion, err := semver.New(latestTag)
+	if err != nil {
+		return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
+	}
+	semVersion.Patch--
+	lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
+	return lastReleaseTag, nil
 }
 
 func isBeta(tag string) bool {
@@ -124,28 +122,19 @@ func isMinor(tag string) bool {
 	return strings.HasSuffix(tag, ".0")
 }
 
-func firstCommit() string {
-	cmd := exec.Command("git", "rev-list", "--max-parents=0", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		return "UNKNOWN"
-	}
-	return string(bytes.TrimSpace(out))
-}
-
 func run() int {
 	latestTag, err := latestTag()
-	if err != nil{
+	if err != nil {
 		log.Fatal("Failed to get latestTag \n")
 	}
 	lastTag, err := lastTag(latestTag)
-	if err != nil{
+	if err != nil {
 		log.Fatal("Failed to get lastTag \n")
 	}
 
-	commitHash,err := getCommitHashFromNewTag(latestTag)
-	if err != nil{
-		log.Fatalf("Failed to get commit has from latestTag %s",latestTag)
+	commitHash, err := getCommitHashFromNewTag(latestTag)
+	if err != nil {
+		log.Fatalf("Failed to get commit has from latestTag %s", latestTag)
 	}
 
 	cmd := exec.Command("git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec
@@ -223,7 +212,12 @@ func run() int {
 			continue
 		}
 		body = fmt.Sprintf("- %s", body)
-		fmt.Sscanf(c.merge, "Merge pull request %s from %s", &prNumber, &fork)
+
+		_, err := fmt.Sscanf(c.merge, "Merge pull request %s from %s", &prNumber, &fork)
+		if err != nil {
+			log.Fatalf("Error parsing merge commit message: %v", err)
+		}
+
 		merges[key] = append(merges[key], formatMerge(body, prNumber))
 	}
 
@@ -232,7 +226,7 @@ func run() int {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
-	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->\n")
+	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->")
 	// TODO Turn this into a link (requires knowing the project name + organization)
 	fmt.Printf("# Changes since %v\n\n", lastTag)
 
@@ -290,35 +284,34 @@ func formatMerge(line, prNumber string) string {
 // For patch releases, it returns the latest commit on the corresponding release branch.
 func getCommitHashFromNewTag(newTag string) (string, error) {
 	token := os.Getenv("GITHUB_TOKEN")
-    if token == "" {
+	if token == "" {
 		return "", errors.New("GITHUB_TOKEN is required")
-    } else {
-		ctx := context.Background()
-        ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		client := github.NewClient(tc)
+	}
 
-		branch := "main"
-		if !isBeta(newTag) {
-			branch = getReleaseBranchFromTag(newTag)
-			// Check if branch exist in upstream or not
-			_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
-			if err != nil {
-		        // If branch does not exist, defaults to main
-				branch = "main"
-			}
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
+
+	branch := "main"
+	if !isBeta(newTag) {
+		branch = getReleaseBranchFromTag(newTag)
+		// Check if branch exist in upstream or not
+		_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
+		if err != nil {
+			// If branch does not exist, defaults to main
+			branch = "main"
 		}
+	}
 
-    	ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
-    	if err != nil {
-			return "", err
-        	log.Fatalf("Error fetching ref: %v", err)
-    	}
-    	commitHash := ref.GetObject().GetSHA()
-		return commitHash, nil
-    }
+	ref, _, err := client.Git.GetRef(ctx, repoOwner, repoName, "refs/heads/"+branch)
+	if err != nil {
+		log.Fatalf("Error fetching ref: %v", err)
+	}
+	commitHash := ref.GetObject().GetSHA()
+	return commitHash, nil
 }
 
 func trimPrereleasePrefix(version string) string {
