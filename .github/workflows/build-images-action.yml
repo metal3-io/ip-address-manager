@@ -6,20 +6,38 @@ permissions:
 on:
   push:
     branches:
-    - 'main'
-    - 'release-*'
+    - "main"
+    - "release-*"
     tags:
-    - 'v*'
+    - "v*"
+  workflow_run:
+    workflows:
+    - "Create Release"
+    types:
+    - completed
 
 jobs:
   build_ipam:
-    name: Build IPAM container image
-    if: github.repository == 'metal3-io/ip-address-manager'
-    uses: metal3-io/project-infra/.github/workflows/container-image-build.yml@main
-    with:
-      image-name: 'ip-address-manager'
-      pushImage: true
-    secrets:
-      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
-      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set ref
+      id: set_ref
+      run: |
+        # Check if release_tag exists, if so, set ref to "refs/heads/${{ release_tag }}", otherwise use github.ref
+        if [[ -n "${{ needs.create-release.outputs.release_tag }}" ]]; then
+          echo "GITHUB_REF=refs/heads/${{ needs.create-release.outputs.release_tag }}" >> "${GITHUB_ENV}"
+        else
+          echo "GITHUB_REF=${{ github.ref }}" >> "${GITHUB_ENV}"
+        fi
+
+    - name: Build IPAM container image
+      if: github.repository == 'metal3-io/ip-address-manager'
+      uses: metal3-io/project-infra/.github/workflows/container-image-build.yml@main
+      with:
+        image-name: "ip-address-manager"
+        pushImage: true
+        ref: ${{ env.GITHUB_REF }}
+      secrets:
+        QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+        QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
