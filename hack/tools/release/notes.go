@@ -125,16 +125,16 @@ func isMinor(tag string) bool {
 func run() int {
 	latestTag, err := latestTag()
 	if err != nil {
-		log.Fatal("Failed to get latestTag \n")
+		log.Fatalf("Failed to get latestTag: %v", err)
 	}
 	lastTag, err := lastTag(latestTag)
 	if err != nil {
-		log.Fatal("Failed to get lastTag \n")
+		log.Fatalf("Failed to get lastTag: %v", err)
 	}
 
 	commitHash, err := getCommitHashFromNewTag(latestTag)
 	if err != nil {
-		log.Fatalf("Failed to get commit has from latestTag %s", latestTag)
+		log.Fatalf("Failed to get commit hash from latestTag %s: %v", latestTag, err)
 	}
 
 	cmd := exec.Command("git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec

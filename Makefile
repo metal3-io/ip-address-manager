@@ -305,7 +305,7 @@ release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publis
 
 .PHONY: release-notes-tool
 release-notes-tool:
-	go build -C hack/tools -o $(BIN_DIR) -tags tools github.com/metal3-io/ip-address-manager/hack/tools/release
+	go build -C hack/tools -o $(BIN_DIR)/release -tags tools github.com/metal3-io/ip-address-manager/hack/tools/release
 
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES) release-notes-tool

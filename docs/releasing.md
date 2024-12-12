@@ -32,12 +32,15 @@ IPAM uses [semantic versioning](https://semver.org).
 
 ### Repository setup
 
-Clone the repository from your intended fork:
+- Clone the repository from your intended fork:
 `git clone git@github.com:[your-fork]/metal3-ipam.git`
 
 or if using existing repository, make sure origin is set to the fork and
 upstream is set to `metal3-io`. Verify if your remote is set properly or not
 by using following command `git remote -v`.
+
+- Fetch the remote (`metal3-io`): `git fetch upstream`
+This makes sure that all the tags are accessible.
 
 ### Creating Release Notes
 
@@ -61,9 +64,11 @@ by using following command `git remote -v`.
      release, but not overwhelming the important changes contained by the
      release.
 
-- Commit and push your changes, push the new branch and create a pull request.
+- Commit your changes, push the new branch and create a pull request:
 IMPORTANT_NOTE:
-   - The commit and PR title should be 🚀 Release v1.x.y.
+   - The commit and PR title should be 🚀 Release v1.x.y:
+      -`git commit -S -s -m ":rocket: Release v1.x.x"`
+      -`git push -u origin release-notes-1.x.x`
    - Important! The commit should only contain the release notes file, nothing
      else, otherwise automation will not work.
 
