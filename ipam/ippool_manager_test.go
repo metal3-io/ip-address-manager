@@ -334,9 +334,9 @@ var _ = Describe("IPPool manager", func() {
 			if tc.expectRequeue || tc.expectError {
 				Expect(err).To(HaveOccurred())
 				if tc.expectRequeue {
-					Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))
+					Expect(err).To(BeAssignableToTypeOf(ReconcileError{}))
 				} else {
-					Expect(err).NotTo(BeAssignableToTypeOf(&RequeueAfterError{}))
+					Expect(err).NotTo(BeAssignableToTypeOf(ReconcileError{}))
 				}
 			} else {
 				Expect(err).NotTo(HaveOccurred())
@@ -596,9 +596,9 @@ var _ = Describe("IPPool manager", func() {
 			if tc.expectRequeue || tc.expectError {
 				Expect(err).To(HaveOccurred())
 				if tc.expectRequeue {
-					Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))
+					Expect(err).To(BeAssignableToTypeOf(ReconcileError{}))
 				} else {
-					Expect(err).NotTo(BeAssignableToTypeOf(&RequeueAfterError{}))
+					Expect(err).NotTo(BeAssignableToTypeOf(ReconcileError{}))
 				}
 			} else {
 				Expect(err).NotTo(HaveOccurred())
