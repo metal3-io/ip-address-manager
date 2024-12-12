@@ -46,6 +46,9 @@ by using following command `git remote -v`.
 - Create a new branch for the release notes**:
   `git checkout -b release-notes-1.x.x origin/main`
 
+- Fetch upstream (`metal3-io`): `git fetch upstream`
+   - This makes sure all the latest tags are accessable by the next step.
+
 - Generate the release notes: `RELEASE_TAG=v1.x.x make release-notes`
    - Replace `v1.x.x` with the new release tag you're creating.
    - This command generates the release notes here
