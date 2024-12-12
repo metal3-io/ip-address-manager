@@ -397,11 +397,11 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	}
 
 	// Create the IPAddress object. If we get a conflict (that will set
-	// HasRequeueAfterError), then requeue to retrigger the reconciliation with
+	// Transient error), then requeue to retrigger the reconciliation with
 	// the new state
 	if err := createObject(ctx, m.client, addressObject); err != nil {
-		var reqAfter *RequeueAfterError
-		if ok := errors.As(err, &reqAfter); !ok {
+		var reconcileError ReconcileError
+		if !errors.As(err, &reconcileError) {
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
 		}
 		return addresses, err
