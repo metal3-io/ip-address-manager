@@ -18,6 +18,8 @@ package ipam
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -61,7 +63,7 @@ func (e *NotFoundError) Error() string {
 func updateObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.UpdateOption) error {
 	err := cl.Update(ctx, obj.DeepCopyObject().(client.Object), opts...)
 	if apierrors.IsConflict(err) {
-		return &RequeueAfterError{}
+		return WithTransientError(errors.New("Updating object failed"), 0*time.Second)
 	}
 	return err
 }
@@ -69,7 +71,8 @@ func updateObject(ctx context.Context, cl client.Client, obj client.Object, opts
 func createObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.CreateOption) error {
 	err := cl.Create(ctx, obj.DeepCopyObject().(client.Object), opts...)
 	if apierrors.IsAlreadyExists(err) {
-		return &RequeueAfterError{}
+		fmt.Printf("I am inside IsAlreadyExists")
+		return WithTransientError(errors.New("Object already exists"), 0*time.Second)
 	}
 	return err
 }
