@@ -46,6 +46,9 @@ by using following command `git remote -v`.
 - Create a new branch for the release notes**:
   `git checkout -b release-notes-1.x.x origin/main`
 
+- Fetch upstream (`metal3-io`): `git fetch upstream`
+   - This makes sure all the latest tags are accessable by the next step.
+
 - Generate the release notes: `RELEASE_TAG=v1.x.x make release-notes`
    - Replace `v1.x.x` with the new release tag you're creating.
    - This command generates the release notes here
@@ -61,9 +64,11 @@ by using following command `git remote -v`.
      release, but not overwhelming the important changes contained by the
      release.
 
-- Commit and push your changes, push the new branch and create a pull request.
+- Commit your changes, push the new branch and create a pull request:
 IMPORTANT_NOTE:
-   - The commit and PR title should be 🚀 Release v1.x.y.
+   - The commit and PR title should be 🚀 Release v1.x.y:
+      -`git commit -S -s -m ":rocket: Release v1.x.x"`
+      -`git push -u origin release-notes-1.x.x`
    - Important! The commit should only contain the release notes file, nothing
      else, otherwise automation will not work.
 
