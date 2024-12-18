@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -147,7 +148,7 @@ func (r *IPPoolReconciler) reconcileNormal(ctx context.Context,
 
 	_, err := ipPoolMgr.UpdateAddresses(ctx)
 	if err != nil {
-		return checkRequeueError(err, "Failed to create the missing data")
+		return checkReconcileError(err, "Failed to create the missing data")
 	}
 
 	return ctrl.Result{}, nil
@@ -158,7 +159,7 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 ) (ctrl.Result, error) {
 	allocationsNb, err := ipPoolMgr.UpdateAddresses(ctx)
 	if err != nil {
-		return checkRequeueError(err, "Failed to delete the old secrets")
+		return checkReconcileError(err, "Failed to delete the old secrets")
 	}
 
 	if allocationsNb == 0 {
@@ -206,13 +207,21 @@ func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object)
 	return []ctrl.Request{}
 }
 
-func checkRequeueError(err error, errMessage string) (ctrl.Result, error) {
+// checkReconcileError checks if the error is a transient or terminal error.
+// If it is transient, it returns a Result with Requeue set to true.
+// Non-reconcile errors are returned as-is.
+func checkReconcileError(err error, errMessage string) (ctrl.Result, error) {
 	if err == nil {
 		return ctrl.Result{}, nil
 	}
-	var requeueErr ipam.HasRequeueAfterError
-	if ok := errors.As(err, &requeueErr); ok {
-		return ctrl.Result{Requeue: true, RequeueAfter: requeueErr.GetRequeueAfter()}, nil
+	var reconcileError ipam.ReconcileError
+	if errors.As(err, &reconcileError) {
+		if reconcileError.IsTransient() {
+			return reconcile.Result{Requeue: true, RequeueAfter: reconcileError.GetRequeueAfter()}, nil
+		}
+		if reconcileError.IsTerminal() {
+			return reconcile.Result{}, nil
+		}
 	}
 	return ctrl.Result{}, errors.Wrap(err, errMessage)
 }
