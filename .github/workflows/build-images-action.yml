@@ -10,11 +10,6 @@ on:
     - "release-*"
     tags:
     - "v*"
-  workflow_run:
-    workflows:
-    - "Create Release"
-    types:
-    - completed
 
 jobs:
   set_ref:
