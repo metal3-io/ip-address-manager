@@ -7,7 +7,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/golang/mock v1.6.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
-	github.com/onsi/ginkgo/v2 v2.22.1
+	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.5
