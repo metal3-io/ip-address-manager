@@ -116,3 +116,17 @@ jobs:
         files: out/*
         body_path: ${{ env.RELEASE_TAG }}.md
         tag_name: ${{ env.RELEASE_TAG }}
+
+  build_ipam:
+    needs: push_release_tags
+    name: Build IPAM container image
+    if: github.repository == 'metal3-io/ip-address-manager'
+    uses: metal3-io/project-infra/.github/workflows/container-image-build.yml@main
+    with:
+      image-name: "ip-address-manager"
+      pushImage: true
+      ref: ${{ needs.push_release_tags.outputs.release_tag }}
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
