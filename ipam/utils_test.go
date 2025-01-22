@@ -130,7 +130,7 @@ var _ = Describe("Metal3 manager utils", func() {
 			err := updateObject(context.TODO(), c, obj)
 			if tc.ExpectedError {
 				Expect(err).To(HaveOccurred())
-				Expect(err).NotTo(BeAssignableToTypeOf(&RequeueAfterError{}))
+				Expect(err).NotTo(BeAssignableToTypeOf(ReconcileError{}))
 			} else {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(obj.Spec).To(Equal(tc.TestObject.Spec))
@@ -148,7 +148,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(savedObject.ResourceVersion).NotTo(Equal(tc.TestObject.ResourceVersion))
 				err := updateObject(context.TODO(), c, obj)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))
+				Expect(err).To(BeAssignableToTypeOf(ReconcileError{}))
 			}
 			err = c.Delete(context.TODO(), tc.TestObject)
 			if err != nil {
@@ -211,7 +211,7 @@ var _ = Describe("Metal3 manager utils", func() {
 			err := createObject(context.TODO(), c, obj)
 			if tc.ExpectedError {
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(BeAssignableToTypeOf(&RequeueAfterError{}))
+				Expect(err).To(BeAssignableToTypeOf(ReconcileError{}))
 			} else {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(obj.Spec).To(Equal(tc.TestObject.Spec))
