@@ -6,8 +6,8 @@ require (
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
-	k8s.io/api v0.31.4
-	k8s.io/apimachinery v0.31.4
+	k8s.io/api v0.31.5
+	k8s.io/apimachinery v0.31.5
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/controller-runtime v0.19.4
@@ -61,8 +61,8 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.31.4 // indirect
-	k8s.io/client-go v0.31.4 // indirect
+	k8s.io/apiextensions-apiserver v0.31.5 // indirect
+	k8s.io/client-go v0.31.5 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
