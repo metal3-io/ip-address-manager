@@ -27,6 +27,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
@@ -56,6 +57,10 @@ type IPPoolReconciler struct {
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipclaims/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ipam.cluster.x-k8s.io,resources=ipaddressclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ipam.cluster.x-k8s.io,resources=ipaddressclaims/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=ipam.cluster.x-k8s.io,resources=ipaddresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ipam.cluster.x-k8s.io,resources=ipaddresses/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
@@ -98,7 +103,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 			ipamv1IPPool.ObjectMeta.Labels = make(map[string]string)
 		}
 		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ClusterNameLabel] = *ipamv1IPPool.Spec.ClusterName
-		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ProviderNameLabel] = "infrastructure-metal3"
+		ipamv1IPPool.ObjectMeta.Labels[clusterv1.ProviderNameLabel] = "ipam-metal3"
 
 		// Fetch the Cluster. Ignore an error if the deletion timestamp is set
 		err = r.Client.Get(ctx, key, cluster)
@@ -172,13 +177,28 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 }
 
 // SetupWithManager will add watches for this controller.
-func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("IPPoolReconciler").
 		For(&ipamv1.IPPool{}).
 		WithOptions(options).
 		Watches(
 			&ipamv1.IPClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
+		).
+		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
+		Complete(r)
+}
+
+// SetupWithManager will add watches for this controller.
+func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		Named("IPPoolReconcilerForCAPI").
+		For(&ipamv1.IPPool{}).
+		WithOptions(options).
+		Watches(
+			&capipamv1.IPAddressClaim{},
+			handler.EnqueueRequestsFromMapFunc(r.IPAddressClaimToIPPool),
 		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
@@ -198,6 +218,23 @@ func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object)
 				{
 					NamespacedName: types.NamespacedName{
 						Name:      m3ipc.Spec.Pool.Name,
+						Namespace: namespace,
+					},
+				},
+			}
+		}
+	}
+	return []ctrl.Request{}
+}
+
+func (r *IPPoolReconciler) IPAddressClaimToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
+	if ipac, ok := obj.(*capipamv1.IPAddressClaim); ok {
+		if ipac.Spec.PoolRef.Name != "" {
+			namespace := ipac.Namespace
+			return []ctrl.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      ipac.Spec.PoolRef.Name,
 						Namespace: namespace,
 					},
 				},
