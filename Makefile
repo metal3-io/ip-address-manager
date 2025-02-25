@@ -302,6 +302,7 @@ $(RELEASE_NOTES_DIR):
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publish with a release
 	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/ipam-components.yaml
+	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: release-notes-tool
 release-notes-tool:

@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -71,6 +72,9 @@ var _ = BeforeSuite(func() {
 		err = ipamv1.AddToScheme(scheme.Scheme)
 		Expect(err).NotTo(HaveOccurred())
 
+		err = capipamv1.AddToScheme(scheme.Scheme)
+		Expect(err).NotTo(HaveOccurred())
+
 		err = apiextensionsv1.AddToScheme(scheme.Scheme)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -101,6 +105,9 @@ var _ = AfterSuite(func() {
 func setupScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	if err := ipamv1.AddToScheme(s); err != nil {
+		panic(err)
+	}
+	if err := capipamv1.AddToScheme(s); err != nil {
 		panic(err)
 	}
 	return s
