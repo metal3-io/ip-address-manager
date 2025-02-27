@@ -1,8 +1,6 @@
 module github.com/metal3-io/ip-address-manager/hack/tools
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.23.6
 
 require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
