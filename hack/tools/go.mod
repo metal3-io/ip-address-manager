@@ -1,6 +1,6 @@
 module github.com/metal3-io/ip-address-manager/hack/tools
 
-go 1.22.8
+go 1.23.6
 
 require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
@@ -14,7 +14,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/pkg/errors v0.9.1
-	golang.org/x/oauth2 v0.26.0
+	golang.org/x/oauth2 v0.27.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.5.0
 )
 
