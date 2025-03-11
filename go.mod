@@ -1,6 +1,7 @@
 module github.com/metal3-io/ip-address-manager
 
-go 1.22.3
+go 1.23.0
+
 toolchain go1.23.7
 
 require (
