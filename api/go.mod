@@ -1,8 +1,6 @@
 module github.com/metal3-io/ip-address-manager/api
 
-go 1.23.0
-
-toolchain go1.23.7
+go 1.23.7
 
 require (
 	github.com/onsi/ginkgo/v2 v2.23.0

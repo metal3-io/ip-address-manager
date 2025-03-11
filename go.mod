@@ -1,8 +1,6 @@
 module github.com/metal3-io/ip-address-manager
 
-go 1.23.0
-
-toolchain go1.23.7
+go 1.23.7
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1
