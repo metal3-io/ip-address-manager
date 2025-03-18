@@ -10,6 +10,10 @@ updates:
     interval: "monthly"
     day: "monday"
   target-branch: main
+  ## group all action bumps into single PR
+  groups:
+    all-github-actions:
+      patterns: ["*"]
   commit-message:
     prefix: ":seedling:"
   labels:
@@ -26,20 +30,20 @@ updates:
   target-branch: main
   groups:
     kubernetes:
-      patterns: [ "k8s.io/*" ]
+      patterns: ["k8s.io/*"]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: ["sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test"]
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   # Ignore k8s and its transitives modules as they are upgraded manually
   # together with controller-runtime.
   - dependency-name: "k8s.io/*"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-tools"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
   labels:
@@ -52,10 +56,14 @@ updates:
     interval: "monthly"
     day: "monday"
   target-branch: release-1.9
+  ## group all action bumps into single PR
+  groups:
+    all-github-actions:
+      patterns: ["*"]
   ignore:
   # Ignore major and minor bumps for release branch
   - dependency-name: "*"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
   labels:
@@ -72,16 +80,16 @@ updates:
   target-branch: release-1.9
   groups:
     kubernetes:
-      patterns: [ "k8s.io/*" ]
+      patterns: ["k8s.io/*"]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: ["sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test"]
   ignore:
   # golang.org/x/* only releases minors no patches, so minors have to be allowed
   - dependency-name: "golang.org/x/*"
-    update-types: [ "version-update:semver-major" ]
+    update-types: ["version-update:semver-major"]
   # Ignore major and minor bumps for release branch
   - dependency-name: "*"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
   labels:
@@ -95,10 +103,14 @@ updates:
     interval: "monthly"
     day: "monday"
   target-branch: release-1.8
+  ## group all action bumps into single PR
+  groups:
+    all-github-actions:
+      patterns: ["*"]
   ignore:
   # Ignore major and minor bumps for release branch
   - dependency-name: "*"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
   labels:
@@ -115,18 +127,19 @@ updates:
   target-branch: release-1.8
   groups:
     kubernetes:
-      patterns: [ "k8s.io/*" ]
+      patterns: ["k8s.io/*"]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: ["sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test"]
   ignore:
   # golang.org/x/* only releases minors no patches, so minors have to be allowed
   - dependency-name: "golang.org/x/*"
-    update-types: [ "version-update:semver-major" ]
+    update-types: ["version-update:semver-major"]
   # Ignore major and minor bumps for release branch
   - dependency-name: "*"
-    update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
   labels:
   - "ok-to-test"
+
 ## release-1.8 branch config ends here
