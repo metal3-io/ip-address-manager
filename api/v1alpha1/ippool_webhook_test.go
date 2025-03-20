@@ -18,7 +18,10 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+var ctx = ctrl.SetupSignalHandler()
 
 func TestIPPoolDefault(t *testing.T) {
 	g := NewWithT(t)
@@ -29,7 +32,7 @@ func TestIPPoolDefault(t *testing.T) {
 		},
 		Spec: IPPoolSpec{},
 	}
-	c.Default()
+	g.Expect(c.Default(ctx, c)).To(Succeed())
 
 	g.Expect(c.Spec).To(Equal(IPPoolSpec{}))
 	g.Expect(c.Status).To(Equal(IPPoolStatus{}))
@@ -58,13 +61,13 @@ func TestIPPoolValidation(t *testing.T) {
 			g := NewWithT(t)
 
 			if tt.expectErr {
-				_, err := tt.c.ValidateCreate()
+				_, err := tt.c.ValidateCreate(ctx, tt.c)
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				_, err := tt.c.ValidateCreate()
+				_, err := tt.c.ValidateCreate(ctx, tt.c)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-			_, err := tt.c.ValidateDelete()
+			_, err := tt.c.ValidateDelete(ctx, tt.c)
 			g.Expect(err).NotTo(HaveOccurred())
 		})
 	}
@@ -215,6 +218,7 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var newPool, oldPool *IPPool
 			g := NewWithT(t)
+
 			newPool = &IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
@@ -235,10 +239,10 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				_, err := newPool.ValidateUpdate(oldPool)
+				_, err := newPool.ValidateUpdate(ctx, oldPool, newPool)
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				_, err := newPool.ValidateUpdate(oldPool)
+				_, err := newPool.ValidateUpdate(ctx, oldPool, newPool)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 		})

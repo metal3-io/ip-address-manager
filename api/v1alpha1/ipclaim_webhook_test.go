@@ -29,7 +29,8 @@ func TestIPClaimDefault(t *testing.T) {
 			Namespace: "foo",
 		},
 	}
-	c.Default()
+
+	g.Expect(c.Default(ctx, c)).To(Succeed())
 
 	g.Expect(c.Spec).To(Equal(IPClaimSpec{}))
 	g.Expect(c.Status).To(Equal(IPClaimStatus{}))
@@ -81,13 +82,13 @@ func TestIPClaimCreateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				_, err := obj.ValidateCreate()
+				_, err := obj.ValidateCreate(ctx, obj)
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				_, err := obj.ValidateCreate()
+				_, err := obj.ValidateCreate(ctx, obj)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
-			_, err := obj.ValidateDelete()
+			_, err := obj.ValidateDelete(ctx, obj)
 			g.Expect(err).NotTo(HaveOccurred())
 		})
 	}
@@ -209,10 +210,10 @@ func TestIPClaimUpdateValidation(t *testing.T) {
 			}
 
 			if tt.expectErr {
-				_, err := newClm.ValidateUpdate(old)
+				_, err := newClm.ValidateUpdate(ctx, old, newClm)
 				g.Expect(err).To(HaveOccurred())
 			} else {
-				_, err := newClm.ValidateUpdate(old)
+				_, err := newClm.ValidateUpdate(ctx, old, newClm)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 		})
