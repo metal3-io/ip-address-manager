@@ -14,6 +14,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,23 +26,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-func (c *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (webhook *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(c).
+		For(webhook).
+		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
+		WithValidator(webhook).
 		Complete()
 }
 
 // +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha1-ipclaim,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha1,name=validation.ipclaim.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
 // +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha1-ipclaim,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipclaims,versions=v1alpha1,name=default.ipclaim.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
 
-var _ webhook.Defaulter = &IPClaim{}
-var _ webhook.Validator = &IPClaim{}
+var _ webhook.CustomDefaulter = &IPClaim{}
+var _ webhook.CustomValidator = &IPClaim{}
 
-func (c *IPClaim) Default() {
+func (webhook *IPClaim) Default(_ context.Context, _ runtime.Object) error {
+	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateCreate() (admission.Warnings, error) {
+func (webhook *IPClaim) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	c, ok := obj.(*IPClaim)
+	if !ok {
+		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPClaim but got a %T", obj))
+	}
+
 	allErrs := field.ErrorList{}
 	if c.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
@@ -58,34 +69,39 @@ func (c *IPClaim) ValidateCreate() (admission.Warnings, error) {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldIPClaim, ok := old.(*IPClaim)
+	oldIPClaim, ok := oldObj.(*IPClaim)
 	if !ok || oldIPClaim == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	if c.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
+	newIPClaim, ok := newObj.(*IPClaim)
+	if !ok {
+		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPClaim but got a %T", newObj))
+	}
+
+	if newIPClaim.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
-				c.Spec.Pool,
+				newIPClaim.Spec.Pool,
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Namespace != oldIPClaim.Spec.Pool.Namespace {
+	} else if newIPClaim.Spec.Pool.Namespace != oldIPClaim.Spec.Pool.Namespace {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
-				c.Spec.Pool,
+				newIPClaim.Spec.Pool,
 				"cannot be modified",
 			),
 		)
-	} else if c.Spec.Pool.Kind != oldIPClaim.Spec.Pool.Kind {
+	} else if newIPClaim.Spec.Pool.Kind != oldIPClaim.Spec.Pool.Kind {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool"),
-				c.Spec.Pool,
+				newIPClaim.Spec.Pool,
 				"cannot be modified",
 			),
 		)
@@ -94,10 +110,10 @@ func (c *IPClaim) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPClaim").GroupKind(), newIPClaim.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (c *IPClaim) ValidateDelete() (admission.Warnings, error) {
+func (webhook *IPClaim) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
