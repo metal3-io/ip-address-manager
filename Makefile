@@ -34,6 +34,7 @@ export GO111MODULE=on
 # Directories.
 TOOLS_DIR := hack/tools
 APIS_DIR := api
+WEBHOOKS_DIR := internal/webhooks
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 BIN_DIR := bin
 
@@ -82,7 +83,7 @@ help:  ## Display this help
 
 .PHONY: unit
 unit: ## Run tests
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out
+	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out; cd ..;cd $(WEBHOOKS_DIR); go test -v ./... -coverprofile ./cover.out
 
 .PHONY: test  ## Run linter and tests
 test: generate lint unit
@@ -93,6 +94,8 @@ unit-cover: ## Run unit tests with code coverage
 	go tool cover -func=$(COVER_PROFILE)
 	cd $(APIS_DIR)/ && go test -coverprofile=$(COVER_PROFILE) ./...
 	go tool cover -func=$(COVER_PROFILE)
+	cd ..
+
 
 ## --------------------------------------
 ## Build
@@ -175,6 +178,7 @@ generate: ## Generate code
 generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUSTOMIZE) ## Runs Go related generate targets
 	go generate ./...
 	cd $(APIS_DIR); go generate ./...
+	cd $(WEBHOOKS_DIR); go generate ./...
 	cd ./api; ../$(CONTROLLER_GEN) \
 		paths=./... \
 		object:headerFile=../hack/boilerplate/boilerplate.generatego.txt
@@ -199,6 +203,7 @@ generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
 		paths=./ \
 		paths=./api/... \
 		paths=./controllers/... \
+		paths=./internal/webhooks/... \
 		crd:crdVersions=v1 \
 		rbac:roleName=manager-role \
 		output:crd:dir=$(CRD_ROOT) \

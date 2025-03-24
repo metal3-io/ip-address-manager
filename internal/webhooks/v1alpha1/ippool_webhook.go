@@ -1,5 +1,7 @@
 /*
 Copyright 2020 The Kubernetes Authors.
+Copyright 2025 The Metal3 Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package webhooks
 
 import (
 	"context"
@@ -20,6 +22,7 @@ import (
 	"net/netip"
 	"reflect"
 
+	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,27 +32,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(webhook).
+		For(&ipamv1.IPPool{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(webhook).
 		Complete()
 }
 
+// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha1-ippool,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha1,name=validation.ippool.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha1-ippool,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ippools,versions=v1alpha1,name=default.ippool.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
+
+// IPPool implements a validation and defaulting webhook for IPPool.
+type IPPool struct{}
+
 var _ webhook.CustomDefaulter = &IPPool{}
 var _ webhook.CustomValidator = &IPPool{}
 
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPPool) Default(_ context.Context, _ runtime.Object) error {
 	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPPool) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	_, ok := obj.(*IPPool)
+	_, ok := obj.(*ipamv1.IPPool)
 	if !ok {
 		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPPool but got a %T", obj))
 	}
@@ -58,15 +64,14 @@ func (webhook *IPPool) ValidateCreate(_ context.Context, obj runtime.Object) (ad
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPPool) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldM3ipp, ok := oldObj.(*IPPool)
+	oldM3ipp, ok := oldObj.(*ipamv1.IPPool)
 	if !ok || oldM3ipp == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	newM3ipp, ok := newObj.(*IPPool)
+	newM3ipp, ok := newObj.(*ipamv1.IPPool)
 	if !ok {
 		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPPool but got a %T", newObj))
 	}
@@ -107,13 +112,12 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldObj, newObj runtime.
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(GroupVersion.WithKind("Metal3Data").GroupKind(), newM3ipp.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("Metal3Data").GroupKind(), newM3ipp.Name, allErrs)
 }
 
-// Deprecated: This method is going to be removed in a next release.
-func (webhook *IPPool) checkPoolBonds(oldPool, newPool *IPPool) ([]IPAddressStr, []IPAddressStr) {
-	allocationOutOfBonds := []IPAddressStr{}
-	inUseOutOfBonds := []IPAddressStr{}
+func (webhook *IPPool) checkPoolBonds(oldPool, newPool *ipamv1.IPPool) ([]ipamv1.IPAddressStr, []ipamv1.IPAddressStr) {
+	allocationOutOfBonds := []ipamv1.IPAddressStr{}
+	inUseOutOfBonds := []ipamv1.IPAddressStr{}
 	for _, address := range newPool.Spec.PreAllocations {
 		inBonds := webhook.isAddressInBonds(newPool, address)
 
@@ -131,8 +135,7 @@ func (webhook *IPPool) checkPoolBonds(oldPool, newPool *IPPool) ([]IPAddressStr,
 	return allocationOutOfBonds, inUseOutOfBonds
 }
 
-// Deprecated: This method is going to be removed in a next release.
-func (webhook *IPPool) isAddressInBonds(newPool *IPPool, address IPAddressStr) bool {
+func (webhook *IPPool) isAddressInBonds(newPool *ipamv1.IPPool, address ipamv1.IPAddressStr) bool {
 	ip, err := netip.ParseAddr(string(address))
 	if err != nil {
 		return false
@@ -179,7 +182,6 @@ func (webhook *IPPool) isAddressInBonds(newPool *IPPool, address IPAddressStr) b
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPPool) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }

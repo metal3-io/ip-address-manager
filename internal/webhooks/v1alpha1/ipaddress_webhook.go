@@ -1,5 +1,7 @@
 /*
 Copyright 2020 The Kubernetes Authors.
+Copyright 2025 The Metal3 Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,12 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package webhooks
 
 import (
 	"context"
 	"fmt"
 
+	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,27 +29,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(webhook).
+		For(&ipamv1.IPAddress{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(webhook).
 		Complete()
 }
 
+// +kubebuilder:webhook:verbs=create;update,path=/validate-ipam-metal3-io-v1alpha1-ipaddress,mutating=false,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha1,name=validation.ipaddress.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
+// +kubebuilder:webhook:verbs=create;update,path=/mutate-ipam-metal3-io-v1alpha1-ipaddress,mutating=true,failurePolicy=fail,groups=ipam.metal3.io,resources=ipaddresses,versions=v1alpha1,name=default.ipaddress.ipam.metal3.io,matchPolicy=Equivalent,sideEffects=None,admissionReviewVersions=v1;v1beta1
+
+// IPAddress implements a validation and defaulting webhook for IPAddress.
+type IPAddress struct{}
+
 var _ webhook.CustomDefaulter = &IPAddress{}
 var _ webhook.CustomValidator = &IPAddress{}
 
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPAddress) Default(_ context.Context, _ runtime.Object) error {
 	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPAddress) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	c, ok := obj.(*IPAddress)
+	c, ok := obj.(*ipamv1.IPAddress)
 	if !ok {
 		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPAddress but got a %T", obj))
 	}
@@ -85,19 +91,18 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, obj runtime.Object) 
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldIPAddress, ok := oldObj.(*IPAddress)
+	oldIPAddress, ok := oldObj.(*ipamv1.IPAddress)
 	if !ok || oldIPAddress == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	newIPAddress, ok := newObj.(*IPAddress)
+	newIPAddress, ok := newObj.(*ipamv1.IPAddress)
 	if !ok {
 		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPAddress but got a %T", newObj))
 	}
@@ -167,11 +172,10 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldObj, newObj runti
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-// Deprecated: This method is going to be removed in a next release.
 func (webhook *IPAddress) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
