@@ -25,6 +25,7 @@ import (
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/metal3-io/ip-address-manager/controllers"
+	webhooks "github.com/metal3-io/ip-address-manager/internal/webhooks/v1alpha1"
 	"github.com/metal3-io/ip-address-manager/ipam"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
@@ -235,17 +236,17 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 }
 
 func setupWebhooks(mgr ctrl.Manager) {
-	if err := (&ipamv1.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
+	if err := (&webhooks.IPPool{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IPPool")
 		os.Exit(1)
 	}
 
-	if err := (&ipamv1.IPAddress{}).SetupWebhookWithManager(mgr); err != nil {
+	if err := (&webhooks.IPAddress{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IPAddress")
 		os.Exit(1)
 	}
 
-	if err := (&ipamv1.IPClaim{}).SetupWebhookWithManager(mgr); err != nil {
+	if err := (&webhooks.IPClaim{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "IPClaim")
 		os.Exit(1)
 	}

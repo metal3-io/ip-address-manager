@@ -38,6 +38,7 @@ COPY main.go main.go
 COPY api/ api/
 COPY ipam/ ipam/
 COPY controllers/ controllers/
+COPY internal/ internal/
 
 # Build
 ARG ARCH
