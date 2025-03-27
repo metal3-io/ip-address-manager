@@ -24,7 +24,7 @@ linters:
   #- forbidigo
   #- forcetypeassert
   #- gci
-  #- ginkgolinter
+  - ginkgolinter
   - gocheckcompilerdirectives
   - gochecksumtype
   - goconst
@@ -122,6 +122,9 @@ linters-settings:
     - unnecessaryDefer
     - whyNoLint
     - wrapperFunc
+  ginkgolinter:
+    forbid-focus-container: true
+    force-expect-to: true
 issues:
   exclude-dirs:
   - mock*
