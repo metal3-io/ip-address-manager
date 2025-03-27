@@ -353,7 +353,7 @@ var _ = Describe("IPPool controller", func() {
 			reqs := r.IPClaimToIPPool(context.Background(), obj)
 
 			if tc.ExpectRequest {
-				Expect(len(reqs)).To(Equal(1), "Expected 1 request, found %d", len(reqs))
+				Expect(reqs).To(HaveLen(1), "Expected 1 request, found %d", len(reqs))
 
 				req := reqs[0]
 				Expect(req.NamespacedName.Name).To(Equal(tc.IPClaim.Spec.Pool.Name),
@@ -367,7 +367,7 @@ var _ = Describe("IPPool controller", func() {
 				}
 
 			} else {
-				Expect(len(reqs)).To(Equal(0), "Expected 0 request, found %d", len(reqs))
+				Expect(reqs).To(BeEmpty(), "Expected 0 request, found %d", len(reqs))
 
 			}
 		},
@@ -421,13 +421,13 @@ var _ = Describe("IPPool controller", func() {
 			reqs := r.IPAddressClaimToIPPool(context.Background(), obj)
 
 			if tc.ExpectRequest {
-				Expect(len(reqs)).To(Equal(1), "Expected 1 request, found %d", len(reqs))
+				Expect(reqs).To(HaveLen(1), "Expected 1 request, found %d", len(reqs))
 
 				req := reqs[0]
 				Expect(req.NamespacedName.Name).To(Equal(tc.IPAddressClaim.Spec.PoolRef.Name),
 					"Expected name %s, found %s", tc.IPAddressClaim.Spec.PoolRef.Name, req.NamespacedName.Name)
 			} else {
-				Expect(len(reqs)).To(Equal(0), "Expected 0 request, found %d", len(reqs))
+				Expect(reqs).To(BeEmpty(), "Expected 0 request, found %d", len(reqs))
 
 			}
 		},

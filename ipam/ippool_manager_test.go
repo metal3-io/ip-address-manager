@@ -1359,13 +1359,13 @@ var _ = Describe("IPPool manager", func() {
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(tc.expectedIPAddresses)).To(Equal(len(addressObjects.Items)))
+			Expect(tc.expectedIPAddresses).To(HaveLen(len(addressObjects.Items)))
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, address := range addressObjects.Items {
 				Expect(tc.expectedIPAddresses).To(ContainElement(address.Name))
 				// TODO add further testing later
 			}
-			Expect(len(tc.ipClaim.Finalizers)).To(Equal(1))
+			Expect(tc.ipClaim.Finalizers).To(HaveLen(1))
 
 			Expect(allocatedMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
@@ -1574,7 +1574,7 @@ var _ = Describe("IPPool manager", func() {
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(tc.expectedIPAddresses)).To(Equal(len(addressObjects.Items)))
+			Expect(tc.expectedIPAddresses).To(HaveLen(len(addressObjects.Items)))
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, address := range addressObjects.Items {
 				Expect(tc.expectedIPAddresses).To(ContainElement(address.Name))
@@ -2405,12 +2405,12 @@ var _ = Describe("IPPool manager", func() {
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(addressObjects.Items)).To(Equal(0))
+			Expect(addressObjects.Items).To(BeEmpty())
 
 			Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeFalse())
 			Expect(allocatedMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
-			Expect(len(tc.ipClaim.Finalizers)).To(Equal(0))
+			Expect(tc.ipClaim.Finalizers).To(BeEmpty())
 		},
 		Entry("Empty IPPool", testCaseDeleteAddresses{
 			ipPool: &ipamv1.IPPool{},
@@ -2520,12 +2520,12 @@ var _ = Describe("IPPool manager", func() {
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(len(addressObjects.Items)).To(Equal(0))
+			Expect(addressObjects.Items).To(BeEmpty())
 
 			Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeFalse())
 			Expect(allocatedMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
-			Expect(len(tc.ipAddressClaim.Finalizers)).To(Equal(0))
+			Expect(tc.ipAddressClaim.Finalizers).To(BeEmpty())
 		},
 		Entry("Empty IPPool", testCaseCapiDeleteAddresses{
 			ipPool: &ipamv1.IPPool{},

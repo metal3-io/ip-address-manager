@@ -295,10 +295,10 @@ var _ = Describe("Metal3 manager utils", func() {
 			}
 			index, err := findOwnerRefFromList(tc.OwnerRefs, objType, objMeta)
 			if tc.ExpectError {
-				Expect(err).NotTo(BeNil())
+				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(&NotFoundError{}))
 			} else {
-				Expect(err).To(BeNil())
+				Expect(err).ToNot(HaveOccurred())
 				Expect(index).To(BeEquivalentTo(tc.ExpectedIndex))
 			}
 		},
@@ -388,9 +388,9 @@ var _ = Describe("Metal3 manager utils", func() {
 				UID:  "adfasdf",
 			}
 			refList, err := deleteOwnerRefFromList(tc.OwnerRefs, objType, objMeta)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			_, err = findOwnerRefFromList(refList, objType, objMeta)
-			Expect(err).NotTo(BeNil())
+			Expect(err).To(HaveOccurred())
 		},
 		Entry("Empty list", testCaseOwnerRef{
 			OwnerRefs: []metav1.OwnerReference{},
@@ -454,9 +454,9 @@ var _ = Describe("Metal3 manager utils", func() {
 				UID:  "adfasdf",
 			}
 			refList, err := setOwnerRefInList(tc.OwnerRefs, tc.Controller, objType, objMeta)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			index, err := findOwnerRefFromList(refList, objType, objMeta)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 			Expect(*refList[index].Controller).To(BeEquivalentTo(tc.Controller))
 		},
 		Entry("Empty list", testCaseOwnerRef{
