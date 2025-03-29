@@ -1,7 +1,7 @@
 package ipam
 
 import (
-	"fmt"
+	"log"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"github.com/go-logr/logr"
@@ -18,7 +18,7 @@ func FuzzNewIPPoolManager(data []byte) int {
 		return 0
 	}
 
-	fmt.Printf("before %+v\n", ipPool)
+	log.Printf("before %+v\n", ipPool)
 
 	ipPoolMgr, err := ipam.NewIPPoolManager(nil, ipPool,
 		logr.Discard(),
@@ -28,7 +28,7 @@ func FuzzNewIPPoolManager(data []byte) int {
 	}
 
 	ipPoolMgr.SetFinalizer()
-	fmt.Printf("after %+v\n", ipPool)
+	log.Printf("after %+v\n", ipPool)
 
 	if len(ipPool.ObjectMeta.Finalizers) == 0 {
 		return 0

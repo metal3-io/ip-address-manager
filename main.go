@@ -49,6 +49,14 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
+const (
+	defaultSyncPeriod        = 10 * time.Minute
+	defaultWebhookPort       = 9443
+	defaultIPPoolConcurrency = 10
+	defaultRestConfigQPS     = 20
+	defaultRestConfigBurst   = 30
+)
+
 var (
 	myscheme             = runtime.NewScheme()
 	setupLog             = ctrl.Log.WithName("setup")
@@ -171,9 +179,9 @@ func initFlags(fs *pflag.FlagSet) {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fs.StringVar(&watchNamespace, "namespace", "",
 		"Namespace that the controller watches to reconcile IPAM objects. If unspecified, the controller watches for IPAM objects across all namespaces.")
-	fs.DurationVar(&syncPeriod, "sync-period", 10*time.Minute,
+	fs.DurationVar(&syncPeriod, "sync-period", defaultSyncPeriod,
 		"The minimum interval at which watched resources are reconciled (e.g. 15m)")
-	fs.IntVar(&webhookPort, "webhook-port", 9443,
+	fs.IntVar(&webhookPort, "webhook-port", defaultWebhookPort,
 		"Webhook Server port")
 	fs.StringVar(
 		&webhookCertDir,
@@ -190,13 +198,13 @@ func initFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&healthAddr, "health-addr", ":9440",
 		"The address the health endpoint binds to.")
 
-	fs.IntVar(&ippoolConcurrency, "ippool-concurrency", 10,
+	fs.IntVar(&ippoolConcurrency, "ippool-concurrency", defaultIPPoolConcurrency,
 		"Number of ippools to process simultaneously")
 
-	fs.Float64Var(&restConfigQPS, "kube-api-qps", 20,
+	fs.Float64Var(&restConfigQPS, "kube-api-qps", defaultRestConfigQPS,
 		"Maximum queries per second from the controller client to the Kubernetes API server. Default 20")
 
-	fs.IntVar(&restConfigBurst, "kube-api-burst", 30,
+	fs.IntVar(&restConfigBurst, "kube-api-burst", defaultRestConfigBurst,
 		"Maximum number of queries that should be allowed in one burst from the controller client to the Kubernetes API server. Default 30")
 
 	flags.AddManagerOptions(fs, &managerOptions)

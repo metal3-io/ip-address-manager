@@ -95,7 +95,7 @@ func lastTag(latestTag string) (string, error) {
 			return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
 		}
 		semVersion.Minor--
-		lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
+		lastReleaseTag := "v" + semVersion.String()
 		return lastReleaseTag, nil
 	}
 
@@ -106,7 +106,7 @@ func lastTag(latestTag string) (string, error) {
 		return "", errors.Wrapf(err, "parsing semver for %s", latestTag)
 	}
 	semVersion.Patch--
-	lastReleaseTag := fmt.Sprintf("v%s", semVersion.String())
+	lastReleaseTag := "v" + semVersion.String()
 	return lastReleaseTag, nil
 }
 
@@ -150,8 +150,8 @@ func run() int {
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("Error")
-		fmt.Println(string(out))
+		log.Println("Error")
+		log.Println(string(out))
 		return 1
 	}
 
@@ -211,7 +211,7 @@ func run() int {
 		if body == "" {
 			continue
 		}
-		body = fmt.Sprintf("- %s", body)
+		body = "- " + body
 
 		_, err := fmt.Sscanf(c.merge, "Merge pull request %s from %s", &prNumber, &fork)
 		if err != nil {
@@ -226,43 +226,43 @@ func run() int {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
-	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->")
+	log.Println("<!-- markdownlint-disable no-inline-html line-length -->")
 	// TODO Turn this into a link (requires knowing the project name + organization)
-	fmt.Printf("# Changes since %v\n\n", lastTag)
+	log.Printf("# Changes since %v\n\n", lastTag)
 
 	// print the changes by category
 	for _, key := range outputOrder {
 		mergeslice := merges[key]
 		if len(mergeslice) > 0 {
-			fmt.Printf("## %v\n\n", key)
+			log.Printf("## %v\n\n", key)
 			for _, merge := range mergeslice {
-				fmt.Println(merge)
+				log.Println(merge)
 			}
-			fmt.Println()
+			log.Println()
 		}
 
 		// if we're doing beta/rc, print breaking changes and hide the rest of the changes
 		if key == warning {
 			if isBeta(latestTag) {
-				fmt.Printf(warningTemplate, "BETA RELEASE")
+				log.Printf(warningTemplate, "BETA RELEASE")
 			}
 			if isRC(latestTag) {
-				fmt.Printf(warningTemplate, "RELEASE CANDIDATE")
+				log.Printf(warningTemplate, "RELEASE CANDIDATE")
 			}
 			if isBeta(latestTag) || isRC(latestTag) {
-				fmt.Printf("<details>\n")
-				fmt.Printf("<summary>More details about the release</summary>\n\n")
+				log.Printf("<details>\n")
+				log.Printf("<summary>More details about the release</summary>\n\n")
 			}
 		}
 	}
 
 	// then close the details if we had it open
 	if isBeta(latestTag) || isRC(latestTag) {
-		fmt.Printf("</details>\n\n")
+		log.Printf("</details>\n\n")
 	}
 
-	fmt.Printf("The container image for this release is: %v\n", latestTag)
-	fmt.Println("\n_Thanks to all our contributors!_ 😊")
+	log.Printf("The container image for this release is: %v\n", latestTag)
+	log.Println("\n_Thanks to all our contributors!_ 😊")
 
 	return 0
 }
@@ -327,5 +327,5 @@ func getReleaseBranchFromTag(tag string) string {
 	if index := strings.LastIndex(tag, "."); index != -1 {
 		tag = tag[:index]
 	}
-	return fmt.Sprintf("release-%s", tag)
+	return "release-" + tag
 }
