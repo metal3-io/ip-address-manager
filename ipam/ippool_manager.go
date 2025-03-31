@@ -35,8 +35,7 @@ import (
 )
 
 var (
-	notFoundErr *NotFoundError
-	APIGroup    = "ipam.metal3.io"
+	APIGroup = "ipam.metal3.io"
 )
 
 const (
@@ -95,7 +94,7 @@ func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1.Cluster) error {
 	_, err := findOwnerRefFromList(m.IPPool.OwnerReferences,
 		cluster.TypeMeta, cluster.ObjectMeta)
 	if err != nil {
-		if ok := errors.As(err, &notFoundErr); !ok {
+		if ok := errors.As(err, &errNotFound); !ok {
 			return err
 		}
 		m.IPPool.OwnerReferences, err = setOwnerRefInList(
