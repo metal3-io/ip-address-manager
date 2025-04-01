@@ -18,7 +18,7 @@ package ipam
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/pkg/errors"
@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var notFoundError *NotFoundError
+var errNotFound *NotFoundError
 
 // Filter filters a list for a string.
 func Filter(list []string, strToFilter string) (newList []string) {
@@ -60,8 +60,20 @@ func (e *NotFoundError) Error() string {
 	return "Object not found"
 }
 
-func updateObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.UpdateOption) error {
-	err := cl.Update(ctx, obj.DeepCopyObject().(client.Object), opts...)
+func deepCopyObject(obj client.Object) (client.Object, error) {
+	objCopy, ok := obj.DeepCopyObject().(client.Object)
+	if !ok {
+		return nil, errors.New("Failed to copy object")
+	}
+	return objCopy, nil
+}
+
+func updateObject(ctx context.Context, cl client.Client, obj client.Object) error {
+	objCopy, err := deepCopyObject(obj)
+	if err != nil {
+		return err
+	}
+	err = cl.Update(ctx, objCopy)
 	if apierrors.IsConflict(err) {
 		return WithTransientError(errors.New("Updating object failed"), 0*time.Second)
 	}
@@ -69,16 +81,24 @@ func updateObject(ctx context.Context, cl client.Client, obj client.Object, opts
 }
 
 func createObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.CreateOption) error {
-	err := cl.Create(ctx, obj.DeepCopyObject().(client.Object), opts...)
+	objCopy, err := deepCopyObject(obj)
+	if err != nil {
+		return err
+	}
+	err = cl.Create(ctx, objCopy, opts...)
 	if apierrors.IsAlreadyExists(err) {
-		fmt.Printf("I am inside IsAlreadyExists")
+		log.Printf("I am inside IsAlreadyExists")
 		return WithTransientError(errors.New("Object already exists"), 0*time.Second)
 	}
 	return err
 }
 
 func deleteObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.DeleteOption) error {
-	err := cl.Delete(ctx, obj.DeepCopyObject().(client.Object), opts...)
+	objCopy, err := deepCopyObject(obj)
+	if err != nil {
+		return err
+	}
+	err = cl.Delete(ctx, objCopy, opts...)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -94,7 +114,7 @@ func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	}
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if ok := errors.As(err, &notFoundError); !ok {
+		if ok := errors.As(err, &errNotFound); !ok {
 			return nil, err
 		}
 		return refList, nil
@@ -117,7 +137,7 @@ func setOwnerRefInList(refList []metav1.OwnerReference, controller bool,
 ) ([]metav1.OwnerReference, error) {
 	index, err := findOwnerRefFromList(refList, objType, objMeta)
 	if err != nil {
-		if ok := errors.As(err, &notFoundError); !ok {
+		if ok := errors.As(err, &errNotFound); !ok {
 			return nil, err
 		}
 		refList = append(refList, metav1.OwnerReference{

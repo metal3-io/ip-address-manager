@@ -2,7 +2,7 @@ package ipam
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -23,7 +23,7 @@ func FuzzIPClaimToIPPool(data []byte) int {
 		return 0
 	}
 	r := controller.IPPoolReconciler{}
-	fmt.Printf("tc: %+v\n", tc)
+	log.Printf("tc: %+v\n", tc)
 
 	obj := client.Object(tc.IPClaim)
 	reqs := r.IPClaimToIPPool(context.Background(), obj)
