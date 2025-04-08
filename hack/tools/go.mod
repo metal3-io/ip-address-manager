@@ -14,7 +14,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/pkg/errors v0.9.1
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.29.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.6.0
 )
 
