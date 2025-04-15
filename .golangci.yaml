@@ -11,7 +11,7 @@ linters:
   - copyloopvar
   - decorder
   - dogsled
-  #- dupl
+  - dupl
   - dupword
   - durationcheck
   - errcheck
@@ -135,6 +135,7 @@ issues:
   - path: _test\.go
     linters:
     - unused
+    - dupl
   # Disable linters for conversion
   - linters:
     - staticcheck
