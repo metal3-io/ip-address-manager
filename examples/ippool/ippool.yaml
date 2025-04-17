@@ -35,6 +35,8 @@ apiVersion: ipam.metal3.io/v1alpha1
 kind: IPClaim
 metadata:
   name: ${CLUSTER_NAME}-controlplane-template-0-provisioning-pool
+  annotations:
+    ipAddress: <optional-annotation-for-specific-ip-request>
 spec:
   pool:
     name: pool1
@@ -44,6 +46,8 @@ apiVersion: ipam.cluster.x-k8s.io/v1beta1
 kind: IPAddressClaim
 metadata:
   name: ${CLUSTER_NAME}-controlplane-template-1-provisioning-pool
+  annotations:
+    ipAddress: <optional-annotation-for-specific-ip-request>
 spec:
   poolRef:
     apiGroup: ipam.metal3.io

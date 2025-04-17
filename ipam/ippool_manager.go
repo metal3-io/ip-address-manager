@@ -41,6 +41,7 @@ var (
 const (
 	IPAddressClaimFinalizer = "ipam.metal3.io/ipaddressclaim"
 	IPAddressFinalizer      = "ipam.metal3.io/ipaddress"
+	IPAddressAnnotation     = "ipAddress"
 )
 
 // IPPoolManagerInterface is an interface for a IPPoolManager.
@@ -415,6 +416,15 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 
 	ipAllocated := false
 
+	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
+	isRequestedIPAllocated := false
+
+	// Conflict-case, claim is preAllocated but has requested different IP
+	if requestedIP != "" && ipPreAllocated && requestedIP != preAllocatedAddress {
+		addressClaim.Status.ErrorMessage = ptr.To("PreAllocation and requested ip address are conflicting")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("PreAllocation and requested ip address are conflicting")
+	}
+
 	for _, pool := range m.IPPool.Spec.Pools {
 		if ipAllocated {
 			break
@@ -426,6 +436,13 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 				break
 			}
 			index++
+			// Check if requestedIP is present and matches the current address
+			if requestedIP != "" && allocatedAddress != requestedIP {
+				continue
+			}
+			if requestedIP != "" && allocatedAddress == requestedIP {
+				isRequestedIPAllocated = true
+			}
 			// We have a pre-allocated ip, we just need to ensure that it matches the current address
 			// if it does not, continue and try the next address
 			if ipPreAllocated && allocatedAddress != preAllocatedAddress {
@@ -454,6 +471,11 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 				dnsServers = pool.DNSServers
 			}
 		}
+	}
+	// We did not get requestedIp as it did not match with any available IP
+	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
+		addressClaim.Status.ErrorMessage = ptr.To("Requested IP not available")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Requested IP not available")
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
@@ -485,6 +507,24 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 
 	ipAllocated := false
 
+	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
+	isRequestedIPAllocated := false
+
+	// Conflict-case, claim is preAllocated but has requested different IP
+	if requestedIP != "" && ipPreAllocated && requestedIP != preAllocatedAddress {
+		conditions := clusterv1.Conditions{}
+		conditions = append(conditions, clusterv1.Condition{
+			Type:               "ErrorMessage",
+			Status:             corev1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+			Severity:           "Error",
+			Reason:             "ErrorMessage",
+			Message:            "PreAllocation and requested ip address are conflicting",
+		})
+		addressClaim.SetConditions(conditions)
+		return "", 0, nil, errors.New("PreAllocation and requested ip address are conflicting")
+	}
+
 	for _, pool := range m.IPPool.Spec.Pools {
 		if ipAllocated {
 			break
@@ -496,6 +536,13 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 				break
 			}
 			index++
+			// Check if requestedIP is present and matches the current address
+			if requestedIP != "" && allocatedAddress != requestedIP {
+				continue
+			}
+			if requestedIP != "" && allocatedAddress == requestedIP {
+				isRequestedIPAllocated = true
+			}
 			// We have a pre-allocated ip, we just need to ensure that it matches the current address
 			// if it does not, continue and try the next address
 			if ipPreAllocated && allocatedAddress != preAllocatedAddress {
@@ -521,6 +568,20 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 				gateway = pool.Gateway
 			}
 		}
+	}
+	// We did not get requestedIp as it did not match with any available IP
+	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
+		conditions := clusterv1.Conditions{}
+		conditions = append(conditions, clusterv1.Condition{
+			Type:               "ErrorMessage",
+			Status:             corev1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+			Severity:           "Error",
+			Reason:             "ErrorMessage",
+			Message:            "Requested IP not available",
+		})
+		addressClaim.SetConditions(conditions)
+		return "", 0, nil, errors.New("Requested IP not available")
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
