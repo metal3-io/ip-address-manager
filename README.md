@@ -70,3 +70,14 @@ Runs IPAM controller locally
 ```sh
     make delete-examples
 ```
+
+#### Note
+
+There is a known limitation when `kubectl apply` and `kubectl delete` for an
+`IPClaim` are executed in rapid succession (within the same second). In such
+cases, the `IPClaim` may be deleted, but the associated `IPAddress` might not
+be removed as expected, potentially leading to resource inconsistencies. This
+is not a common or typical use case. In normal scenarios, the operations work
+as expected. Since this issue occurs only under rare timing conditions, it has
+been classified as a low-priority item. We plan to address it in a future and
+it is currently documented as a known limitation.
