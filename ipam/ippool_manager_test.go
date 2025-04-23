@@ -1916,6 +1916,125 @@ var _ = Describe("IPPool manager", func() {
 			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedPrefix:  24,
 		}),
+		Entry("One pool, with start and existing address, ipAddress annotation present", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.0.16"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+			expectedPrefix:  24,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation present but already acquired", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.11",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectError: true,
+		}),
+
+		Entry("One pool, with start and existing address, ipAddress annotation present and requested ipAddress in preAllocations with conflicting ipclaim name", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix: 24,
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectError: true,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation present and requested ipAddress in preAllocations with non-conflicting ipclaim name", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix: 24,
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.16"),
+					},
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.0.16"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+			expectedPrefix:  24,
+		}),
 		Entry("One pool, with subnet and override prefix", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
@@ -2227,6 +2346,124 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
 			},
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.13"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+			expectedPrefix:  24,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.0.16"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+			expectedPrefix:  24,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation but already acquired", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.12",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectError: true,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation present and requested ipAddress in preAllocations with conflicting ipclaim name", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix: 24,
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectError: true,
+		}),
+		Entry("One pool, with start and existing address, ipAddress annotation present and requested ipAddress in preAllocations with non-conflicting ipclaim name", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix: 24,
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.16"),
+					},
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.12"): "bcde",
+				ipamv1.IPAddressStr("192.168.0.11"): "abcd",
+			},
+			expectedAddress: ipamv1.IPAddressStr("192.168.0.16"),
 			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedPrefix:  24,
 		}),
