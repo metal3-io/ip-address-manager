@@ -125,6 +125,10 @@ linters-settings:
   ginkgolinter:
     forbid-focus-container: true
     force-expect-to: true
+  tagliatelle:
+    case:
+      rules:
+        json: goCamel
 issues:
   exclude-dirs:
   - mock*
