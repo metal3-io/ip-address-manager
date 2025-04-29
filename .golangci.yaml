@@ -183,6 +183,10 @@ issues:
     - stylecheck
     text: "ST1016: methods on the same type should have the same receiver name"
     path: .*(api|types)\/.*\/conversion.*\.go$
+  - path: notes\.go
+    linters:
+    - forbidigo
+    text: use of `fmt.Printf` forbidden by pattern || use of `fmt.Println` forbidden by pattern
   include:
   - EXC0002 # include "missing comments" issues from golangci-lint
   max-issues-per-linter: 0

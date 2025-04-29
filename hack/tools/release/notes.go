@@ -226,43 +226,43 @@ func run() int {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
-	log.Println("<!-- markdownlint-disable no-inline-html line-length -->")
+	fmt.Println("<!-- markdownlint-disable no-inline-html line-length -->")
 	// TODO Turn this into a link (requires knowing the project name + organization)
-	log.Printf("# Changes since %v\n\n", lastTag)
+	fmt.Printf("# Changes since %v\n\n", lastTag)
 
 	// print the changes by category
 	for _, key := range outputOrder {
 		mergeslice := merges[key]
 		if len(mergeslice) > 0 {
-			log.Printf("## %v\n\n", key)
+			fmt.Printf("## %v\n\n", key)
 			for _, merge := range mergeslice {
-				log.Println(merge)
+				fmt.Println(merge)
 			}
-			log.Println()
+			fmt.Println()
 		}
 
 		// if we're doing beta/rc, print breaking changes and hide the rest of the changes
 		if key == warning {
 			if isBeta(latestTag) {
-				log.Printf(warningTemplate, "BETA RELEASE")
+				fmt.Printf(warningTemplate, "BETA RELEASE")
 			}
 			if isRC(latestTag) {
-				log.Printf(warningTemplate, "RELEASE CANDIDATE")
+				fmt.Printf(warningTemplate, "RELEASE CANDIDATE")
 			}
 			if isBeta(latestTag) || isRC(latestTag) {
-				log.Printf("<details>\n")
-				log.Printf("<summary>More details about the release</summary>\n\n")
+				fmt.Printf("<details>\n")
+				fmt.Printf("<summary>More details about the release</summary>\n\n")
 			}
 		}
 	}
 
 	// then close the details if we had it open
 	if isBeta(latestTag) || isRC(latestTag) {
-		log.Printf("</details>\n\n")
+		fmt.Printf("</details>\n\n")
 	}
 
-	log.Printf("The container image for this release is: %v\n", latestTag)
-	log.Println("\n_Thanks to all our contributors!_ 😊")
+	fmt.Printf("The container image for this release is: %v\n", latestTag)
+	fmt.Println("\n_Thanks to all our contributors!_ 😊")
 
 	return 0
 }
