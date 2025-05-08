@@ -112,6 +112,7 @@ func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1.Cluster) error {
 // RecreateStatus recreates the status if empty.
 func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr]string, error) {
 	m.Log.Info("Fetching IPAddress objects")
+	m.Log.Info("PR IPAM 1.10")
 
 	// start from empty maps
 	if m.IPPool.Status.Allocations == nil {
