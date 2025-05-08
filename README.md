@@ -3,8 +3,8 @@
 [![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/metal3-io/badge)](https://clomonitor.io/projects/cncf/metal3-io)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9968/badge)](https://www.bestpractices.dev/projects/9968)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/metal3-io/ip-address-manager/badge)](https://securityscorecards.dev/viewer/?uri=github.com/metal3-io/ip-address-manager)
-[![Ubuntu E2E Integration main build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3-periodic-ubuntu-e2e-integration-test-main&subject=Ubuntu%20e2e%20integration%20main)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3-periodic-ubuntu-e2e-integration-test-main/)
-[![CentOS E2E Integration main build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3-periodic-centos-e2e-integration-test-main&subject=Centos%20e2e%20integration%20main)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3-periodic-centos-e2e-integration-test-main/)
+[![Ubuntu E2E Integration 1.10 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3-periodic-ubuntu-e2e-integration-test-release-1-10&subject=Ubuntu%20E2E%20integration%201.10)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3-periodic-ubuntu-e2e-integration-test-release-1-10/)
+[![CentOS E2E Integration 1.10 build status](https://jenkins.nordix.org/buildStatus/icon?job=metal3-periodic-centos-e2e-integration-test-release-1-10&subject=Centos%20E2E%20integration%201.10)](https://jenkins.nordix.org/view/Metal3%20Periodic/job/metal3-periodic-centos-e2e-integration-test-release-1-10/)
 
 This repository contains a controller to manage static IP address allocations
 in [Cluster API Provider Metal3](https://github.com/metal3-io/cluster-api-provider-metal3/).
@@ -24,6 +24,8 @@ For more information about this controller and related repositories, see
 | v1alpha1 (v1.6.X) | v1beta1 (v1.6.X)  | v1beta1 (v1.6.X)    | v1.6.X       |
 | v1alpha1 (v1.7.X) | v1beta1 (v1.7.X)  | v1beta1 (v1.7.X)    | v1.7.X       |
 | v1alpha1 (v1.8.X) | v1beta1 (v1.8.X)  | v1beta1 (v1.8.X)    | v1.8.X       |
+| v1alpha1 (v1.9.X)  | v1beta1 (v1.9.X)  | v1beta1 (v1.9.X)    | v1.9.X       |
+| v1alpha1 (v1.10.X) | v1beta1 (v1.10.X) | v1beta1 (v1.10.X)   | v1.10.X      |
 
 ## Development Environment
 
