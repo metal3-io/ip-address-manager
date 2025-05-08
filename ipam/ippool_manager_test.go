@@ -714,7 +714,7 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range addressObjects.Items {
-				if claim.DeletionTimestamp.IsZero() {
+				if claim.DeletionTimestamp.IsZero() && claim.Status.ErrorMessage == nil {
 					Expect(claim.Status.Address).NotTo(BeNil())
 				}
 			}
@@ -726,7 +726,7 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range capiAddressObjects.Items {
-				if claim.DeletionTimestamp.IsZero() {
+				if claim.DeletionTimestamp.IsZero() && !anyErrorInExistingClaim(claim) {
 					Expect(claim.Status.AddressRef).NotTo(BeNil())
 				}
 			}
@@ -1259,6 +1259,194 @@ var _ = Describe("IPPool manager", func() {
 				"cabce": "192.168.1.15",
 			},
 			expectedNbAllocations: 3,
+		}),
+		Entry("Both IPClaim and IPAddressClaim present with error in existing claims", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcd",
+						Namespace: "myns",
+						Annotations: map[string]string{
+							IPAddressAnnotation: "192.168.2.11",
+						},
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					Status: ipamv1.IPClaimStatus{
+						ErrorMessage: ptr.To("Requested IP not available"),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abce",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabcd",
+						Namespace: "myns",
+						Annotations: map[string]string{
+							IPAddressAnnotation: "192.168.2.11",
+						},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *typedtestObjectReference,
+					},
+					Status: capipamv1.IPAddressClaimStatus{
+						Conditions: clusterv1.Conditions{
+							clusterv1.Condition{
+								Type:               "ErrorMessage",
+								Status:             corev1.ConditionTrue,
+								LastTransitionTime: metav1.Now(),
+								Severity:           "Error",
+								Reason:             "ErrorMessage",
+								Message:            "Requested IP not available",
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabce",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *typedtestObjectReference,
+					},
+				},
+			},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abce":  "192.168.0.11",
+				"cabce": "192.168.0.12",
+			},
+			expectedNbAllocations: 2,
+		}),
+		Entry("Both IPClaim and IPAddressClaim present with error in existing claims and deletion timestamp", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcd",
+						Namespace: "myns",
+						Annotations: map[string]string{
+							IPAddressAnnotation: "192.168.2.11",
+						},
+						DeletionTimestamp: &timeNow,
+						Finalizers: []string{
+							ipamv1.IPClaimFinalizer,
+							"metal3data.infrastructure.cluster.x-k8s.io",
+						},
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					Status: ipamv1.IPClaimStatus{
+						ErrorMessage: ptr.To("Requested IP not available"),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abce",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabcd",
+						Namespace: "myns",
+						Annotations: map[string]string{
+							IPAddressAnnotation: "192.168.2.11",
+						},
+						DeletionTimestamp: &timeNow,
+						Finalizers: []string{
+							ipamv1.IPClaimFinalizer,
+							"metal3data.infrastructure.cluster.x-k8s.io",
+						},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *typedtestObjectReference,
+					},
+					Status: capipamv1.IPAddressClaimStatus{
+						Conditions: clusterv1.Conditions{
+							clusterv1.Condition{
+								Type:               "ErrorMessage",
+								Status:             corev1.ConditionTrue,
+								LastTransitionTime: metav1.Now(),
+								Severity:           "Error",
+								Reason:             "ErrorMessage",
+								Message:            "Requested IP not available",
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabce",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *typedtestObjectReference,
+					},
+				},
+			},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abce":  "192.168.0.11",
+				"cabce": "192.168.0.12",
+			},
+			expectedNbAllocations: 2,
 		}),
 		Entry("IPClaim with deletion timestamp and finalizers", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
