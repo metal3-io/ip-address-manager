@@ -250,6 +250,10 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		if addressClaim.Status.Address != nil && addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
+
+		if addressClaim.Status.ErrorMessage != nil && addressClaim.DeletionTimestamp.IsZero() {
+			continue
+		}
 		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
 			return 0, err
@@ -286,6 +290,10 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.AddressRef.Name != "" && addressClaim.DeletionTimestamp.IsZero() {
+			continue
+		}
+
+		if anyErrorInExistingClaim(addressClaim) && addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
 		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
@@ -968,4 +976,10 @@ func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
 	return strings.TrimRight(m.IPPool.Spec.NamePrefix+"-"+strings.Replace(
 		strings.Replace(string(address), ":", "-", -1), ".", "-", -1,
 	), "-")
+}
+
+// check if IPAddressClaim is stamped with an error.
+func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
+	return len(addressClaim.Status.Conditions) > 0 &&
+		addressClaim.Status.Conditions[0].Severity == clusterv1.ConditionSeverityError
 }
