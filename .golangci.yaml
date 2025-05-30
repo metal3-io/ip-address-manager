@@ -1,6 +1,5 @@
 run:
   go: "1.23"
-  deadline: 10m
 linters:
   disable-all: true
   enable:
@@ -41,7 +40,6 @@ linters:
 
 linters-settings:
   gosec:
-    go: "1.23"
     severity: medium
     confidence: medium
     concurrency: 8
@@ -69,7 +67,6 @@ linters-settings:
       alias: ipamv1
   nolintlint:
     allow-unused: false
-    allow-leading-space: false
     require-specific: true
   gocritic:
     enabled-tags:
@@ -88,12 +85,10 @@ linters-settings:
     - unnecessaryDefer
     - whyNoLint
     - wrapperFunc
-  unused:
-    go: "1.23"
 issues:
-  skip-dirs:
+  exclude-dirs:
   - mock*
-  skip-files:
+  exclude-files:
   - "zz_generated.*\\.go$"
   - ".*conversion.*\\.go$"
   exclude-rules:
