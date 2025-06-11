@@ -110,9 +110,10 @@ var _ = Describe("Metal3 manager utils", func() {
 
 	DescribeTable("Test Update",
 		func(tc testCaseUpdate) {
+			var err error
 			c := k8sClient
 			if tc.ExistingObject != nil {
-				err := c.Create(context.TODO(), tc.ExistingObject)
+				err = c.Create(context.TODO(), tc.ExistingObject)
 				Expect(err).NotTo(HaveOccurred())
 				ipPool := ipamv1.IPClaim{}
 				err = c.Get(context.TODO(),
@@ -126,7 +127,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				tc.TestObject.ObjectMeta = ipPool.ObjectMeta
 			}
 			obj := tc.TestObject.DeepCopy()
-			err := updateObject(context.TODO(), c, obj)
+			err = updateObject(context.TODO(), c, obj)
 			if tc.ExpectedError {
 				Expect(err).To(HaveOccurred())
 				Expect(err).NotTo(BeAssignableToTypeOf(ReconcileError{}))
@@ -145,7 +146,7 @@ var _ = Describe("Metal3 manager utils", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(savedObject.Spec).To(Equal(tc.TestObject.Spec))
 				Expect(savedObject.ResourceVersion).NotTo(Equal(tc.TestObject.ResourceVersion))
-				err := updateObject(context.TODO(), c, obj)
+				err = updateObject(context.TODO(), c, obj)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(BeAssignableToTypeOf(ReconcileError{}))
 			}

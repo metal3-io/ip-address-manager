@@ -73,19 +73,22 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 	// Fetch the IPPool instance.
 	ipamv1IPPool := &ipamv1.IPPool{}
 
-	if err := r.Client.Get(ctx, req.NamespacedName, ipamv1IPPool); err != nil {
+	var err error
+	var helper *patch.Helper
+
+	if err = r.Client.Get(ctx, req.NamespacedName, ipamv1IPPool); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
-	helper, err := patch.NewHelper(ipamv1IPPool, r.Client)
+	helper, err = patch.NewHelper(ipamv1IPPool, r.Client)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to init patch helper")
 	}
 	// Always patch ipamv1IPPool exiting this function so we can persist any IPPool changes.
 	defer func() {
-		err := helper.Patch(ctx, ipamv1IPPool)
+		err = helper.Patch(ctx, ipamv1IPPool)
 		if err != nil {
 			metadataLog.Info("failed to Patch ipamv1IPPool")
 			rerr = err
