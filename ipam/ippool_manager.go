@@ -311,7 +311,9 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 func (m *IPPoolManager) updateAddress(ctx context.Context,
 	addressClaim *ipamv1.IPClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (_ map[ipamv1.IPAddressStr]string, rerr error) {
-	helper, err := patch.NewHelper(addressClaim, m.client)
+	var err error
+	var helper *patch.Helper
+	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
 		return addresses, errors.Wrap(err, "failed to init patch helper")
 	}
@@ -321,7 +323,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 		if deleted {
 			return
 		}
-		err := helper.Patch(ctx, addressClaim)
+		err = helper.Patch(ctx, addressClaim)
 		if err != nil {
 			m.Log.Error(err, "failed to Patch IPClaim")
 			rerr = err
@@ -360,13 +362,15 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
-	helper, err := patch.NewHelper(addressClaim, m.client)
+	var err error
+	var helper *patch.Helper
+	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
 		return addresses, errors.Wrap(err, "failed to init patch helper")
 	}
 	// Always patch addressClaim exiting this function so we can persist any changes.
 	defer func() {
-		err := helper.Patch(ctx, addressClaim)
+		err = helper.Patch(ctx, addressClaim)
 		if err != nil {
 			m.Log.Error(err, "failed to Patch IPAddressClaim")
 		}
