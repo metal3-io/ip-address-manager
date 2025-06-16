@@ -28,9 +28,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/patch"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -48,7 +48,7 @@ const (
 type IPPoolManagerInterface interface {
 	SetFinalizer()
 	UnsetFinalizer()
-	SetClusterOwnerRef(*clusterv1.Cluster) error
+	SetClusterOwnerRef(*clusterv1beta1.Cluster) error
 	UpdateAddresses(context.Context) (int, error)
 }
 
@@ -86,7 +86,7 @@ func (m *IPPoolManager) UnsetFinalizer() {
 	)
 }
 
-func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1.Cluster) error {
+func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1beta1.Cluster) error {
 	if cluster == nil {
 		return errors.New("Missing cluster")
 	}
@@ -164,7 +164,7 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 	}
 
 	// get list of IPAddress objects for cluster.x-k8s.io addresses
-	capiAddressObjects := capipamv1.IPAddressList{}
+	capiAddressObjects := capipamv1beta1.IPAddressList{}
 	err = m.client.List(ctx, &capiAddressObjects, opts)
 	if err != nil {
 		return addresses, err
@@ -271,7 +271,7 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	// get list of IPClaim objects
-	addressClaimObjects := capipamv1.IPAddressClaimList{}
+	addressClaimObjects := capipamv1beta1.IPAddressClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
 	opts := &client.ListOptions{
 		Namespace: m.IPPool.Namespace,
@@ -360,7 +360,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 // doesn't have finalizers or only has the ipamv1.IPClaimFinalizer
 // Return a map where IP addresses is key and value is the associated (metal3 and/or capi) claim's name.
 func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
-	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
+	addressClaim *capipamv1beta1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
 	var err error
 	var helper *patch.Helper
@@ -376,8 +376,8 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 		}
 	}()
 
-	conditions := clusterv1.Conditions{}
-	conditions = append(conditions, clusterv1.Condition{
+	conditions := clusterv1beta1.Conditions{}
+	conditions = append(conditions, clusterv1beta1.Condition{
 		Type:               "ErrorMessage",
 		Status:             corev1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -505,7 +505,7 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 // capiAllocateAddress gets an (capi)IpAddress for a (capi)IPAddressClaim.
 // it takes into consideration the possible preallocations.
 // Returns an IP address, a prefix and a gateway.
-func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressClaim,
+func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddressClaim,
 	addresses map[ipamv1.IPAddressStr]string,
 ) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, error) {
 	var allocatedAddress ipamv1.IPAddressStr
@@ -524,8 +524,8 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && requestedIP != preAllocatedAddress {
-		conditions := clusterv1.Conditions{}
-		conditions = append(conditions, clusterv1.Condition{
+		conditions := clusterv1beta1.Conditions{}
+		conditions = append(conditions, clusterv1beta1.Condition{
 			Type:               "ErrorMessage",
 			Status:             corev1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
@@ -583,8 +583,8 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	}
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
-		conditions := clusterv1.Conditions{}
-		conditions = append(conditions, clusterv1.Condition{
+		conditions := clusterv1beta1.Conditions{}
+		conditions = append(conditions, clusterv1beta1.Condition{
 			Type:               "ErrorMessage",
 			Status:             corev1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
@@ -598,8 +598,8 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		conditions := clusterv1.Conditions{}
-		conditions = append(conditions, clusterv1.Condition{
+		conditions := clusterv1beta1.Conditions{}
+		conditions = append(conditions, clusterv1beta1.Condition{
 			Type:               "ErrorMessage",
 			Status:             corev1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
@@ -611,8 +611,8 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 		return "", 0, nil, errors.New("Pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
-		conditions := clusterv1.Conditions{}
-		conditions = append(conditions, clusterv1.Condition{
+		conditions := clusterv1beta1.Conditions{}
+		conditions = append(conditions, clusterv1beta1.Condition{
 			Type:               "ErrorMessage",
 			Status:             corev1.ConditionTrue,
 			LastTransitionTime: metav1.Now(),
@@ -731,7 +731,7 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 // Returns an updated map where IP addresses is key
 // and value is the associated (metal3 and/or capi) claim's name.
 func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
-	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
+	addressClaim *capipamv1beta1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
 	if !Contains(addressClaim.Finalizers, IPAddressClaimFinalizer) {
 		addressClaim.Finalizers = append(addressClaim.Finalizers,
@@ -784,10 +784,10 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 
 	// Create the IPAddress object, with an Owner ref to the IPAddressClaim,
 	// the IPPool, and the IPAddressClaim owners. Also add a finalizer.
-	addressObject := &capipamv1.IPAddress{
+	addressObject := &capipamv1beta1.IPAddress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IPAddress",
-			APIVersion: capipamv1.GroupVersion.String(),
+			APIVersion: capipamv1beta1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            addressName,
@@ -796,7 +796,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			OwnerReferences: ownerRefs,
 			Labels:          addressClaim.Labels,
 		},
-		Spec: capipamv1.IPAddressSpec{
+		Spec: capipamv1beta1.IPAddressSpec{
 			Address: string(allocatedAddress),
 			PoolRef: corev1.TypedLocalObjectReference{
 				Name:     m.IPPool.Name,
@@ -817,8 +817,8 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
-			conditions := clusterv1.Conditions{}
-			conditions = append(conditions, clusterv1.Condition{
+			conditions := clusterv1beta1.Conditions{}
+			conditions = append(conditions, clusterv1beta1.Condition{
 				Type:               "ErrorMessage",
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
@@ -901,22 +901,22 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 
 // capideleteAddress removes the finalizer from the IPClaim and deletes the associated IPAddress.
 func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
-	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
+	addressClaim *capipamv1beta1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
 ) (map[ipamv1.IPAddressStr]string, error) {
 	m.Log.Info("Deleting IPAddress associated with IPAddressClaim", "IPAddressClaim", addressClaim.Name)
 
 	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
 	if ok {
 		// Try to get the IPAddress. if it succeeds, delete it
-		ipAddress := &capipamv1.IPAddress{}
+		ipAddress := &capipamv1beta1.IPAddress{}
 		key := client.ObjectKey{
 			Name:      m.formatAddressName(allocatedAddress),
 			Namespace: m.IPPool.Namespace,
 		}
 		err := m.client.Get(ctx, key, ipAddress)
 		if err != nil && !apierrors.IsNotFound(err) {
-			conditions := clusterv1.Conditions{}
-			conditions = append(conditions, clusterv1.Condition{
+			conditions := clusterv1beta1.Conditions{}
+			conditions = append(conditions, clusterv1beta1.Condition{
 				Type:               "ErrorMessage",
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
@@ -939,8 +939,8 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 			// Delete the IPAddress
 			err = deleteObject(ctx, m.client, ipAddress)
 			if err != nil {
-				conditions := clusterv1.Conditions{}
-				conditions = append(conditions, clusterv1.Condition{
+				conditions := clusterv1beta1.Conditions{}
+				conditions = append(conditions, clusterv1beta1.Condition{
 					Type:               "ErrorMessage",
 					Status:             corev1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
@@ -983,7 +983,7 @@ func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
 }
 
 // check if IPAddressClaim is stamped with an error.
-func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
+func anyErrorInExistingClaim(addressClaim capipamv1beta1.IPAddressClaim) bool {
 	return len(addressClaim.Status.Conditions) > 0 &&
-		addressClaim.Status.Conditions[0].Severity == clusterv1.ConditionSeverityError
+		addressClaim.Status.Conditions[0].Severity == clusterv1beta1.ConditionSeverityError
 }

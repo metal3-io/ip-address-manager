@@ -26,7 +26,7 @@ if [[ -n "${TRACE}" ]]; then
     set -x
 fi
 
-k8s_version=1.24.1
+kubebuilder_tools_version=1.30.0
 goarch=amd64
 goos="unknown"
 
@@ -93,7 +93,8 @@ function fetch_tools
     fi
 
     header_text "fetching tools"
-    kb_tools_archive_name="kubebuilder-tools-${k8s_version}-${goos}-${goarch}.tar.gz"
+    kb_tools_archive_name="kubebuilder-tools-${kubebuilder_tools_version}-${goos}-${goarch}.tar.gz"
+    echo "Downloading kubebuilder tools archive: ${kb_tools_archive_name}"
     kb_tools_download_url="https://storage.googleapis.com/kubebuilder-tools/${kb_tools_archive_name}"
 
     kb_tools_archive_path="${tmp_root}/${kb_tools_archive_name}"
