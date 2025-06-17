@@ -33,7 +33,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
+	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -69,6 +71,12 @@ var _ = BeforeSuite(func() {
 		Expect(cfg).ToNot(BeNil())
 
 		err = ipamv1.AddToScheme(scheme.Scheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = capipamv1beta1.AddToScheme(scheme.Scheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = clusterv1.AddToScheme(scheme.Scheme)
 		Expect(err).NotTo(HaveOccurred())
 
 		err = capipamv1.AddToScheme(scheme.Scheme)
@@ -107,6 +115,15 @@ func setupScheme() *runtime.Scheme {
 		panic(err)
 	}
 	if err := capipamv1.AddToScheme(s); err != nil {
+		panic(err)
+	}
+	if err := capipamv1beta1.AddToScheme(s); err != nil {
+		panic(err)
+	}
+	if err := clusterv1.AddToScheme(s); err != nil {
+		panic(err)
+	}
+	if err := capipamv1beta1.AddToScheme(s); err != nil {
 		panic(err)
 	}
 	return s

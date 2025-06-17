@@ -97,8 +97,12 @@ linters-settings:
       alias: ctrl
     - pkg: sigs.k8s.io/cluster-api/api/v1alpha4
       alias: clusterv1alpha4
-    - pkg: sigs.k8s.io/cluster-api/api/v1beta1
+    - pkg: sigs.k8s.io/cluster-api/api/v1beta2
       alias: clusterv1
+    - pkg: sigs.k8s.io/cluster-api/api/core/v1beta1
+      alias: clusterv1beta1
+    - pkg: sigs.k8s.io/cluster-api/api/ipam/v1beta1
+      alias: capipamv1beta1
     # IPAM
     - pkg: github.com/metal3-io/ip-address-manager/api/v1alpha1
       alias: ipamv1
@@ -154,6 +158,15 @@ issues:
     text: should not use dot imports
   - path: (test|e2e)/.*.go
     text: should not use dot imports
+  - linters:
+    - staticcheck
+    text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
+  - linters:
+    - staticcheck
+    text: 'SA1019: "sigs.k8s.io/cluster-api/api/ipam/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
+  - linters:
+    - staticcheck
+    text: 'SA1019: "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/.*" is deprecated'
   - linters:
     - revive
     text: "exported: exported method .*\\.(Reconcile|SetupWithManager|SetupWebhookWithManager) should have comment or be unexported"

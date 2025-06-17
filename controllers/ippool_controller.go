@@ -25,11 +25,12 @@ import (
 	"github.com/metal3-io/ip-address-manager/ipam"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capipamv1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/patch"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -95,7 +96,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		}
 	}()
 
-	cluster := &clusterv1.Cluster{}
+	cluster := &clusterv1beta1.Cluster{}
 	if ipamv1IPPool.Spec.ClusterName != nil {
 		key := client.ObjectKey{
 			Name:      *ipamv1IPPool.Spec.ClusterName,
@@ -133,7 +134,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		}
 
 		// Return early if the Metadata or Cluster is paused.
-		if annotations.IsPaused(cluster, ipamv1IPPool) {
+		if IsPaused(cluster, ipamv1IPPool) {
 			metadataLog.Info("reconciliation is paused for this object")
 			return ctrl.Result{Requeue: true, RequeueAfter: requeueAfter}, nil
 		}
@@ -200,7 +201,7 @@ func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context
 		For(&ipamv1.IPPool{}).
 		WithOptions(options).
 		Watches(
-			&capipamv1.IPAddressClaim{},
+			&capipamv1beta1.IPAddressClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPAddressClaimToIPPool),
 		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
@@ -231,7 +232,7 @@ func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object)
 }
 
 func (r *IPPoolReconciler) IPAddressClaimToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
-	if ipac, ok := obj.(*capipamv1.IPAddressClaim); ok {
+	if ipac, ok := obj.(*capipamv1beta1.IPAddressClaim); ok {
 		if ipac.Spec.PoolRef.Name != "" {
 			namespace := ipac.Namespace
 			return []ctrl.Request{
@@ -264,4 +265,27 @@ func checkReconcileError(err error, errMessage string) (ctrl.Result, error) {
 		}
 	}
 	return ctrl.Result{}, errors.Wrap(err, errMessage)
+}
+
+// IsPaused returns true if the Cluster is paused or the object has the `paused` annotation.
+func IsPaused(cluster *clusterv1beta1.Cluster, o metav1.Object) bool {
+	if cluster.Spec.Paused {
+		return true
+	}
+	return HasPaused(o)
+}
+
+// HasPaused returns true if the object has the `paused` annotation.
+func HasPaused(o metav1.Object) bool {
+	return hasAnnotation(o, clusterv1beta1.PausedAnnotation)
+}
+
+// hasAnnotation returns true if the object has the specified annotation.
+func hasAnnotation(o metav1.Object, annotation string) bool {
+	annotations := o.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+	_, ok := annotations[annotation]
+	return ok
 }
