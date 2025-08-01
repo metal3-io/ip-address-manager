@@ -84,7 +84,7 @@ func latestTag() (string, error) {
 // (e.g., for v1.9.0, v1.9.0-beta.0, or v1.9.0-rc.0, it returns v1.8.0).
 // For patch releases, it returns the latest patch release tag (e.g., for v1.9.1 it returns v1.9.0).
 func lastTag(latestTag string) (string, error) {
-	if isBeta(latestTag) || isRC(latestTag) || isMinor(latestTag) {
+	if isAlpha(latestTag) || isBeta(latestTag) || isRC(latestTag) || isMinor(latestTag) {
 		if index := strings.LastIndex(latestTag, "-"); index != -1 {
 			latestTag = latestTag[:index]
 		}
@@ -108,6 +108,10 @@ func lastTag(latestTag string) (string, error) {
 	semVersion.Patch--
 	lastReleaseTag := "v" + semVersion.String()
 	return lastReleaseTag, nil
+}
+
+func isAlpha(tag string) bool {
+	return strings.Contains(tag, "-alpha.")
 }
 
 func isBeta(tag string) bool {
@@ -221,8 +225,8 @@ func run() int {
 		merges[key] = append(merges[key], formatMerge(body, prNumber))
 	}
 
-	// Add empty superseded section, if not beta/rc, we don't cleanup those notes
-	if !isBeta(latestTag) && !isRC(latestTag) {
+	// Add empty superseded section, if not alpha/beta/rc, we don't cleanup those notes
+	if !isAlpha(latestTag) && !isBeta(latestTag) && !isRC(latestTag) {
 		merges[superseded] = append(merges[superseded], "- `<insert superseded bumps and reverts here>`")
 	}
 
@@ -243,13 +247,16 @@ func run() int {
 
 		// if we're doing beta/rc, print breaking changes and hide the rest of the changes
 		if key == warning {
+			if isAlpha(latestTag) {
+				fmt.Printf(warningTemplate, "ALPHA RELEASE")
+			}
 			if isBeta(latestTag) {
 				fmt.Printf(warningTemplate, "BETA RELEASE")
 			}
 			if isRC(latestTag) {
 				fmt.Printf(warningTemplate, "RELEASE CANDIDATE")
 			}
-			if isBeta(latestTag) || isRC(latestTag) {
+			if isAlpha(latestTag) || isBeta(latestTag) || isRC(latestTag) {
 				fmt.Printf("<details>\n")
 				fmt.Printf("<summary>More details about the release</summary>\n\n")
 			}
@@ -257,7 +264,7 @@ func run() int {
 	}
 
 	// then close the details if we had it open
-	if isBeta(latestTag) || isRC(latestTag) {
+	if isAlpha(latestTag) || isBeta(latestTag) || isRC(latestTag) {
 		fmt.Printf("</details>\n\n")
 	}
 
@@ -296,7 +303,7 @@ func getCommitHashFromNewTag(newTag string) (string, error) {
 	client := github.NewClient(tc)
 
 	branch := "main"
-	if !isBeta(newTag) {
+	if !isAlpha(newTag) && !isBeta(newTag) {
 		branch = getReleaseBranchFromTag(newTag)
 		// Check if branch exist in upstream or not
 		_, _, err := client.Repositories.GetBranch(ctx, repoOwner, repoName, branch)
