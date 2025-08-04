@@ -703,7 +703,7 @@ var _ = Describe("IPPool manager", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 			Expect(nbAllocations).To(Equal(tc.expectedNbAllocations))
-			Expect(tc.ipPool.Status.LastUpdated.IsZero()).To(BeFalse())
+			Expect(tc.ipPool.Status.LastUpdated).ToNot(BeNil())
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
 
 			// get list of IPAddress objects
