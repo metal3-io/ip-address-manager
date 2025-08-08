@@ -259,7 +259,7 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			return 0, err
 		}
 	}
-	m.updateStatusTimestamp()
+	// m.updateStatusTimestamp()
 	return len(addresses), nil
 }
 
@@ -301,7 +301,7 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			return 0, err
 		}
 	}
-	m.updateStatusTimestamp()
+	// m.updateStatusTimestamp()
 	return len(addresses), nil
 }
 
