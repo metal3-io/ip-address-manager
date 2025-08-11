@@ -207,6 +207,9 @@ func (m *IPPoolManager) updateStatusTimestamp() {
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
 func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
+	if m.IPPool.Status.LastUpdated == nil {
+		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
+	}
 	_, err := m.m3UpdateAddresses(ctx)
 	if err != nil {
 		return 0, err
@@ -215,7 +218,6 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	return count, nil
 }
 
@@ -259,7 +261,6 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			return 0, err
 		}
 	}
-	m.updateStatusTimestamp()
 	return len(addresses), nil
 }
 
@@ -301,7 +302,6 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			return 0, err
 		}
 	}
-	m.updateStatusTimestamp()
 	return len(addresses), nil
 }
 
