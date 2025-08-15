@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -79,16 +80,22 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		}
 		return ctrl.Result{}, err
 	}
+
+	// Deep copy before reconcile
+	original := ipamv1IPPool.DeepCopy()
+
 	helper, err := patch.NewHelper(ipamv1IPPool, r.Client)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to init patch helper")
 	}
 	// Always patch ipamv1IPPool exiting this function so we can persist any IPPool changes.
 	defer func() {
-		err := helper.Patch(ctx, ipamv1IPPool)
-		if err != nil {
-			metadataLog.Info("failed to Patch ipamv1IPPool")
-			rerr = err
+		if !reflect.DeepEqual(original, ipamv1IPPool) {
+			err = helper.Patch(ctx, ipamv1IPPool)
+			if err != nil {
+				metadataLog.Info("failed to Patch ipamv1IPPool", "error", err)
+				rerr = err
+			}
 		}
 	}()
 
