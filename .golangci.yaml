@@ -23,7 +23,7 @@ linters:
   - fatcontext
   - forbidigo
   - forcetypeassert
-  #- gci
+  - gci
   - ginkgolinter
   - gocheckcompilerdirectives
   - gochecksumtype
