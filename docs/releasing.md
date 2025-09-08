@@ -27,6 +27,7 @@ Things you should check before making a release:
 IPAM uses [semantic versioning](https://semver.org).
 
 - Regular releases: `v1.x.y`
+- Alpha releases: `v1.x.y-alpha.z`
 - Beta releases: `v1.x.y-beta.z`
 - Release candidate releases: `v1.x.y-rc.z`
 
@@ -55,7 +56,7 @@ This makes sure that all the tags are accessible.
      `releasenotes/<RELEASE_TAG>.md` .
 
 - Next step is to clean up the release note manually.
-   - If release is not a beta or release candidate, check for duplicates,
+   - If release is not an alpha or beta or release candidate, check for duplicates,
      reverts, and incorrect classifications of PRs, and whatever release
      creation tagged to be manually checked.
    - For any superseded PRs (like same dependency uplifted multiple times, or
@@ -87,8 +88,8 @@ Once PR is merged following Github actions are triggered:
      [Releases](https://github.com/metal3-io/ip-address-manager/releases). If
      the release you're making is not a new major release, new minor release,
      or a new patch release from the latest release branch, uncheck the box for
-     latest release. If it is a release candidate (RC) or a beta release,
-     tick pre-release box.
+     latest release. If it is a release candidate (RC) or a beta or an alpha
+     release, tick pre-release box.
 - Github action `build-images-action` is triggered once tags are pushed from
   above action. This action builds release image with the release tag in
   Jenkins, and it gets pushed to Quay. Make sure the release tag is visible in
