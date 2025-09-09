@@ -10,7 +10,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/pflag v1.0.9
+	github.com/spf13/pflag v1.0.10
 	k8s.io/api v0.31.12
 	k8s.io/apiextensions-apiserver v0.31.12
 	k8s.io/apimachinery v0.31.12
