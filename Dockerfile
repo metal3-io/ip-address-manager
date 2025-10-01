@@ -23,6 +23,7 @@ WORKDIR /workspace
 # Run this with docker build --build_arg $(go env GOPROXY) to override the goproxy
 ARG goproxy=https://proxy.golang.org
 ENV GOPROXY=$goproxy
+ARG LDFLAGS=-s -w -extldflags=-static
 
 # Copy the Go Modules manifests
 COPY go.mod go.sum ./
@@ -41,7 +42,7 @@ COPY internal/ internal/
 # Build
 ARG ARCH
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-    go build -a -ldflags '-extldflags "-static"' \
+    go build -a -ldflags "${LDFLAGS}" \
     -o manager .
 
 # Copy the controller-manager into a thin image
