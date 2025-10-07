@@ -42,6 +42,7 @@ const (
 	IPAddressClaimFinalizer = "ipam.metal3.io/ipaddressclaim"
 	IPAddressFinalizer      = "ipam.metal3.io/ipaddress"
 	IPAddressAnnotation     = "ipAddress"
+	defaultListLimit        = 200
 )
 
 // IPPoolManagerInterface is an interface for a IPPoolManager.
@@ -136,6 +137,7 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 	// without this ListOption, all namespaces would be including in the listing
 	opts := &client.ListOptions{
 		Namespace: m.IPPool.Namespace,
+		Limit:     defaultListLimit,
 	}
 
 	err := m.client.List(ctx, &addressObjects, opts)
@@ -235,6 +237,7 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 	// without this ListOption, all namespaces would be including in the listing
 	opts := &client.ListOptions{
 		Namespace: m.IPPool.Namespace,
+		Limit:     defaultListLimit,
 	}
 
 	err = m.client.List(ctx, &addressClaimObjects, opts)
@@ -276,6 +279,7 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 	// without this ListOption, all namespaces would be including in the listing
 	opts := &client.ListOptions{
 		Namespace: m.IPPool.Namespace,
+		Limit:     defaultListLimit,
 	}
 
 	err = m.client.List(ctx, &addressClaimObjects, opts)
