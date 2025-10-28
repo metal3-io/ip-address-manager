@@ -1,4 +1,4 @@
-# Metal3 IP Address Manager for Cluster API Provider Metal3
+# Metal3 IP Address Manager for Cluster API Provider Metal3 DNM
 
 [![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/metal3-io/badge)](https://clomonitor.io/projects/cncf/metal3-io)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9968/badge)](https://www.bestpractices.dev/projects/9968)
