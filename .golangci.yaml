@@ -1,7 +1,9 @@
+version: "2"
 run:
+  # Run without --fast-only flag for more extensive checks
   go: "1.24"
 linters:
-  disable-all: true
+  default: none
   enable:
   - asasalint
   - asciicheck
@@ -23,20 +25,16 @@ linters:
   - fatcontext
   - forbidigo
   - forcetypeassert
-  - gci
   - ginkgolinter
   - gocheckcompilerdirectives
   - gochecksumtype
   - goconst
   - gocritic
   - godot
-  - gofmt
-  - goimports
   - goprintffuncname
   - gosec
-  - gosimple
   - gosmopolitan
-  - govet
+  - govet         # v2 runs typecheck via govet, so the standalone typecheck linter is not needed
   - iface
   - importas
   - ineffassign
@@ -59,151 +57,181 @@ linters:
   - reassign
   - revive
   - rowserrcheck
-  - staticcheck
-  - stylecheck
+  - staticcheck # includes gosimple/stylecheck analyzers in v2
   - tagliatelle
   - testifylint
   - thelper
   - tparallel
-  - typecheck
   - unconvert
   - unparam
   - unused
   - usestdlibvars
   - usetesting
   - whitespace
-  # Run with --fast=false for more extensive checks
-  fast: true
-
-linters-settings:
-  gosec:
-    severity: medium
-    confidence: medium
-    concurrency: 8
-  importas:
-    no-unaliased: true
-    alias:
-    # Kubernetes
-    - pkg: k8s.io/api/core/v1
-      alias: corev1
-    - pkg: k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
-      alias: apiextensionsv1
-    - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
-      alias: metav1
-    - pkg: k8s.io/apimachinery/pkg/api/errors
-      alias: apierrors
-    # Controller Runtime
-    - pkg: sigs.k8s.io/controller-runtime
-      alias: ctrl
-    - pkg: sigs.k8s.io/cluster-api/api/v1alpha4
-      alias: clusterv1alpha4
-    - pkg: sigs.k8s.io/cluster-api/api/v1beta2
-      alias: clusterv1
-    - pkg: sigs.k8s.io/cluster-api/api/core/v1beta1
-      alias: clusterv1beta1
-    - pkg: sigs.k8s.io/cluster-api/api/ipam/v1beta1
-      alias: capipamv1beta1
-    # IPAM
-    - pkg: github.com/metal3-io/ip-address-manager/api/v1alpha1
-      alias: ipamv1
-  nolintlint:
-    allow-unused: false
-    require-specific: true
-  gocritic:
-    enabled-tags:
-    - experimental
-    disabled-checks:
-    - appendAssign
-    - dupImport # https://github.com/go-critic/go-critic/issues/845
-    - evalOrder
-    - ifElseChain
-    - octalLiteral
-    - regexpSimplify
-    - sloppyReassign
-    - truncateCmp
-    - typeDefFirst
-    - unnamedResult
-    - unnecessaryDefer
-    - whyNoLint
-    - wrapperFunc
-  ginkgolinter:
-    forbid-focus-container: true
-    force-expect-to: true
-  tagliatelle:
-    case:
-      rules:
-        json: goCamel
-  govet:
-    enable:
-    - shadow
+  settings:
+    ginkgolinter:
+      forbid-focus-container: true
+      force-expect-to: true
+    gocritic:
+      disabled-checks:
+      - appendAssign
+      - dupImport   # https://github.com/go-critic/go-critic/issues/845
+      - evalOrder
+      - ifElseChain
+      - octalLiteral
+      - regexpSimplify
+      - sloppyReassign
+      - truncateCmp
+      - typeDefFirst
+      - unnamedResult
+      - unnecessaryDefer
+      - whyNoLint
+      - wrapperFunc
+      enabled-tags:
+      - experimental
+    gosec:
+      severity: medium
+      confidence: medium
+      concurrency: 8
+    govet:
+      enable:
+      - shadow
+    importas:
+      alias:
+        # Kubernetes
+      - pkg: k8s.io/api/core/v1
+        alias: corev1
+      - pkg: k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+        alias: apiextensionsv1
+      - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+        alias: metav1
+      - pkg: k8s.io/apimachinery/pkg/api/errors
+        alias: apierrors
+        # Controller Runtime
+      - pkg: sigs.k8s.io/controller-runtime
+        alias: ctrl
+      - pkg: sigs.k8s.io/cluster-api/api/v1alpha4
+        alias: clusterv1alpha4
+      - pkg: sigs.k8s.io/cluster-api/api/v1beta2
+        alias: clusterv1
+      - pkg: sigs.k8s.io/cluster-api/api/core/v1beta1
+        alias: clusterv1beta1
+      - pkg: sigs.k8s.io/cluster-api/api/ipam/v1beta1
+        alias: capipamv1beta1
+        # IPAM
+      - pkg: github.com/metal3-io/ip-address-manager/api/v1alpha1
+        alias: ipamv1
+      no-unaliased: true
+    nolintlint:
+      require-specific: true
+      allow-unused: false
+    tagliatelle:
+      case:
+        rules:
+          json: goCamel
+  exclusions:
+    generated: lax
+    presets:
+    - comments
+    - common-false-positives
+    - legacy
+    - std-error-handling
+    rules:
+    - linters:
+      - dupl
+      - unused
+      path: _test\.go
+      # Disable linters for conversion
+    - linters:
+      - staticcheck
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: 'SA1019:'
+      # Dot imports for gomega or ginkgo are allowed 
+      # within test files.
+    - path: _test\.go
+      text: should not use dot imports
+    - path: (test|e2e)/.*.go
+      text: should not use dot imports
+    - linters:
+      - staticcheck
+      text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
+    - linters:
+      - staticcheck
+      text: 'SA1019: "sigs.k8s.io/cluster-api/api/ipam/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
+    - linters:
+      - staticcheck
+      text: 'SA1019: "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/.*" is deprecated'
+    - linters:
+      - revive
+      text: 'exported: exported method .*\.(Reconcile|SetupWithManager|SetupWebhookWithManager) should have comment or be unexported'
+      # Exclude some packages or code to require comments, for example test code, or fake clients.
+    - linters:
+      - revive
+      text: exported (method|function|type|const) (.+) should have comment or be unexported
+      source: (func|type).*Fake.*
+    - linters:
+      - revive
+      path: fake_\.go
+      text: exported (method|function|type|const) (.+) should have comment or be unexported
+    - linters:
+      - revive
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: exported (method|function|type|const) (.+) should have comment or be unexported
+    - linters:
+      - revive
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: 'var-naming: don''t use underscores in Go names;'
+    - linters:
+      - revive
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: 'receiver-naming: receiver name'
+    - linters:
+      - staticcheck
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: 'ST1003: should not use underscores in Go names;'
+    - linters:
+      - staticcheck
+      path: .*(api|types)\/.*\/conversion.*\.go$
+      text: 'ST1016: methods on the same type should have the same receiver name'
+    - linters:
+      - staticcheck
+      text: 'QF1004: could use strings.ReplaceAll instead'
+    - linters:
+      - staticcheck
+      text: 'QF1008: could remove embedded field .* from selector'
+    - linters:
+      - staticcheck
+      text: 'QF1007: could merge conditional assignment into variable declaration'
+    - linters:
+      - forbidigo
+      path: notes\.go
+      text: use of `fmt.Printf` forbidden by pattern || use of `fmt.Println` forbidden by pattern
+    paths:
+    - zz_generated.*\.go$
+    - .*conversion.*\.go$
+    - mock*
+    - third_party$
+    - builtin$
+    - examples$
 issues:
-  exclude-dirs:
-  - mock*
-  exclude-files:
-  - "zz_generated.*\\.go$"
-  - ".*conversion.*\\.go$"
-  exclude-rules:
-  - path: _test\.go
-    linters:
-    - unused
-    - dupl
-  # Disable linters for conversion
-  - linters:
-    - staticcheck
-    text: "SA1019:"
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  # Dot imports for gomega or ginkgo are allowed
-  # within test files.
-  - path: _test\.go
-    text: should not use dot imports
-  - path: (test|e2e)/.*.go
-    text: should not use dot imports
-  - linters:
-    - staticcheck
-    text: 'SA1019: "sigs.k8s.io/cluster-api/api/core/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
-  - linters:
-    - staticcheck
-    text: 'SA1019: "sigs.k8s.io/cluster-api/api/ipam/v1beta1" is deprecated: This package is deprecated and is going to be removed when support for v1beta1 will be dropped.'
-  - linters:
-    - staticcheck
-    text: 'SA1019: "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/.*" is deprecated'
-  - linters:
-    - revive
-    text: "exported: exported method .*\\.(Reconcile|SetupWithManager|SetupWebhookWithManager) should have comment or be unexported"
-  # Exclude some packages or code to require comments, for example test code, or fake clients.
-  - linters:
-    - revive
-    text: exported (method|function|type|const) (.+) should have comment or be unexported
-    source: (func|type).*Fake.*
-  - linters:
-    - revive
-    text: exported (method|function|type|const) (.+) should have comment or be unexported
-    path: fake_\.go
-  - linters:
-    - revive
-    text: exported (method|function|type|const) (.+) should have comment or be unexported
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  - linters:
-    - revive
-    text: "var-naming: don't use underscores in Go names;"
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  - linters:
-    - revive
-    text: "receiver-naming: receiver name"
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  - linters:
-    - stylecheck
-    text: "ST1003: should not use underscores in Go names;"
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  - linters:
-    - stylecheck
-    text: "ST1016: methods on the same type should have the same receiver name"
-    path: .*(api|types)\/.*\/conversion.*\.go$
-  - path: notes\.go
-    linters:
-    - forbidigo
-    text: use of `fmt.Printf` forbidden by pattern || use of `fmt.Println` forbidden by pattern
-  include:
-  - EXC0002 # include "missing comments" issues from golangci-lint
+  # Legacy (v1): `issues.include` is deprecated in v2; original config kept for reference:
+  #   include:
+  #     - EXC0002 # include "missing comments" issues from golangci-lint
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  # v2 migrates gci/gofmt/goimports into the formatter pipeline,
+  # so they no longer sit under linters.enable.
+  enable:
+  - gci
+  - gofmt
+  - goimports
+  exclusions:
+    generated: lax
+    paths:
+    - zz_generated.*\.go$
+    - .*conversion.*\.go$
+    - mock*
+    - third_party$
+    - builtin$
+    - examples$
