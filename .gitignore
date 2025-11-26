@@ -35,3 +35,6 @@ out
 *~
 *.tmp
 .DS_Store
+
+# ai stuff
+.claude
