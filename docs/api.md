@@ -20,12 +20,12 @@ spec:
   clusterName: cluster1
   namePrefix: test1-prov
   pools:
-    - start: 192.168.0.10
-      end: 192.168.0.30
-      prefix: 25
-      gateway: 192.168.0.1
-    - subnet: 192.168.1.1/26
-    - subnet: 192.168.1.128/25
+  - start: 192.168.0.10
+    end: 192.168.0.30
+    prefix: 25
+    gateway: 192.168.0.1
+  - subnet: 192.168.1.1/26
+  - subnet: 192.168.1.128/25
   prefix: 24
   gateway: 192.168.1.1
   preAllocations:
@@ -141,9 +141,9 @@ if you want to install it using ```clusterctl init --ipam metal3```:
 
 ```yaml
 providers:
-  - name: metal3
-    url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
-    type: IPAMProvider
+- name: metal3
+  url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
+  type: IPAMProvider
 ```
 
 If you are also specifying infrastructure provider
@@ -157,7 +157,7 @@ Solution is to change the ipam providers name:
 
 ```yaml
 providers:
-  - name: m3ipam
-    url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
-    type: IPAMProvider
+- name: m3ipam
+  url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
+  type: IPAMProvider
 ```
