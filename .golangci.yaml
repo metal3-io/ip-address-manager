@@ -34,7 +34,7 @@ linters:
   - goprintffuncname
   - gosec
   - gosmopolitan
-  - govet         # v2 runs typecheck via govet, so the standalone typecheck linter is not needed
+  - govet # v2 runs typecheck via govet, so the standalone typecheck linter is not needed
   - iface
   - importas
   - ineffassign
@@ -75,7 +75,7 @@ linters:
     gocritic:
       disabled-checks:
       - appendAssign
-      - dupImport   # https://github.com/go-critic/go-critic/issues/845
+      - dupImport # https://github.com/go-critic/go-critic/issues/845
       - evalOrder
       - ifElseChain
       - octalLiteral
@@ -98,7 +98,7 @@ linters:
       - shadow
     importas:
       alias:
-        # Kubernetes
+      # Kubernetes
       - pkg: k8s.io/api/core/v1
         alias: corev1
       - pkg: k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
@@ -146,7 +146,7 @@ linters:
       - staticcheck
       path: .*(api|types)\/.*\/conversion.*\.go$
       text: 'SA1019:'
-      # Dot imports for gomega or ginkgo are allowed 
+      # Dot imports for gomega or ginkgo are allowed
       # within test files.
     - path: _test\.go
       text: should not use dot imports
