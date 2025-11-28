@@ -30,11 +30,15 @@ jobs:
     needs: set_ref
     name: Build IPAM container image
     if: github.repository == 'metal3-io/ip-address-manager'
+    permissions:
+      contents: read
+      id-token: write
     uses: metal3-io/project-infra/.github/workflows/container-image-build.yml@main
     with:
       image-name: "ip-address-manager"
       pushImage: true
       ref: ${{ needs.set_ref.outputs.github_ref }}
+      generate-sbom: true
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
