@@ -122,6 +122,7 @@ jobs:
   build_ipam:
     permissions:
       contents: read
+      id-token: write
     needs: push_release_tags
     name: Build IPAM container image
     if: github.repository == 'metal3-io/ip-address-manager'
@@ -130,6 +131,7 @@ jobs:
       image-name: "ip-address-manager"
       pushImage: true
       ref: ${{ needs.push_release_tags.outputs.release_tag }}
+      generate-sbom: true
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
