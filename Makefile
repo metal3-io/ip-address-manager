@@ -32,6 +32,7 @@ export GOPROXY
 export GO111MODULE=on
 
 # Directories.
+ROOT_DIR := $(shell pwd)
 TOOLS_DIR := hack/tools
 APIS_DIR := api
 WEBHOOKS_DIR := internal/webhooks
@@ -377,3 +378,59 @@ verify-modules: modules
 
 go-version: ## Print the go version we use to compile our binaries and images
 	@echo $(GO_VERSION)
+
+## --------------------------------------
+## E2e stuff
+## --------------------------------------
+GINKGO_FOCUS ?=
+GINKGO_SKIP ?=
+GINKGO_SKIP_LABELS ?=
+GINKGO_NODES ?= 2
+GINKGO_TIMEOUT ?= 3h
+GINKGO_POLL_PROGRESS_AFTER ?= 60m
+GINKGO_POLL_PROGRESS_INTERVAL ?= 5m
+E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/e2e_conf.yaml
+E2E_BMCS_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/bmcs-redfish-virtualmedia.yaml
+USE_EXISTING_CLUSTER ?= false
+SKIP_RESOURCE_CLEANUP ?= false
+GINKGO_NOCOLOR ?= false
+
+GOLANGCI_LINT_BIN := golangci-lint
+GOLANGCI_LINT_VER := v2.1.6
+GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
+GOLANGCI_LINT_PKG := github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
+GINKGO := $(TOOLS_BIN_DIR)/ginkgo
+
+# to set multiple ginkgo skip flags, if any
+ifneq ($(strip $(GINKGO_SKIP)),)
+_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),-skip="$(arg)")
+endif
+
+# to set multiple ginkgo skip labels, if any
+ifneq ($(strip $(GINKGO_SKIP_LABELS)),)
+_SKIP_LABELS_ARGS := --label-filter="!$(GINKGO_SKIP_LABELS)"
+endif
+
+ARTIFACTS ?= ${ROOT_DIR}/test/e2e/_artifacts
+
+.PHONY: test-e2e
+test-e2e: $(GINKGO) ## Run the end-to-end tests
+	$(GINKGO) -v --trace -poll-progress-after=$(GINKGO_POLL_PROGRESS_AFTER) \
+		-poll-progress-interval=$(GINKGO_POLL_PROGRESS_INTERVAL) --tags=e2e,vbmctl --focus="$(GINKGO_FOCUS)" \
+		$(_SKIP_ARGS)  $(_SKIP_LABELS_ARGS) --nodes=$(GINKGO_NODES) --timeout=$(GINKGO_TIMEOUT) --no-color=$(GINKGO_NOCOLOR) \
+		--output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" $(GINKGO_ARGS) test/e2e -- \
+		-e2e.config="$(E2E_CONF_FILE)" -e2e.bmcsConfig="$(E2E_BMCS_CONF_FILE)" \
+		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER) \
+		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.artifacts-folder="$(ARTIFACTS)"
+
+.PHONY: clean-e2e
+clean-e2e: ## Remove everything related to e2e tests
+	./hack/clean-e2e.sh
+
+$(GINKGO): $(TOOLS_DIR)/go.mod ## Build ginkgo from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/ginkgo github.com/onsi/ginkgo/v2/ginkgo
+
+
+.PHONY: kustomize
+kustomize: $(KUSTOMIZE) ## Build kustomize binary
