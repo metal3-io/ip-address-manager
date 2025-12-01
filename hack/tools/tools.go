@@ -23,6 +23,7 @@ package tools
 import (
 	_ "github.com/golang/mock/gomock"
 	_ "github.com/jteeuwen/go-bindata/go-bindata"
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "k8s.io/code-generator/cmd/conversion-gen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 	_ "sigs.k8s.io/kustomize/kustomize/v5"

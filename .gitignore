@@ -35,3 +35,12 @@ out
 *~
 *.tmp
 .DS_Store
+
+# e2e test logs
+test/e2e/_github.com
+test/e2e/_artifacts
+test/e2e/images
+test/e2e/data/bmo-deployment/overlays/*/ironic-password
+test/e2e/data/bmo-deployment/overlays/*/ironic-username
+test/e2e/data/ironic-standalone-operator/components/basic-auth/ironic-password
+test/e2e/data/ironic-standalone-operator/components/basic-auth/ironic-username
