@@ -2011,6 +2011,37 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedPrefix: 24,
 		}),
+		Entry("One pool, IPv6 pre-allocated (non-canonical)", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::a")),
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("2001:db8::0005"),
+					},
+					Prefix:  64,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff")),
+					DNSServers: []ipamv1.IPAddressStr{
+						ipamv1.IPAddressStr("2001:4860:4860::8888"),
+					},
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			},
+			expectedAddress: ipamv1.IPAddressStr("2001:db8::5"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff")),
+			expectedDNSServers: []ipamv1.IPAddressStr{
+				ipamv1.IPAddressStr("2001:4860:4860::8888"),
+			},
+			expectedPrefix: 64,
+		}),
 		Entry("One pool, pre-allocated, with overrides", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
@@ -2458,6 +2489,31 @@ var _ = Describe("IPPool manager", func() {
 			expectedAddress: ipamv1.IPAddressStr("192.168.0.21"),
 			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 			expectedPrefix:  24,
+		}),
+		Entry("One pool, IPv6 pre-allocated (non-canonical)", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::a")),
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("2001:db8::0005"),
+					},
+					Prefix:  64,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff")),
+				},
+			},
+			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			},
+			expectedAddress: ipamv1.IPAddressStr("2001:db8::5"),
+			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff")),
+			expectedPrefix:  64,
 		}),
 		Entry("One pool, pre-allocated, with overrides", testCapiCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
