@@ -18,6 +18,7 @@ package ipam
 
 import (
 	"context"
+	"net"
 	"reflect"
 	"strings"
 
@@ -85,6 +86,27 @@ func (m *IPPoolManager) UnsetFinalizer() {
 	m.IPPool.Finalizers = Filter(m.IPPool.Finalizers,
 		ipamv1.IPPoolFinalizer,
 	)
+}
+
+// ipEqual compares two IP addresses by their parsed values to handle non-canonical
+// IPv6 formats (e.g., ::0005 vs ::5). Returns false if either address fails to parse,
+// logging a warning to aid in diagnosing configuration issues.
+func (m *IPPoolManager) ipEqual(a, b ipamv1.IPAddressStr) bool {
+	ipA := net.ParseIP(string(a))
+	ipB := net.ParseIP(string(b))
+	if ipA == nil {
+		if a != "" {
+			m.Log.Info("Failed to parse IP address", "address", a)
+		}
+		return false
+	}
+	if ipB == nil {
+		if b != "" {
+			m.Log.Info("Failed to parse IP address", "address", b)
+		}
+		return false
+	}
+	return ipA.Equal(ipB)
 }
 
 func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1beta1.Cluster) error {
@@ -436,7 +458,7 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	isRequestedIPAllocated := false
 
 	// Conflict-case, claim is preAllocated but has requested different IP
-	if requestedIP != "" && ipPreAllocated && requestedIP != preAllocatedAddress {
+	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
 		addressClaim.Status.ErrorMessage = ptr.To("PreAllocation and requested ip address are conflicting")
 		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("PreAllocation and requested ip address are conflicting")
 	}
@@ -453,15 +475,15 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 			}
 			index++
 			// Check if requestedIP is present and matches the current address
-			if requestedIP != "" && allocatedAddress != requestedIP {
+			if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
 				continue
 			}
-			if requestedIP != "" && allocatedAddress == requestedIP {
+			if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
 				isRequestedIPAllocated = true
 			}
 			// We have a pre-allocated ip, we just need to ensure that it matches the current address
 			// if it does not, continue and try the next address
-			if ipPreAllocated && allocatedAddress != preAllocatedAddress {
+			if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
 				continue
 			}
 			// Here the two addresses match, so we continue with that one
@@ -527,7 +549,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddre
 	isRequestedIPAllocated := false
 
 	// Conflict-case, claim is preAllocated but has requested different IP
-	if requestedIP != "" && ipPreAllocated && requestedIP != preAllocatedAddress {
+	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
 		conditions := clusterv1beta1.Conditions{}
 		conditions = append(conditions, clusterv1beta1.Condition{
 			Type:               "ErrorMessage",
@@ -553,15 +575,15 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddre
 			}
 			index++
 			// Check if requestedIP is present and matches the current address
-			if requestedIP != "" && allocatedAddress != requestedIP {
+			if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
 				continue
 			}
-			if requestedIP != "" && allocatedAddress == requestedIP {
+			if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
 				isRequestedIPAllocated = true
 			}
 			// We have a pre-allocated ip, we just need to ensure that it matches the current address
 			// if it does not, continue and try the next address
-			if ipPreAllocated && allocatedAddress != preAllocatedAddress {
+			if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
 				continue
 			}
 			// Here the two addresses match, so we continue with that one
