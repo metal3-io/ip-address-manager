@@ -43,6 +43,17 @@ func TestIPPoolDefault(t *testing.T) {
 }
 
 func TestIPPoolValidation(t *testing.T) {
+	startAddr := ipamv1.IPAddressStr("192.168.0.10")
+	invalidStartAddr := ipamv1.IPAddressStr("192.168.0.149")
+	endAddr := ipamv1.IPAddressStr("192.168.0.20")
+	invalidEndAddr := ipamv1.IPAddressStr("192.168.0.140")
+
+	malformedIP := ipamv1.IPAddressStr("not-an-ip")
+	invalidIPFormat := ipamv1.IPAddressStr("256.256.256.256")
+	malformedCIDR := ipamv1.IPSubnetStr("not-a-cidr")
+	validGateway := ipamv1.IPAddressStr("192.168.0.1")
+	malformedGateway := ipamv1.IPAddressStr("invalid-gateway")
+
 	tests := []struct {
 		name      string
 		expectErr bool
@@ -56,6 +67,225 @@ func TestIPPoolValidation(t *testing.T) {
 					Namespace: "foo",
 				},
 				Spec: ipamv1.IPPoolSpec{},
+			},
+		},
+		{
+			name:      "should succeed when start <= end",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &endAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed when start == end",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &startAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail when start > end",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &invalidStartAddr, End: &invalidEndAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed when only start is provided",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed when only end is provided",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{End: &endAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail when one pool has invalid range",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &endAddr},
+						{Start: &invalidStartAddr, End: &invalidEndAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed start IP address",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &malformedIP, End: &endAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with invalid IP format in start",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &invalidIPFormat, End: &endAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed end IP address",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &malformedIP},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed gateway IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Gateway: &malformedGateway,
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed DNS server IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					DNSServers: []ipamv1.IPAddressStr{malformedIP},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed preAllocation IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"test": malformedIP,
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed subnet CIDR",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Subnet: &malformedCIDR},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed pool-specific gateway IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Gateway: &malformedGateway},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with malformed pool-specific DNS server IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{DNSServers: []ipamv1.IPAddressStr{malformedIP}},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed with valid gateway IP",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Gateway: &validGateway,
+				},
 			},
 		},
 	}
@@ -81,6 +311,8 @@ func TestIPPoolValidation(t *testing.T) {
 func TestIPPoolUpdateValidation(t *testing.T) {
 	startAddr := ipamv1.IPAddressStr("192.168.0.1")
 	endAddr := ipamv1.IPAddressStr("192.168.0.10")
+	invalidStartAddr := ipamv1.IPAddressStr("192.168.0.149")
+	invalidEndAddr := ipamv1.IPAddressStr("192.168.0.140")
 	subnet := ipamv1.IPSubnetStr("192.168.0.1/25")
 
 	tests := []struct {
@@ -107,6 +339,32 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			expectErr: true,
 			newPoolSpec: &ipamv1.IPPoolSpec{
 				NamePrefix: "abcde",
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+		},
+		{
+			name:      "should fail when updating to invalid range (start > end)",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &invalidStartAddr, End: &invalidEndAddr},
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+			},
+		},
+		{
+			name:      "should succeed when updating to valid range",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
 			},
 			oldPoolSpec: &ipamv1.IPPoolSpec{
 				NamePrefix: "abcd",

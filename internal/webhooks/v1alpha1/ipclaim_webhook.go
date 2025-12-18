@@ -68,6 +68,19 @@ func (webhook *IPClaim) ValidateCreate(_ context.Context, obj runtime.Object) (a
 		)
 	}
 
+	// Validate requested IP address if present in annotations
+	if requestedIP, ok := c.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
+		if err := validateIP(ipamv1.IPAddressStr(requestedIP)); err != nil {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("metadata", "annotations", "ipAddress"),
+					requestedIP,
+					"is not a valid IP address",
+				),
+			)
+		}
+	}
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -111,6 +124,19 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldObj, newObj runtime
 				"cannot be modified",
 			),
 		)
+	}
+
+	// Validate requested IP address if present in annotations
+	if requestedIP, ok := newIPClaim.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
+		if err := validateIP(ipamv1.IPAddressStr(requestedIP)); err != nil {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("metadata", "annotations", "ipAddress"),
+					requestedIP,
+					"is not a valid IP address",
+				),
+			)
+		}
 	}
 
 	if len(allErrs) == 0 {

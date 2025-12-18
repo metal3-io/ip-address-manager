@@ -99,6 +99,161 @@ func TestIPClaimCreateValidation(t *testing.T) {
 	}
 }
 
+func TestIPClaimAnnotationValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectErr   bool
+		annotations map[string]string
+	}{
+		{
+			name:      "should succeed with valid IP in annotation",
+			expectErr: false,
+			annotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+		},
+		{
+			name:      "should succeed with valid IPv6 in annotation",
+			expectErr: false,
+			annotations: map[string]string{
+				"ipAddress": "fe80::1",
+			},
+		},
+		{
+			name:      "should fail with malformed IP in annotation",
+			expectErr: true,
+			annotations: map[string]string{
+				"ipAddress": "not-an-ip",
+			},
+		},
+		{
+			name:      "should fail with invalid IP format in annotation",
+			expectErr: true,
+			annotations: map[string]string{
+				"ipAddress": "999.999.999.999",
+			},
+		},
+		{
+			name:        "should succeed without IP annotation",
+			expectErr:   false,
+			annotations: map[string]string{},
+		},
+		{
+			name:      "should succeed with empty IP annotation",
+			expectErr: false,
+			annotations: map[string]string{
+				"ipAddress": "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			webhook := &IPClaim{}
+
+			obj := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "foo",
+					Name:        "test-claim",
+					Annotations: tt.annotations,
+				},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{
+						Name: "test-pool",
+					},
+				},
+			}
+
+			if tt.expectErr {
+				_, err := webhook.ValidateCreate(ctx, obj)
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				_, err := webhook.ValidateCreate(ctx, obj)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+		})
+	}
+}
+
+func TestIPClaimAnnotationUpdateValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		expectErr      bool
+		newAnnotations map[string]string
+	}{
+		{
+			name:      "should succeed updating to valid IP in annotation",
+			expectErr: false,
+			newAnnotations: map[string]string{
+				"ipAddress": "192.168.1.75",
+			},
+		},
+		{
+			name:      "should fail updating to malformed IP in annotation",
+			expectErr: true,
+			newAnnotations: map[string]string{
+				"ipAddress": "invalid-ip-addr",
+			},
+		},
+		{
+			name:      "should fail updating to invalid IP format in annotation",
+			expectErr: true,
+			newAnnotations: map[string]string{
+				"ipAddress": "300.300.300.300",
+			},
+		},
+		{
+			name:           "should succeed when removing IP annotation",
+			expectErr:      false,
+			newAnnotations: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			webhook := &IPClaim{}
+
+			oldObj := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "test-claim",
+					Annotations: map[string]string{
+						"ipAddress": "192.168.1.50",
+					},
+				},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{
+						Name: "test-pool",
+					},
+				},
+			}
+
+			newObj := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "foo",
+					Name:        "test-claim",
+					Annotations: tt.newAnnotations,
+				},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{
+						Name: "test-pool",
+					},
+				},
+			}
+
+			if tt.expectErr {
+				_, err := webhook.ValidateUpdate(ctx, oldObj, newObj)
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				_, err := webhook.ValidateUpdate(ctx, oldObj, newObj)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+		})
+	}
+}
+
 func TestIPClaimUpdateValidation(t *testing.T) {
 	tests := []struct {
 		name      string
