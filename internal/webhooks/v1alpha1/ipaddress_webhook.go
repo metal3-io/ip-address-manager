@@ -86,8 +86,28 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, obj runtime.Object) 
 				"cannot be empty",
 			),
 		)
+	} else if validateIP(c.Spec.Address) != nil {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "address"),
+				c.Spec.Address,
+				"is not a valid IP address",
+			),
+		)
 	}
 
+	// Validate requested IP address if present in annotations (for CAPI claims)
+	if requestedIP, ok := c.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
+		if validateIP(ipamv1.IPAddressStr(requestedIP)) != nil {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("metadata", "annotations", "ipAddress"),
+					requestedIP,
+					"is not a valid IP address",
+				),
+			)
+		}
+	}
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
