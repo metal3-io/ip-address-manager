@@ -17,18 +17,17 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
-
-	"github.com/pkg/errors"
 )
 
 // GetIPAddress renders the IP address, taking the index, offset and step into
 // account, it is IP version agnostic.
 func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
 	if entry.Start == nil && entry.Subnet == nil {
-		return "", errors.New("Either Start or Subnet is required for ipAddress")
+		return "", errors.New("either Start or Subnet is required for ipAddress")
 	}
 	var ip net.IP
 	var err error
