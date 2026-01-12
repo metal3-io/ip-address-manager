@@ -18,10 +18,10 @@ package ipam
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
-	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -63,7 +63,7 @@ func (e *NotFoundError) Error() string {
 func deepCopyObject(obj client.Object) (client.Object, error) {
 	objCopy, ok := obj.DeepCopyObject().(client.Object)
 	if !ok {
-		return nil, errors.New("Failed to copy object")
+		return nil, errors.New("failed to copy object")
 	}
 	return objCopy, nil
 }
@@ -75,7 +75,7 @@ func updateObject(ctx context.Context, cl client.Client, obj client.Object) erro
 	}
 	err = cl.Update(ctx, objCopy)
 	if apierrors.IsConflict(err) {
-		return WithTransientError(errors.New("Updating object failed"), 0*time.Second)
+		return WithTransientError(errors.New("updating object failed"), 0*time.Second)
 	}
 	return err
 }
@@ -88,7 +88,7 @@ func createObject(ctx context.Context, cl client.Client, obj client.Object, opts
 	err = cl.Create(ctx, objCopy, opts...)
 	if apierrors.IsAlreadyExists(err) {
 		log.Printf("I am inside IsAlreadyExists")
-		return WithTransientError(errors.New("Object already exists"), 0*time.Second)
+		return WithTransientError(errors.New("object already exists"), 0*time.Second)
 	}
 	return err
 }
