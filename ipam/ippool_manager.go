@@ -18,13 +18,14 @@ package ipam
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,7 +112,7 @@ func (m *IPPoolManager) ipEqual(a, b ipamv1.IPAddressStr) bool {
 
 func (m *IPPoolManager) SetClusterOwnerRef(cluster *clusterv1beta1.Cluster) error {
 	if cluster == nil {
-		return errors.New("Missing cluster")
+		return errors.New("missing cluster")
 	}
 	// Verify that the owner reference is there, if not add it and update object,
 	// if error requeue.
@@ -341,7 +342,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	var helper *patch.Helper
 	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
-		return addresses, errors.Wrap(err, "failed to init patch helper")
+		return addresses, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	deleted := false
 	// Always patch addressClaim exiting this function so we can persist any changes.
@@ -392,7 +393,7 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	var helper *patch.Helper
 	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
-		return addresses, errors.Wrap(err, "failed to init patch helper")
+		return addresses, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	// Always patch addressClaim exiting this function so we can persist any changes.
 	defer func() {
@@ -513,17 +514,17 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Requested IP not available")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Requested IP not available")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("requested IP not available")
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Pre-allocated IP out of bond")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Pre-allocated IP out of bond")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Exhausted IP Pools")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("Exhausted IP Pools")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("exhausted IP pools")
 	}
 	return allocatedAddress, prefix, gateway, dnsServers, nil
 }
@@ -619,7 +620,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddre
 			Message:            "Requested IP not available",
 		})
 		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("Requested IP not available")
+		return "", 0, nil, errors.New("requested IP not available")
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
@@ -634,7 +635,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddre
 			Message:            "Pre-allocated IP out of bond",
 		})
 		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("Pre-allocated IP out of bond")
+		return "", 0, nil, errors.New("pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
 		conditions := clusterv1beta1.Conditions{}
@@ -647,7 +648,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1beta1.IPAddre
 			Message:            "Exhausted IP Pools",
 		})
 		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("Exhausted IP Pools")
+		return "", 0, nil, errors.New("exhausted IP pools")
 	}
 	return allocatedAddress, prefix, gateway, nil
 }

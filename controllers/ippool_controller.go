@@ -18,13 +18,14 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/metal3-io/ip-address-manager/ipam"
-	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -90,7 +91,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 
 	helper, err = patch.NewHelper(ipamv1IPPool, r.Client)
 	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "failed to init patch helper")
+		return ctrl.Result{}, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	// Always patch ipamv1IPPool exiting this function so we can persist any IPPool changes.
 	defer func() {
@@ -131,7 +132,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 	// Create a helper for managing the metadata object.
 	ipPoolMgr, err := r.ManagerFactory.NewIPPoolManager(ipamv1IPPool, metadataLog)
 	if err != nil {
-		return ctrl.Result{}, errors.Wrapf(err, "failed to create helper for managing the IP pool")
+		return ctrl.Result{}, fmt.Errorf("failed to create helper for managing the IP pool: %w", err)
 	}
 
 	if ipamv1IPPool.Spec.ClusterName != nil && cluster != nil && cluster.Name != "" {
@@ -271,7 +272,7 @@ func checkReconcileError(err error, errMessage string) (ctrl.Result, error) {
 			return reconcile.Result{}, nil
 		}
 	}
-	return ctrl.Result{}, errors.Wrap(err, errMessage)
+	return ctrl.Result{}, fmt.Errorf("%s: %w", errMessage, err)
 }
 
 // IsPaused returns true if the Cluster is paused or the object has the `paused` annotation.
