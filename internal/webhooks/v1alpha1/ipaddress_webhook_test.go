@@ -58,7 +58,31 @@ func TestIPAddressCreateValidation(t *testing.T) {
 			claim: corev1.ObjectReference{
 				Name: "abc",
 			},
-			address: "abcd",
+			address: "192.168.1.10",
+		},
+		{
+			name:        "should fail with malformed IP address format",
+			expectErr:   true,
+			addressName: "abc-3",
+			ipPool: corev1.ObjectReference{
+				Name: "abc",
+			},
+			claim: corev1.ObjectReference{
+				Name: "abc",
+			},
+			address: "not-an-ip-address",
+		},
+		{
+			name:        "should fail with invalid IP address",
+			expectErr:   true,
+			addressName: "abc-4",
+			ipPool: corev1.ObjectReference{
+				Name: "abc",
+			},
+			claim: corev1.ObjectReference{
+				Name: "abc",
+			},
+			address: "256.256.256.256",
 		},
 		{
 			name:        "should fail without address",
@@ -81,7 +105,7 @@ func TestIPAddressCreateValidation(t *testing.T) {
 			claim: corev1.ObjectReference{
 				Name: "abc",
 			},
-			address: "abcd",
+			address: "192.168.1.10",
 		},
 		{
 			name:        "should fail without claim name",
@@ -93,7 +117,7 @@ func TestIPAddressCreateValidation(t *testing.T) {
 			claim: corev1.ObjectReference{
 				Namespace: "abc",
 			},
-			address: "abcd",
+			address: "192.168.1.10",
 		},
 	}
 
@@ -127,6 +151,80 @@ func TestIPAddressCreateValidation(t *testing.T) {
 	}
 }
 
+func TestIPAddressAnnotationValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectErr   bool
+		annotations map[string]string
+	}{
+		{
+			name:      "should succeed with valid IP in annotation",
+			expectErr: false,
+			annotations: map[string]string{
+				"ipAddress": "192.168.1.100",
+			},
+		},
+		{
+			name:      "should succeed with valid IPv6 in annotation",
+			expectErr: false,
+			annotations: map[string]string{
+				"ipAddress": "2001:db8::1",
+			},
+		},
+		{
+			name:      "should fail with malformed IP in annotation",
+			expectErr: true,
+			annotations: map[string]string{
+				"ipAddress": "not-an-ip",
+			},
+		},
+		{
+			name:      "should fail with invalid IP format in annotation",
+			expectErr: true,
+			annotations: map[string]string{
+				"ipAddress": "256.256.256.256",
+			},
+		},
+		{
+			name:        "should succeed without IP annotation",
+			expectErr:   false,
+			annotations: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			webhook := &IPAddress{}
+
+			obj := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "foo",
+					Name:        "test-address",
+					Annotations: tt.annotations,
+				},
+				Spec: ipamv1.IPAddressSpec{
+					Pool: corev1.ObjectReference{
+						Name: "test-pool",
+					},
+					Claim: corev1.ObjectReference{
+						Name: "test-claim",
+					},
+					Address: "192.168.1.10",
+				},
+			}
+
+			if tt.expectErr {
+				_, err := webhook.ValidateCreate(ctx, obj)
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				_, err := webhook.ValidateCreate(ctx, obj)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+		})
+	}
+}
+
 func TestIPAddressUpdateValidation(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -144,7 +242,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Pool: corev1.ObjectReference{
@@ -153,7 +251,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -163,7 +261,7 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: nil,
 		},
@@ -174,13 +272,13 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcde",
+				Address: "192.168.1.11",
 			},
 		},
 		{
@@ -190,13 +288,13 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -207,14 +305,14 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 					Name:      "abc",
 					Namespace: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -225,14 +323,14 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 					Name: "abc",
 					Kind: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Pool: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -242,13 +340,13 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -259,14 +357,14 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 					Name:      "abc",
 					Namespace: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name:      "abc",
 					Namespace: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 		{
@@ -277,14 +375,14 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 					Name: "abc",
 					Kind: "abc",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 			old: &ipamv1.IPAddressSpec{
 				Claim: corev1.ObjectReference{
 					Name: "abc",
 					Kind: "abcd",
 				},
-				Address: "abcd",
+				Address: "192.168.1.10",
 			},
 		},
 	}
