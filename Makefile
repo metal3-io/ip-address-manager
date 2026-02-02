@@ -126,7 +126,7 @@ $(GOLANGCI_LINT):
 		hack/ensure-golangci-lint.sh $(TOOLS_DIR)/$(BIN_DIR)
 
 $(MOCKGEN): $(TOOLS_DIR)/go.mod # Build mockgen from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/mockgen github.com/golang/mock/mockgen
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/mockgen go.uber.org/mock/mockgen
 
 $(CONVERSION_GEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
