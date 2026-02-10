@@ -110,14 +110,10 @@ linters:
         # Controller Runtime
       - pkg: sigs.k8s.io/controller-runtime
         alias: ctrl
-      - pkg: sigs.k8s.io/cluster-api/api/v1alpha4
-        alias: clusterv1alpha4
-      - pkg: sigs.k8s.io/cluster-api/api/v1beta2
+      - pkg: sigs.k8s.io/cluster-api/api/core/v1beta2
         alias: clusterv1
-      - pkg: sigs.k8s.io/cluster-api/api/core/v1beta1
-        alias: clusterv1beta1
-      - pkg: sigs.k8s.io/cluster-api/api/ipam/v1beta1
-        alias: capipamv1beta1
+      - pkg: sigs.k8s.io/cluster-api/api/ipam/v1beta2
+        alias: capipamv1
         # IPAM
       - pkg: github.com/metal3-io/ip-address-manager/api/v1alpha1
         alias: ipamv1

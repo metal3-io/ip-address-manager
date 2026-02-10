@@ -38,9 +38,7 @@ import (
 	"k8s.io/component-base/logs"
 	logsv1 "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
-	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -78,9 +76,7 @@ var (
 func init() {
 	_ = scheme.AddToScheme(myscheme)
 	_ = ipamv1.AddToScheme(myscheme)
-	_ = clusterv1beta1.AddToScheme(myscheme)
 	_ = clusterv1.AddToScheme(myscheme)
-	_ = capipamv1beta1.AddToScheme(myscheme)
 	_ = capipamv1.AddToScheme(myscheme)
 }
 
@@ -114,7 +110,7 @@ func main() {
 		}
 	}
 
-	req, _ := labels.NewRequirement(clusterv1beta1.ClusterNameLabel, selection.Exists, nil)
+	req, _ := labels.NewRequirement(clusterv1.ClusterNameLabel, selection.Exists, nil)
 	clusterSecretCacheSelector := labels.NewSelector().Add(*req)
 
 	restConfig := ctrl.GetConfigOrDie()
@@ -196,7 +192,7 @@ func initFlags(fs *pflag.FlagSet) {
 		&watchFilterValue,
 		"watch-filter",
 		"",
-		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1beta1.WatchLabel),
+		fmt.Sprintf("Label value that the controller watches to reconcile cluster-api objects. Label key is always %s. If unspecified, the controller watches for all cluster-api objects.", clusterv1.WatchLabel),
 	)
 	fs.StringVar(&healthAddr, "health-addr", ":9440",
 		"The address the health endpoint binds to.")
