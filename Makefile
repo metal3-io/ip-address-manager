@@ -45,6 +45,10 @@ MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/conversion-gen
 KUBEBUILDER := $(TOOLS_BIN_DIR)/kubebuilder
 KUSTOMIZE := $(TOOLS_BIN_DIR)/kustomize
+SETUP_ENVTEST_BIN := setup-envtest
+SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN))
+SETUP_ENVTEST_VER := release-0.19
+SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 # Define Docker related variables. Releases should modify and double check these vars.
 # REGISTRY ?= gcr.io/$(shell gcloud config get-value project)
@@ -81,20 +85,32 @@ help:  ## Display this help
 ## Testing
 ## --------------------------------------
 
+export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.35.0
+KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
+
+.PHONY: setup-envtest
+setup-envtest: $(SETUP_ENVTEST) ## Set up envtest (download kubebuilder assets)
+	@echo KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)
+
 .PHONY: unit
-unit: ## Run tests
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out; cd $(APIS_DIR); go test -v ./... -coverprofile ./cover.out; cd ..;cd $(WEBHOOKS_DIR); go test -v ./... -coverprofile ./cover.out
+unit: $(SETUP_ENVTEST) ## Run tests
+	$(shell $(SETUP_ENVTEST) use -p env $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)) && \
+	go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out && \
+	cd $(APIS_DIR) && go test -v ./... -coverprofile ./cover.out && cd .. && \
+	cd $(WEBHOOKS_DIR) && go test -v ./... -coverprofile ./cover.out
 
 .PHONY: test  ## Run linter and tests
 test: generate lint unit
 
 .PHONY: unit-cover
-unit-cover: ## Run unit tests with code coverage
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; go test ./controllers/... ./ipam/...  -coverprofile=$(COVER_PROFILE) ./...
+unit-cover: $(SETUP_ENVTEST) ## Run unit tests with code coverage
+	$(shell $(SETUP_ENVTEST) use -p env $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)) && \
+	go test ./controllers/... ./ipam/... -coverprofile=$(COVER_PROFILE) && \
+	go tool cover -func=$(COVER_PROFILE) && \
+	cd $(APIS_DIR) && go test -coverprofile=$(COVER_PROFILE) ./... && \
+	go tool cover -func=$(COVER_PROFILE) && cd .. && \
+	cd $(WEBHOOKS_DIR) && go test -coverprofile=$(COVER_PROFILE) ./... && \
 	go tool cover -func=$(COVER_PROFILE)
-	cd $(APIS_DIR)/ && go test -coverprofile=$(COVER_PROFILE) ./...
-	go tool cover -func=$(COVER_PROFILE)
-	cd ..
 
 
 ## --------------------------------------
@@ -136,6 +152,9 @@ $(KUBEBUILDER): $(TOOLS_DIR)/go.mod
 
 $(KUSTOMIZE): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); ./install_kustomize.sh
+
+$(SETUP_ENVTEST):
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install $(SETUP_ENVTEST_PKG)@$(SETUP_ENVTEST_VER)
 
 ## --------------------------------------
 ## Linting
