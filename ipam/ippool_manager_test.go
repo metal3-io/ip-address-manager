@@ -27,8 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
-	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -41,12 +41,13 @@ var (
 	testObjectReference = &corev1.ObjectReference{
 		Name: "abc",
 	}
-	localtestObjectReference = &corev1.LocalObjectReference{
+	capiClaimRef = &capipamv1.IPAddressClaimReference{
 		Name: "abc",
 	}
-	typedtestObjectReference = &corev1.TypedLocalObjectReference{
+	capiPoolRef = &capipamv1.IPPoolReference{
 		Name: "abc",
 	}
+	prefix24int32 = ptr.To(int32(24))
 )
 
 var _ = Describe("IPPool manager", func() {
@@ -78,7 +79,7 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseSetClusterOwnerRef struct {
-		cluster     *clusterv1beta1.Cluster
+		cluster     *clusterv1.Cluster
 		ipPool      *ipamv1.IPPool
 		expectError bool
 	}
@@ -108,7 +109,7 @@ var _ = Describe("IPPool manager", func() {
 					Name: "abc",
 				},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},
@@ -125,7 +126,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},
@@ -145,7 +146,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc-cluster",
 				},
@@ -156,7 +157,7 @@ var _ = Describe("IPPool manager", func() {
 	type testGetIndexes struct {
 		ipPool              *ipamv1.IPPool
 		addresses           []*ipamv1.IPAddress
-		capiAddresses       []*capipamv1beta1.IPAddress
+		capiAddresses       []*capipamv1.IPAddress
 		expectError         bool
 		expectedAddresses   map[ipamv1.IPAddressStr]string
 		expectedAllocations map[string]ipamv1.IPAddressStr
@@ -282,16 +283,16 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabc-0",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address:  "cabcd1",
-						PoolRef:  *typedtestObjectReference,
-						ClaimRef: *localtestObjectReference,
+						PoolRef:  *capiPoolRef,
+						ClaimRef: *capiClaimRef,
 					},
 				},
 				{
@@ -299,12 +300,12 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cbbc-1",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address: "cabcd2",
-						PoolRef: corev1.TypedLocalObjectReference{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cbbc",
 						},
-						ClaimRef: corev1.LocalObjectReference{
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cbbc",
 						},
 					},
@@ -314,10 +315,10 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabc-2",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address:  "cabcd3",
-						PoolRef:  corev1.TypedLocalObjectReference{},
-						ClaimRef: *localtestObjectReference,
+						PoolRef:  capipamv1.IPPoolReference{},
+						ClaimRef: *capiClaimRef,
 					},
 				},
 			},
@@ -393,18 +394,18 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cbbc-1",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address: "cabcd2",
-						PoolRef: corev1.TypedLocalObjectReference{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cbbc",
 						},
-						ClaimRef: corev1.LocalObjectReference{
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cbbc",
 						},
 					},
@@ -414,10 +415,10 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabc-2",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address:  "cabcd3",
-						PoolRef:  corev1.TypedLocalObjectReference{},
-						ClaimRef: *localtestObjectReference,
+						PoolRef:  capipamv1.IPPoolReference{},
+						ClaimRef: *capiClaimRef,
 					},
 				},
 			},
@@ -483,16 +484,16 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabc-0",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address:  "cabcd1",
-						PoolRef:  *typedtestObjectReference,
-						ClaimRef: *localtestObjectReference,
+						PoolRef:  *capiPoolRef,
+						ClaimRef: *capiClaimRef,
 					},
 				},
 				{
@@ -500,12 +501,12 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cbbc-1",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address: "cabcd2",
-						PoolRef: corev1.TypedLocalObjectReference{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cbbc",
 						},
-						ClaimRef: corev1.LocalObjectReference{
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cbbc",
 						},
 					},
@@ -515,10 +516,10 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabc-2",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address:  "cabcd3",
-						PoolRef:  corev1.TypedLocalObjectReference{},
-						ClaimRef: *localtestObjectReference,
+						PoolRef:  capipamv1.IPPoolReference{},
+						ClaimRef: *capiClaimRef,
 					},
 				},
 			},
@@ -577,20 +578,20 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-1-11",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "inUseClaim",
 						},
 						Address: "192.168.1.11",
 						Gateway: *ptr.To("192.168.0.1"),
-						Prefix:  24,
+						Prefix:  prefix24int32,
 					},
 				},
 			},
@@ -629,22 +630,22 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabcpref-192-168-1-12",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cabc",
 						},
-						ClaimRef: corev1.LocalObjectReference{
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "inUseClaim",
 						},
 						Address: "192.168.1.12",
 						Gateway: *(ptr.To("192.168.0.1")),
-						Prefix:  24,
+						Prefix:  prefix24int32,
 					},
 				},
 			},
@@ -662,8 +663,8 @@ var _ = Describe("IPPool manager", func() {
 		ipPool                *ipamv1.IPPool
 		ipClaims              []*ipamv1.IPClaim
 		ipAddresses           []*ipamv1.IPAddress
-		ipAddressClaims       []*capipamv1beta1.IPAddressClaim
-		capiAddresses         []*capipamv1beta1.IPAddress
+		ipAddressClaims       []*capipamv1.IPAddressClaim
+		capiAddresses         []*capipamv1.IPAddress
 		expectRequeue         bool
 		expectError           bool
 		expectedNbAllocations int
@@ -720,7 +721,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 
 			// get list of IPAddress objects
-			capiAddressObjects := capipamv1beta1.IPAddressClaimList{}
+			capiAddressObjects := capipamv1.IPAddressClaimList{}
 			err = c.List(context.TODO(), &capiAddressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -891,17 +892,17 @@ var _ = Describe("IPPool manager", func() {
 					NamePrefix: "abcpref",
 				},
 			},
-			ipAddressClaims: []*capipamv1beta1.IPAddressClaim{
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abc",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "abcpref-192-168-1-11",
 						},
 					},
@@ -911,13 +912,13 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "abcd",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "abcd",
 						},
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "abcpref-192-168-1-12",
 						},
 					},
@@ -927,11 +928,11 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "abce",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "abcpref-192-168-1-12",
 						},
 					},
@@ -945,28 +946,28 @@ var _ = Describe("IPPool manager", func() {
 							IPAddressClaimFinalizer,
 						},
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "abcpref-192-168-1-13",
 						},
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-1-11",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef:  *typedtestObjectReference,
-						ClaimRef: *localtestObjectReference,
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef:  *capiPoolRef,
+						ClaimRef: *capiClaimRef,
 						Address:  "192.168.1.11",
 						Gateway:  *ptr.To("192.168.0.1"),
-						Prefix:   24,
+						Prefix:   prefix24int32,
 					},
 				},
 				{
@@ -974,9 +975,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "abcpref-192-168-1-12",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "abce",
 						},
 						Address: "192.168.1.12",
@@ -987,9 +988,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "abcpref-192-168-1-13",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "abcf",
 						},
 						Address: "192.168.1.13",
@@ -1142,19 +1143,19 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaims: []*capipamv1beta1.IPAddressClaim{
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabc",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cabc",
 						},
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "cabcpref-192-168-1-14",
 						},
 					},
@@ -1164,13 +1165,13 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabcd",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cabcd",
 						},
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "cabcpref-192-168-1-15",
 						},
 					},
@@ -1180,11 +1181,11 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabce",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "cabcpref-192-168-1-15",
 						},
 					},
@@ -1198,32 +1199,32 @@ var _ = Describe("IPPool manager", func() {
 							IPAddressClaimFinalizer,
 						},
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						AddressRef: corev1.LocalObjectReference{
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
 							Name: "cabcpref-192-168-1-16",
 						},
 					},
 				},
 			},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabcpref-192-168-1-14",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "cabc",
 						},
-						ClaimRef: corev1.LocalObjectReference{
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cabc",
 						},
 						Address: "192.168.1.14",
 						Gateway: *(ptr.To("192.168.0.1")),
-						Prefix:  24,
+						Prefix:  prefix24int32,
 					},
 				},
 				{
@@ -1231,9 +1232,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabcpref-192-168-1-15",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cabce",
 						},
 						Address: "192.168.1.15",
@@ -1244,9 +1245,9 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabcpref-192-168-1-16",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "cabcf",
 						},
 						Address: "192.168.1.16",
@@ -1308,7 +1309,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaims: []*capipamv1beta1.IPAddressClaim{
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabcd",
@@ -1317,17 +1318,16 @@ var _ = Describe("IPPool manager", func() {
 							IPAddressAnnotation: "192.168.2.11",
 						},
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						Conditions: clusterv1beta1.Conditions{
-							clusterv1beta1.Condition{
-								Type:               "ErrorMessage",
-								Status:             corev1.ConditionTrue,
+					Status: capipamv1.IPAddressClaimStatus{
+						Conditions: []metav1.Condition{
+							{
+								Type:               capipamv1.IPAddressClaimReadyCondition,
+								Status:             metav1.ConditionFalse,
 								LastTransitionTime: metav1.Now(),
-								Severity:           "Error",
-								Reason:             "ErrorMessage",
+								Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
 								Message:            "Requested IP not available",
 							},
 						},
@@ -1338,8 +1338,8 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabce",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
 				},
 			},
@@ -1402,7 +1402,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaims: []*capipamv1beta1.IPAddressClaim{
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cabcd",
@@ -1416,17 +1416,16 @@ var _ = Describe("IPPool manager", func() {
 							"metal3data.infrastructure.cluster.x-k8s.io",
 						},
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
-					Status: capipamv1beta1.IPAddressClaimStatus{
-						Conditions: clusterv1beta1.Conditions{
-							clusterv1beta1.Condition{
-								Type:               "ErrorMessage",
-								Status:             corev1.ConditionTrue,
+					Status: capipamv1.IPAddressClaimStatus{
+						Conditions: []metav1.Condition{
+							{
+								Type:               capipamv1.IPAddressClaimReadyCondition,
+								Status:             metav1.ConditionFalse,
 								LastTransitionTime: metav1.Now(),
-								Severity:           "Error",
-								Reason:             "ErrorMessage",
+								Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
 								Message:            "Requested IP not available",
 							},
 						},
@@ -1437,8 +1436,8 @@ var _ = Describe("IPPool manager", func() {
 						Name:      "cabce",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: *typedtestObjectReference,
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
 					},
 				},
 			},
@@ -1720,8 +1719,8 @@ var _ = Describe("IPPool manager", func() {
 
 	type testCaseCapiCreateAddresses struct {
 		ipPool              *ipamv1.IPPool
-		ipAddressClaim      *capipamv1beta1.IPAddressClaim
-		ipAddresses         []*capipamv1beta1.IPAddress
+		ipAddressClaim      *capipamv1.IPAddressClaim
+		ipAddresses         []*capipamv1.IPAddress
 		addresses           map[ipamv1.IPAddressStr]string
 		expectRequeue       bool
 		expectError         bool
@@ -1756,7 +1755,7 @@ var _ = Describe("IPPool manager", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 			// get list of IPAddress objects
-			addressObjects := capipamv1beta1.IPAddressList{}
+			addressObjects := capipamv1.IPAddressList{}
 			opts := &client.ListOptions{}
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
@@ -1780,7 +1779,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
@@ -1809,7 +1808,7 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
@@ -1841,7 +1840,7 @@ var _ = Describe("IPPool manager", func() {
 			addresses: map[ipamv1.IPAddressStr]string{
 				"192.168.0.11": "bcd",
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
@@ -1872,21 +1871,21 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
 			},
-			ipAddresses: []*capipamv1beta1.IPAddress{
+			ipAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "abcpref-192-168-0-11",
 						Namespace: "myns",
 					},
-					Spec: capipamv1beta1.IPAddressSpec{
+					Spec: capipamv1.IPAddressSpec{
 						Address: "192.168.0.11",
-						PoolRef: *typedtestObjectReference,
-						ClaimRef: corev1.LocalObjectReference{
+						PoolRef: *capiPoolRef,
+						ClaimRef: capipamv1.IPAddressClaimReference{
 							Name: "bcd",
 						},
 					},
@@ -1916,7 +1915,7 @@ var _ = Describe("IPPool manager", func() {
 			addresses: map[ipamv1.IPAddressStr]string{
 				"192.168.0.11": "bcd",
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
@@ -2423,9 +2422,9 @@ var _ = Describe("IPPool manager", func() {
 	type testCapiCaseAllocateAddress struct {
 		ipPool          *ipamv1.IPPool
 		addresses       map[ipamv1.IPAddressStr]string
-		ipAddressClaim  *capipamv1beta1.IPAddressClaim
+		ipAddressClaim  *capipamv1.IPAddressClaim
 		expectedAddress ipamv1.IPAddressStr
-		expectedPrefix  int
+		expectedPrefix  int32
 		expectedGateway *ipamv1.IPAddressStr
 		expectError     bool
 	}
@@ -2452,7 +2451,7 @@ var _ = Describe("IPPool manager", func() {
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
 				},
@@ -2481,7 +2480,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2506,7 +2505,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2533,7 +2532,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2560,7 +2559,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2580,7 +2579,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2606,7 +2605,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 					Annotations: map[string]string{
@@ -2635,7 +2634,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 					Annotations: map[string]string{
@@ -2665,7 +2664,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 					Annotations: map[string]string{
@@ -2695,7 +2694,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 					Annotations: map[string]string{
@@ -2726,7 +2725,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2757,7 +2756,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.2.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2788,7 +2787,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.2.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2814,7 +2813,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2836,7 +2835,7 @@ var _ = Describe("IPPool manager", func() {
 					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -2967,8 +2966,8 @@ var _ = Describe("IPPool manager", func() {
 
 	type testCaseCapiDeleteAddresses struct {
 		ipPool              *ipamv1.IPPool
-		ipAddressClaim      *capipamv1beta1.IPAddressClaim
-		capiAddresses       []*capipamv1beta1.IPAddress
+		ipAddressClaim      *capipamv1.IPAddressClaim
+		capiAddresses       []*capipamv1.IPAddress
 		addresses           map[ipamv1.IPAddressStr]string
 		expectedAddresses   map[ipamv1.IPAddressStr]string
 		expectedAllocations map[string]ipamv1.IPAddressStr
@@ -2995,7 +2994,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 
 			// get list of IPAddress objects
-			addressObjects := capipamv1beta1.IPAddressList{}
+			addressObjects := capipamv1.IPAddressList{}
 			opts := &client.ListOptions{}
 			err = c.List(context.TODO(), &addressObjects, opts)
 			Expect(err).NotTo(HaveOccurred())
@@ -3009,7 +3008,7 @@ var _ = Describe("IPPool manager", func() {
 		},
 		Entry("Empty IPPool", testCaseCapiDeleteAddresses{
 			ipPool: &ipamv1.IPPool{},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -3017,7 +3016,7 @@ var _ = Describe("IPPool manager", func() {
 		}),
 		Entry("No Deletion needed", testCaseCapiDeleteAddresses{
 			ipPool: &ipamv1.IPPool{},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -3035,7 +3034,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 				},
@@ -3057,7 +3056,7 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			},
-			ipAddressClaim: &capipamv1beta1.IPAddressClaim{
+			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
 					Finalizers: []string{
@@ -3070,7 +3069,7 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedAddresses:   map[ipamv1.IPAddressStr]string{},
 			expectedAllocations: map[string]ipamv1.IPAddressStr{},
-			capiAddresses: []*capipamv1beta1.IPAddress{
+			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "abc-192-168-0-1",

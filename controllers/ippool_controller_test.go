@@ -31,8 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
-	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -53,7 +53,7 @@ var _ = Describe("IPPool controller", func() {
 		expectRequeue        bool
 		expectManager        bool
 		m3ipp                *ipamv1.IPPool
-		cluster              *clusterv1beta1.Cluster
+		cluster              *clusterv1.Cluster
 		managerError         bool
 		reconcileNormal      bool
 		reconcileNormalError bool
@@ -178,10 +178,10 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: ptr.To("abc")},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
-				Spec: clusterv1beta1.ClusterSpec{
-					Paused: true,
+				Spec: clusterv1.ClusterSpec{
+					Paused: ptr.To(true),
 				},
 			},
 			expectRequeue: true,
@@ -192,7 +192,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: ptr.To("abc")},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			managerError: true,
@@ -202,7 +202,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: ptr.To("abc")},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			reconcileNormal:      true,
@@ -222,7 +222,7 @@ var _ = Describe("IPPool controller", func() {
 				ObjectMeta: testObjectMeta,
 				Spec:       ipamv1.IPPoolSpec{ClusterName: ptr.To("abc")},
 			},
-			cluster: &clusterv1beta1.Cluster{
+			cluster: &clusterv1.Cluster{
 				ObjectMeta: testObjectMeta,
 			},
 			reconcileNormal: true,
@@ -409,7 +409,7 @@ var _ = Describe("IPPool controller", func() {
 	)
 
 	type TestCaseK8SIPACToM3IPP struct {
-		IPAddressClaim *capipamv1beta1.IPAddressClaim
+		IPAddressClaim *capipamv1.IPAddressClaim
 		ExpectRequest  bool
 	}
 
@@ -432,19 +432,19 @@ var _ = Describe("IPPool controller", func() {
 		},
 		Entry("No IPPool in Spec",
 			TestCaseK8SIPACToM3IPP{
-				IPAddressClaim: &capipamv1beta1.IPAddressClaim{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
 					ObjectMeta: testObjectMeta,
-					Spec:       capipamv1beta1.IPAddressClaimSpec{},
+					Spec:       capipamv1.IPAddressClaimSpec{},
 				},
 				ExpectRequest: false,
 			},
 		),
 		Entry("IPPool in Spec, with namespace",
 			TestCaseK8SIPACToM3IPP{
-				IPAddressClaim: &capipamv1beta1.IPAddressClaim{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
 					ObjectMeta: testObjectMeta,
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "abc",
 						},
 					},
@@ -454,10 +454,10 @@ var _ = Describe("IPPool controller", func() {
 		),
 		Entry("IPPool in Spec, no namespace",
 			TestCaseK8SIPACToM3IPP{
-				IPAddressClaim: &capipamv1beta1.IPAddressClaim{
+				IPAddressClaim: &capipamv1.IPAddressClaim{
 					ObjectMeta: testObjectMeta,
-					Spec: capipamv1beta1.IPAddressClaimSpec{
-						PoolRef: corev1.TypedLocalObjectReference{
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{
 							Name: "abc",
 						},
 					},
