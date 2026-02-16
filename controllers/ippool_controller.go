@@ -29,10 +29,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
-	capipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1"
-	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
+	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
+	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,7 +103,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ c
 		}
 	}()
 
-	cluster := &clusterv1beta1.Cluster{}
+	cluster := &clusterv1.Cluster{}
 	if ipamv1IPPool.Spec.ClusterName != nil {
 		key := client.ObjectKey{
 			Name:      *ipamv1IPPool.Spec.ClusterName,
@@ -209,7 +208,7 @@ func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context
 		For(&ipamv1.IPPool{}).
 		WithOptions(options).
 		Watches(
-			&capipamv1beta1.IPAddressClaim{},
+			&capipamv1.IPAddressClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPAddressClaimToIPPool),
 		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
@@ -240,7 +239,7 @@ func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object)
 }
 
 func (r *IPPoolReconciler) IPAddressClaimToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
-	if ipac, ok := obj.(*capipamv1beta1.IPAddressClaim); ok {
+	if ipac, ok := obj.(*capipamv1.IPAddressClaim); ok {
 		if ipac.Spec.PoolRef.Name != "" {
 			namespace := ipac.Namespace
 			return []ctrl.Request{
@@ -276,8 +275,8 @@ func checkReconcileError(err error, errMessage string) (ctrl.Result, error) {
 }
 
 // IsPaused returns true if the Cluster is paused or the object has the `paused` annotation.
-func IsPaused(cluster *clusterv1beta1.Cluster, o metav1.Object) bool {
-	if cluster.Spec.Paused {
+func IsPaused(cluster *clusterv1.Cluster, o metav1.Object) bool {
+	if cluster.Spec.Paused != nil && *cluster.Spec.Paused {
 		return true
 	}
 	return HasPaused(o)
@@ -285,7 +284,7 @@ func IsPaused(cluster *clusterv1beta1.Cluster, o metav1.Object) bool {
 
 // HasPaused returns true if the object has the `paused` annotation.
 func HasPaused(o metav1.Object) bool {
-	return hasAnnotation(o, clusterv1beta1.PausedAnnotation)
+	return hasAnnotation(o, clusterv1.PausedAnnotation)
 }
 
 // hasAnnotation returns true if the object has the specified annotation.
