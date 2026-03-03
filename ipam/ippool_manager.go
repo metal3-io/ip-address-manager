@@ -536,7 +536,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
-		conditions := []metav1.Condition{}
+		conditions := make([]metav1.Condition, 0, 1)
 		conditions = append(conditions, metav1.Condition{
 			Type:               capipamv1.IPAddressClaimReadyCondition,
 			Status:             metav1.ConditionFalse,
@@ -594,7 +594,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	}
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
-		conditions := []metav1.Condition{}
+		conditions := make([]metav1.Condition, 0, 1)
 		conditions = append(conditions, metav1.Condition{
 			Type:               capipamv1.IPAddressClaimReadyCondition,
 			Status:             metav1.ConditionFalse,
@@ -608,7 +608,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		conditions := []metav1.Condition{}
+		conditions := make([]metav1.Condition, 0, 1)
 		conditions = append(conditions, metav1.Condition{
 			Type:               capipamv1.IPAddressClaimReadyCondition,
 			Status:             metav1.ConditionFalse,
@@ -620,7 +620,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 		return "", 0, nil, errors.New("pre-allocated IP out of bond")
 	}
 	if !ipAllocated {
-		conditions := []metav1.Condition{}
+		conditions := make([]metav1.Condition, 0, 1)
 		conditions = append(conditions, metav1.Condition{
 			Type:               capipamv1.IPAddressClaimReadyCondition,
 			Status:             metav1.ConditionFalse,
@@ -632,7 +632,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 		return "", 0, nil, errors.New("exhausted IP pools")
 	}
 	if prefix < 0 || prefix > 128 {
-		conditions := []metav1.Condition{}
+		conditions := make([]metav1.Condition, 0, 1)
 		conditions = append(conditions, metav1.Condition{
 			Type:               capipamv1.IPAddressClaimReadyCondition,
 			Status:             metav1.ConditionFalse,
@@ -838,7 +838,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
-			conditions := []metav1.Condition{}
+			conditions := make([]metav1.Condition, 0, 1)
 			conditions = append(conditions, metav1.Condition{
 				Type:               capipamv1.IPAddressClaimReadyCondition,
 				Status:             metav1.ConditionFalse,
@@ -858,7 +858,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 		Name: addressName,
 	}
 
-	conditions := []metav1.Condition{}
+	conditions := make([]metav1.Condition, 0, 1)
 	conditions = append(conditions, metav1.Condition{
 		Type:               capipamv1.IPAddressClaimReadyCondition,
 		Status:             metav1.ConditionTrue,

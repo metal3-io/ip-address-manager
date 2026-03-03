@@ -141,7 +141,7 @@ func run() int {
 		log.Fatalf("Failed to get commit hash from latestTag %s: %v", latestTag, err)
 	}
 
-	cmd := exec.Command("git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec
+	cmd := exec.CommandContext(context.Background(), "git", "rev-list", lastTag+".."+commitHash, "--merges", "--pretty=format:%B") // #nosec G204:gosec
 
 	merges := map[string][]string{
 		features:      {},
