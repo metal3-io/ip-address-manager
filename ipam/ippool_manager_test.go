@@ -165,7 +165,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test getIndexes",
 		func(tc testGetIndexes) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.addresses)+len(tc.capiAddresses))
 			for _, address := range tc.addresses {
 				objects = append(objects, address)
 			}
@@ -673,7 +673,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test UpdateAddresses",
 		func(tc testCaseUpdateAddresses) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.ipAddresses)+len(tc.ipClaims)+len(tc.capiAddresses)+len(tc.ipAddressClaims))
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
@@ -1516,7 +1516,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test CreateAddresses",
 		func(tc testCaseCreateAddresses) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.ipAddresses))
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
@@ -1731,7 +1731,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiCreateAddresses",
 		func(tc testCaseCapiCreateAddresses) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.ipAddresses))
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
@@ -2861,7 +2861,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test DeleteAddresses",
 		func(tc testCaseDeleteAddresses) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.m3addresses))
 			for _, address := range tc.m3addresses {
 				objects = append(objects, address)
 			}
@@ -2976,7 +2976,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiDeleteAddresses",
 		func(tc testCaseCapiDeleteAddresses) {
-			objects := []client.Object{}
+			objects := make([]client.Object, 0, len(tc.capiAddresses))
 			for _, address := range tc.capiAddresses {
 				objects = append(objects, address)
 			}
