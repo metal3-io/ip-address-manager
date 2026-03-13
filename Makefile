@@ -113,17 +113,19 @@ unit-cover: $(SETUP_ENVTEST) ## Run unit tests with code coverage
 	go tool cover -func=$(COVER_PROFILE)
 
 FUZZ_TIME ?= 30s
-FUZZ_TARGET ?= .
 
 .PHONY: fuzz
 fuzz: ## Run fuzz tests with seed corpus (no fuzzing, regression test only)
-	cd test/fuzz && go test -v ./...
+	cd test/fuzz && go test -race -v ./...
 
 .PHONY: fuzz-run
-fuzz-run: ## Run fuzz tests with fuzzing enabled (use FUZZ_TIME=duration FUZZ_TARGET=FuzzName)
-	@echo "Running fuzz tests for $(FUZZ_TIME)..."
-	cd test/fuzz && go test -fuzz=$(FUZZ_TARGET) -fuzztime=$(FUZZ_TIME)
-
+fuzz-run: ## Run all fuzz tests sequentially with fuzzing enabled (use FUZZ_TIME=duration)
+	@echo "Discovering fuzz tests..."
+	@cd test/fuzz && go test -list='Fuzz.*' | grep '^Fuzz' | while read -r fuzz_test; do \
+		echo "Running $$fuzz_test for $(FUZZ_TIME)..."; \
+		go test  -fuzz=$$fuzz_test -fuzztime=$(FUZZ_TIME) || exit 1; \
+	done
+	@echo "All fuzz tests completed successfully!"
 
 ## --------------------------------------
 ## Build

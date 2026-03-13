@@ -17,6 +17,21 @@ func FuzzIPClaimToIPPool(f *testing.F) {
 	f.Add([]byte(`{"metadata":{"name":"claim2"},"spec":{"pool":{"name":"pool2","namespace":"ns1"}}}`))
 	f.Add([]byte(`{"spec":{"pool":{"name":"pool3"}}}`))
 	f.Add([]byte(`{}`))
+	// Additional seed corpus for edge cases
+	f.Add([]byte(`{"metadata":{"name":"ipv4-claim","namespace":"metal3-system"},"spec":{"pool":{"name":"ipv4-pool","namespace":"metal3-system"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim-with-dashes","namespace":"kube-system"},"spec":{"pool":{"name":"pool-with-dashes"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim","namespace":""},"spec":{"pool":{"name":"pool","namespace":""}}}`))
+	f.Add([]byte(`{"metadata":{"name":"cross-namespace-claim","namespace":"ns-a"},"spec":{"pool":{"name":"pool-b","namespace":"ns-b"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim-empty-pool"},"spec":{"pool":{"name":""}}}`))
+	f.Add([]byte(`{"metadata":{"name":"very-long-claim-name-with-many-characters","namespace":"very-long-namespace"},"spec":{"pool":{"name":"very-long-pool-name-with-many-characters"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim.with.dots","namespace":"ns.with.dots"},"spec":{"pool":{"name":"pool.with.dots"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim_underscores"},"spec":{"pool":{"name":"pool_underscores","namespace":"ns_underscores"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim-123","namespace":"test-ns-456"},"spec":{"pool":{"name":"pool-789"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"minimal-claim"},"spec":{"pool":{}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim-prod","namespace":"production"},"spec":{"pool":{"name":"ippool-prod","namespace":"production"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"claim-only-namespace","namespace":"default"},"spec":{"pool":{"namespace":"custom"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"special-chars-@#","namespace":"default"},"spec":{"pool":{"name":"pool-special"}}}`))
+	f.Add([]byte(`{"metadata":{"name":"a"},"spec":{"pool":{"name":"b"}}}`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		ipClaim := &ipamv1.IPClaim{}
