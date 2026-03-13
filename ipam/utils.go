@@ -19,7 +19,6 @@ package ipam
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -87,7 +86,6 @@ func createObject(ctx context.Context, cl client.Client, obj client.Object, opts
 	}
 	err = cl.Create(ctx, objCopy, opts...)
 	if apierrors.IsAlreadyExists(err) {
-		log.Printf("I am inside IsAlreadyExists")
 		return WithTransientError(errors.New("object already exists"), 0*time.Second)
 	}
 	return err
