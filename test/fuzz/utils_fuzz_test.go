@@ -16,6 +16,21 @@ func FuzzFilterAndContains(f *testing.F) {
 	f.Add([]byte(`{"list":[],"search":"test"}`))
 	f.Add([]byte(`{"list":["","test",""],"search":""}`))
 	f.Add([]byte(`{"list":["foo","bar","foo"],"search":"foo"}`))
+	// Additional seed corpus for edge cases
+	f.Add([]byte(`{"list":["192.168.1.1","10.0.0.1","172.16.0.1"],"search":"10.0.0.1"}`))
+	f.Add([]byte(`{"list":["pool-1","pool-2","pool-3"],"search":"pool-1"}`))
+	f.Add([]byte(`{"list":["test","Test","TEST"],"search":"test"}`))
+	f.Add([]byte(`{"list":["item-with-dashes","item_with_underscores","item.with.dots"],"search":"item-with-dashes"}`))
+	f.Add([]byte(`{"list":["special-chars-@#$","percent-%","ampersand-&"],"search":"special-chars-@#$"}`))
+	f.Add([]byte(`{"list":[" leading-space","trailing-space ","  both  "],"search":" leading-space"}`))
+	f.Add([]byte(`{"list":["very-long-string-that-exceeds-typical-length-limits-for-testing","short"],"search":"very-long-string-that-exceeds-typical-length-limits-for-testing"}`))
+	f.Add([]byte(`{"list":["single"],"search":"single"}`))
+	f.Add([]byte(`{"list":["single"],"search":"missing"}`))
+	f.Add([]byte(`{"list":["newline\nchar","tab\tchar","return\rchar"],"search":"newline\nchar"}`))
+	f.Add([]byte(`{"list":["a","a","a","a","a"],"search":"a"}`))
+	f.Add([]byte(`{"list":["ippool.cluster.x-k8s.io","metal3.io/v1alpha1"],"search":"metal3.io/v1alpha1"}`))
+	f.Add([]byte(`{"list":["claim-1","claim-2","claim-10","claim-20"],"search":"claim-10"}`))
+	f.Add([]byte(`{"list":["0","1","2","3","4","5","6","7","8","9"],"search":"5"}`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		type TestData struct {
@@ -59,6 +74,20 @@ func FuzzStringSliceOperations(f *testing.F) {
 	f.Add([]byte(`{"list1":["a","b"],"list2":["c","d"],"filter":"a"}`))
 	f.Add([]byte(`{"list1":[],"list2":[],"filter":"x"}`))
 	f.Add([]byte(`{"list1":["test"],"list2":["test"],"filter":"test"}`))
+	// Additional seed corpus for edge cases
+	f.Add([]byte(`{"list1":["192.168.1.1","192.168.1.2"],"list2":["192.168.1.3","192.168.1.4"],"filter":"192.168.1.1"}`))
+	f.Add([]byte(`{"list1":["claim-a","claim-b","claim-c"],"list2":["claim-d","claim-e"],"filter":"claim-a"}`))
+	f.Add([]byte(`{"list1":["","",""],"list2":["test"],"filter":""}`))
+	f.Add([]byte(`{"list1":["duplicate","duplicate","unique"],"list2":["duplicate"],"filter":"duplicate"}`))
+	f.Add([]byte(`{"list1":["very-long-item-name-with-many-characters"],"list2":["short"],"filter":"short"}`))
+	f.Add([]byte(`{"list1":["path/to/resource","cluster/node"],"list2":["group/api"],"filter":"path/to/resource"}`))
+	f.Add([]byte(`{"list1":["namespace/name","cluster/resource"],"list2":["group/version"],"filter":"namespace/name"}`))
+	f.Add([]byte(`{"list1":["item1","item2","item3","item4","item5"],"list2":["item6","item7","item8"],"filter":"item3"}`))
+	f.Add([]byte(`{"list1":["CamelCase","snake_case","kebab-case"],"list2":["PascalCase"],"filter":"snake_case"}`))
+	f.Add([]byte(`{"list1":["with\ttab","with\nline"],"list2":["with\rreturn"],"filter":"with\ttab"}`))
+	f.Add([]byte(`{"list1":["1","2","3"],"list2":["4","5","6"],"filter":"2"}`))
+	f.Add([]byte(`{"list1":["ippool-default","ippool-prod","ippool-dev"],"list2":["ippool-test"],"filter":"ippool-prod"}`))
+	f.Add([]byte(`{"list1":[" space "," space "],"list2":["no-space"],"filter":" space "}`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		type TestData struct {

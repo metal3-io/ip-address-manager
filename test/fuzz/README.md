@@ -10,42 +10,39 @@ The easiest way to run fuzz tests is using the Makefile targets:
 # Run fuzz tests as regression tests (using seed corpus only, fast)
 make fuzz
 
-# Run all fuzz tests with fuzzing enabled (default: 30 seconds)
+# Run all fuzz tests sequentially with fuzzing enabled (default: 30 seconds each)
 make fuzz-run
 
-# Run all fuzz tests for custom duration (e.g., 5 minutes)
+# Run all fuzz tests with custom duration (e.g., 5 minutes each)
 make fuzz-run FUZZ_TIME=5m
-
-# Run a specific fuzz test (default: 30 seconds)
-make fuzz-run FUZZ_TARGET=FuzzNewIPPoolManager
-
-# Run a specific fuzz test with custom duration
-make fuzz-run FUZZ_TARGET=FuzzIPClaimToIPPool FUZZ_TIME=2m
 ```
 
-### Available Fuzz Targets
+### Running Individual Fuzz Tests
 
-- `FuzzNewIPPoolManager` - Tests IPPool manager creation and finalizers
-- `FuzzIPClaimToIPPool` - Tests IPClaim to IPPool mapping
-- `FuzzFilterAndContains` - Tests string filtering utilities
-- `FuzzStringSliceOperations` - Tests string slice operations
-
-### Manual Execution
-
-You can also run fuzz tests directly with `go test`:
+To run a specific fuzz test directly:
 
 ```bash
-cd test/fuzz
-
-# Run all fuzz tests for 30 seconds each
-go test -fuzz=. -fuzztime=30s
-
 # Run a specific fuzz test
-go test -fuzz=FuzzNewIPPoolManager -fuzztime=1m
+cd test/fuzz && go test -fuzz=FuzzNewIPPoolManager -fuzztime=30s
 
-# Run for specific number of iterations
-go test -fuzz=FuzzFilterAndContains -fuzztime=10000x
+# Run a specific fuzz test with custom duration
+cd test/fuzz && go test -fuzz=FuzzIPClaimToIPPool -fuzztime=2m
+
 ```
+
+### Crash Corpus and Regression Testing
+
+When fuzzing discovers a crash, Go automatically saves the failing input to
+`testdata/fuzz/<FuzzTestName>/` in the test directory. These crash files should
+be committed to the repository:
+
+```bash
+git add test/fuzz/testdata/
+git commit -m "Add fuzz crash corpus"
+```
+
+Once committed, these crashes are automatically replayed as regression tests
+when running `make fuzz` (or `go test` without `-fuzz`).
 
 ## Resources
 
