@@ -66,7 +66,6 @@ type IPPoolReconciler struct {
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters/status,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile handles IPPool events.
 func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
@@ -175,7 +174,7 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 ) (ctrl.Result, error) {
 	allocationsNb, err := ipPoolMgr.UpdateAddresses(ctx)
 	if err != nil {
-		return checkReconcileError(err, "Failed to delete the old secrets")
+		return checkReconcileError(err, "Failed to delete the old addresses")
 	}
 
 	if allocationsNb == 0 {
