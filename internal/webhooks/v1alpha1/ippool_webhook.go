@@ -26,10 +26,8 @@ import (
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -44,8 +42,7 @@ func validateIP(s ipamv1.IPAddressStr) error {
 }
 
 func (webhook *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&ipamv1.IPPool{}).
+	return ctrl.NewWebhookManagedBy(mgr, &ipamv1.IPPool{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(webhook).
 		Complete()
@@ -57,54 +54,51 @@ func (webhook *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
 // IPPool implements a validation and defaulting webhook for IPPool.
 type IPPool struct{}
 
-var _ webhook.CustomDefaulter = &IPPool{}
-var _ webhook.CustomValidator = &IPPool{}
+var _ admission.Defaulter[*ipamv1.IPPool] = &IPPool{}
+var _ admission.Validator[*ipamv1.IPPool] = &IPPool{}
 
-func (webhook *IPPool) Default(_ context.Context, _ runtime.Object) error {
+func (webhook *IPPool) Default(_ context.Context, _ *ipamv1.IPPool) error {
 	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPPool) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m3ipp, ok := obj.(*ipamv1.IPPool)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPPool but got a %T", obj))
+func (webhook *IPPool) ValidateCreate(_ context.Context, ipPool *ipamv1.IPPool) (admission.Warnings, error) {
+	if ipPool == nil {
+		return nil, apierrors.NewBadRequest("expected a IPPool but got nil")
 	}
 
-	allErrs := webhook.validatePoolRanges(m3ipp)
+	allErrs := webhook.validatePoolRanges(ipPool)
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPPool").GroupKind(), m3ipp.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPPool").GroupKind(), ipPool.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPPool) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *ipamv1.IPPool) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldM3ipp, ok := oldObj.(*ipamv1.IPPool)
-	if !ok || oldM3ipp == nil {
+	if oldIPPool == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	newM3ipp, ok := newObj.(*ipamv1.IPPool)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPPool but got a %T", newObj))
+	if newIPPool == nil {
+		return nil, apierrors.NewBadRequest("expected a IPPool but got nil")
 	}
 
-	if !reflect.DeepEqual(newM3ipp.Spec.NamePrefix, oldM3ipp.Spec.NamePrefix) {
+	if !reflect.DeepEqual(newIPPool.Spec.NamePrefix, oldIPPool.Spec.NamePrefix) {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "NamePrefix"),
-				newM3ipp.Spec.NamePrefix,
+				newIPPool.Spec.NamePrefix,
 				"cannot be modified",
 			),
 		)
 	}
 
 	// Validate the new pool ranges
-	allErrs = append(allErrs, webhook.validatePoolRanges(newM3ipp)...)
+	allErrs = append(allErrs, webhook.validatePoolRanges(newIPPool)...)
 
-	allocationOutOfBonds, inUseOutOfBonds := webhook.checkPoolBonds(oldM3ipp, newM3ipp)
+	allocationOutOfBonds, inUseOutOfBonds := webhook.checkPoolBonds(oldIPPool, newIPPool)
 	if len(allocationOutOfBonds) != 0 {
 		for _, address := range allocationOutOfBonds {
 			allErrs = append(allErrs,
@@ -131,7 +125,7 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldObj, newObj runtime.
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("Metal3Data").GroupKind(), newM3ipp.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPPool").GroupKind(), newIPPool.Name, allErrs)
 }
 
 func (webhook *IPPool) checkPoolBonds(oldPool, newPool *ipamv1.IPPool) ([]ipamv1.IPAddressStr, []ipamv1.IPAddressStr) {
@@ -331,6 +325,6 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPPool) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (webhook *IPPool) ValidateDelete(_ context.Context, _ *ipamv1.IPPool) (admission.Warnings, error) {
 	return nil, nil
 }

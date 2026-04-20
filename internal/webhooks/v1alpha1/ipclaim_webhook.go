@@ -18,20 +18,16 @@ package webhooks
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (webhook *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&ipamv1.IPClaim{}).
+	return ctrl.NewWebhookManagedBy(mgr, &ipamv1.IPClaim{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(webhook).
 		Complete()
@@ -43,33 +39,32 @@ func (webhook *IPClaim) SetupWebhookWithManager(mgr ctrl.Manager) error {
 // IPClaim implements a validation and defaulting webhook for IPClaim.
 type IPClaim struct{}
 
-var _ webhook.CustomDefaulter = &IPClaim{}
-var _ webhook.CustomValidator = &IPClaim{}
+var _ admission.Defaulter[*ipamv1.IPClaim] = &IPClaim{}
+var _ admission.Validator[*ipamv1.IPClaim] = &IPClaim{}
 
-func (webhook *IPClaim) Default(_ context.Context, _ runtime.Object) error {
+func (webhook *IPClaim) Default(_ context.Context, _ *ipamv1.IPClaim) error {
 	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPClaim) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	c, ok := obj.(*ipamv1.IPClaim)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPClaim but got a %T", obj))
+func (webhook *IPClaim) ValidateCreate(_ context.Context, ipClaim *ipamv1.IPClaim) (admission.Warnings, error) {
+	if ipClaim == nil {
+		return nil, apierrors.NewBadRequest("expected a IPClaim but got nil")
 	}
 
 	allErrs := field.ErrorList{}
-	if c.Spec.Pool.Name == "" {
+	if ipClaim.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool", "name"),
-				c.Spec.Pool.Name,
+				ipClaim.Spec.Pool.Name,
 				"cannot be empty",
 			),
 		)
 	}
 
 	// Validate requested IP address if present in annotations
-	if requestedIP, ok := c.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
+	if requestedIP, ok := ipClaim.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
 		if err := validateIP(ipamv1.IPAddressStr(requestedIP)); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
@@ -84,20 +79,18 @@ func (webhook *IPClaim) ValidateCreate(_ context.Context, obj runtime.Object) (a
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPClaim").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPClaim").GroupKind(), ipClaim.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim *ipamv1.IPClaim) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldIPClaim, ok := oldObj.(*ipamv1.IPClaim)
-	if !ok || oldIPClaim == nil {
+	if oldIPClaim == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	newIPClaim, ok := newObj.(*ipamv1.IPClaim)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPClaim but got a %T", newObj))
+	if newIPClaim == nil {
+		return nil, apierrors.NewBadRequest("expected a IPClaim but got nil")
 	}
 
 	if newIPClaim.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
@@ -146,6 +139,6 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldObj, newObj runtime
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPClaim) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (webhook *IPClaim) ValidateDelete(_ context.Context, _ *ipamv1.IPClaim) (admission.Warnings, error) {
 	return nil, nil
 }

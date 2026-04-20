@@ -18,20 +18,16 @@ package webhooks
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (webhook *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&ipamv1.IPAddress{}).
+	return ctrl.NewWebhookManagedBy(mgr, &ipamv1.IPAddress{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
 		WithValidator(webhook).
 		Complete()
@@ -43,61 +39,60 @@ func (webhook *IPAddress) SetupWebhookWithManager(mgr ctrl.Manager) error {
 // IPAddress implements a validation and defaulting webhook for IPAddress.
 type IPAddress struct{}
 
-var _ webhook.CustomDefaulter = &IPAddress{}
-var _ webhook.CustomValidator = &IPAddress{}
+var _ admission.Defaulter[*ipamv1.IPAddress] = &IPAddress{}
+var _ admission.Validator[*ipamv1.IPAddress] = &IPAddress{}
 
-func (webhook *IPAddress) Default(_ context.Context, _ runtime.Object) error {
+func (webhook *IPAddress) Default(_ context.Context, _ *ipamv1.IPAddress) error {
 	return nil
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPAddress) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	c, ok := obj.(*ipamv1.IPAddress)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPAddress but got a %T", obj))
+func (webhook *IPAddress) ValidateCreate(_ context.Context, ipAddress *ipamv1.IPAddress) (admission.Warnings, error) {
+	if ipAddress == nil {
+		return nil, apierrors.NewBadRequest("expected a IPAddress but got nil")
 	}
 
 	allErrs := field.ErrorList{}
-	if c.Spec.Pool.Name == "" {
+	if ipAddress.Spec.Pool.Name == "" {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "pool", "name"),
-				c.Spec.Pool.Name,
+				ipAddress.Spec.Pool.Name,
 				"cannot be empty",
 			),
 		)
 	}
 
-	if c.Spec.Claim.Name == "" {
+	if ipAddress.Spec.Claim.Name == "" {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "claim", "name"),
-				c.Spec.Claim.Name,
+				ipAddress.Spec.Claim.Name,
 				"cannot be empty",
 			),
 		)
 	}
 
-	if c.Spec.Address == "" {
+	if ipAddress.Spec.Address == "" {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "address"),
-				c.Spec.Address,
+				ipAddress.Spec.Address,
 				"cannot be empty",
 			),
 		)
-	} else if validateIP(c.Spec.Address) != nil {
+	} else if validateIP(ipAddress.Spec.Address) != nil {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "address"),
-				c.Spec.Address,
+				ipAddress.Spec.Address,
 				"is not a valid IP address",
 			),
 		)
 	}
 
 	// Validate requested IP address if present in annotations (for CAPI claims)
-	if requestedIP, ok := c.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
+	if requestedIP, ok := ipAddress.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
 		if validateIP(ipamv1.IPAddressStr(requestedIP)) != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
@@ -111,20 +106,18 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, obj runtime.Object) 
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
-	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), c.Name, allErrs)
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), ipAddress.Name, allErrs)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPAddress *ipamv1.IPAddress) (admission.Warnings, error) {
 	allErrs := field.ErrorList{}
-	oldIPAddress, ok := oldObj.(*ipamv1.IPAddress)
-	if !ok || oldIPAddress == nil {
+	if oldIPAddress == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
 
-	newIPAddress, ok := newObj.(*ipamv1.IPAddress)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a IPAddress but got a %T", newObj))
+	if newIPAddress == nil {
+		return nil, apierrors.NewBadRequest("expected a IPAddress but got nil")
 	}
 
 	if newIPAddress.Spec.Address != oldIPAddress.Spec.Address {
@@ -196,6 +189,6 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldObj, newObj runti
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
-func (webhook *IPAddress) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (webhook *IPAddress) ValidateDelete(_ context.Context, _ *ipamv1.IPAddress) (admission.Warnings, error) {
 	return nil, nil
 }
