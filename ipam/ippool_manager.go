@@ -680,24 +680,24 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
-	ownerRefs := addressClaim.OwnerReferences
-	ownerRefs = append(ownerRefs,
-		metav1.OwnerReference{
+	// Construct ownerRefs for the IPClaim and the IPPool.
+	ownerRefs := []metav1.OwnerReference{
+		{
 			APIVersion: m.IPPool.APIVersion,
 			Kind:       m.IPPool.Kind,
 			Name:       m.IPPool.Name,
 			UID:        m.IPPool.UID,
 		},
-		metav1.OwnerReference{
+		{
 			APIVersion: addressClaim.APIVersion,
 			Kind:       addressClaim.Kind,
 			Name:       addressClaim.Name,
 			UID:        addressClaim.UID,
 		},
-	)
+	}
 
-	// Create the IPAddress object, with an Owner ref to the IPClaim,
-	// the IPPool, and the IPClaims owners. Also add a finalizer.
+	// Create the IPAddress object, with an Owner ref to the IPClaim and
+	// the IPPool. Also add a finalizer.
 	addressObject := &ipamv1.IPAddress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IPAddress",
@@ -787,24 +787,24 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
-	ownerRefs := addressClaim.OwnerReferences
-	ownerRefs = append(ownerRefs,
-		metav1.OwnerReference{
+	// Construct ownerRefs for the IPAddressClaim and the IPPool.
+	ownerRefs := []metav1.OwnerReference{
+		{
 			APIVersion: m.IPPool.APIVersion,
 			Kind:       m.IPPool.Kind,
 			Name:       m.IPPool.Name,
 			UID:        m.IPPool.UID,
 		},
-		metav1.OwnerReference{
+		{
 			APIVersion: addressClaim.APIVersion,
 			Kind:       addressClaim.Kind,
 			Name:       addressClaim.Name,
 			UID:        addressClaim.UID,
 		},
-	)
+	}
 
-	// Create the IPAddress object, with an Owner ref to the IPAddressClaim,
-	// the IPPool, and the IPAddressClaim owners. Also add a finalizer.
+	// Create the IPAddress object, with an Owner ref to the IPAddressClaim and
+	// the IPPool. Also add a finalizer.
 	addressObject := &capipamv1.IPAddress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IPAddress",
