@@ -81,7 +81,7 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, ipAddress *ipamv1.IP
 				"cannot be empty",
 			),
 		)
-	} else if validateIP(ipAddress.Spec.Address) != nil {
+	} else if ipamv1.ValidateIPAddress(ipAddress.Spec.Address) != nil {
 		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec", "address"),
@@ -93,7 +93,7 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, ipAddress *ipamv1.IP
 
 	// Validate requested IP address if present in annotations (for CAPI claims)
 	if requestedIP, ok := ipAddress.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
-		if validateIP(ipamv1.IPAddressStr(requestedIP)) != nil {
+		if ipamv1.ValidateIPAddress(ipamv1.IPAddressStr(requestedIP)) != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("metadata", "annotations", "ipAddress"),

@@ -31,16 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-func validateIP(s ipamv1.IPAddressStr) error {
-	if s == "" {
-		return nil
-	}
-	if net.ParseIP(string(s)) == nil {
-		return fmt.Errorf("invalid IP address: %q", s)
-	}
-	return nil
-}
-
 func (webhook *IPPool) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr, &ipamv1.IPPool{}).
 		WithDefaulter(webhook, admission.DefaulterRemoveUnknownOrOmitableFields).
@@ -57,7 +47,10 @@ type IPPool struct{}
 var _ admission.Defaulter[*ipamv1.IPPool] = &IPPool{}
 var _ admission.Validator[*ipamv1.IPPool] = &IPPool{}
 
-func (webhook *IPPool) Default(_ context.Context, _ *ipamv1.IPPool) error {
+func (webhook *IPPool) Default(_ context.Context, ipPool *ipamv1.IPPool) error {
+	if ipPool.Spec.AllocationStrategy == "" {
+		ipPool.Spec.AllocationStrategy = ipamv1.AllocationStrategySequential
+	}
 	return nil
 }
 
@@ -91,6 +84,27 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 				field.NewPath("spec", "NamePrefix"),
 				newIPPool.Spec.NamePrefix,
 				"cannot be modified",
+			),
+		)
+	}
+
+	// Treat an empty strategy as the default (sequential) so legacy objects
+	// stored before this field existed cannot be silently switched, and so
+	// the comparison is symmetric on both sides.
+	oldStrategy := oldIPPool.Spec.AllocationStrategy
+	if oldStrategy == "" {
+		oldStrategy = ipamv1.AllocationStrategySequential
+	}
+	newStrategy := newIPPool.Spec.AllocationStrategy
+	if newStrategy == "" {
+		newStrategy = ipamv1.AllocationStrategySequential
+	}
+	if newStrategy != oldStrategy {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "allocationStrategy"),
+				newIPPool.Spec.AllocationStrategy,
+				"cannot be modified after creation",
 			),
 		)
 	}
@@ -194,13 +208,14 @@ func (webhook *IPPool) isAddressInBonds(newPool *ipamv1.IPPool, address ipamv1.I
 	return false
 }
 
-// validatePoolRanges validates that start <= end for each pool and validates all IP addresses.
+// validatePoolRanges validates that start <= end for each pool and validates
+// the IP address fields defined in the IPPool spec.
 func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate gateway IP if present
+	// Validate spec-level gateway IP
 	if pool.Spec.Gateway != nil {
-		if err := validateIP(*pool.Spec.Gateway); err != nil {
+		if err := ipamv1.ValidateIPAddress(*pool.Spec.Gateway); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "gateway"),
@@ -211,9 +226,9 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 		}
 	}
 
-	// Validate DNS server IPs
+	// Validate spec-level DNS server IPs
 	for i, dnsServer := range pool.Spec.DNSServers {
-		if err := validateIP(dnsServer); err != nil {
+		if err := ipamv1.ValidateIPAddress(dnsServer); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "dnsServers").Index(i),
@@ -226,7 +241,7 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 
 	// Validate preAllocations IPs
 	for name, ipAddr := range pool.Spec.PreAllocations {
-		if err := validateIP(ipAddr); err != nil {
+		if err := ipamv1.ValidateIPAddress(ipAddr); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "preAllocations", name),
@@ -237,86 +252,41 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 		}
 	}
 
-	for i, pool := range pool.Spec.Pools {
-		// Validate Start IP
-		if pool.Start != nil {
-			if err := validateIP(*pool.Start); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("start"),
-						*pool.Start,
-						"is not a valid IP address",
-					),
-				)
+	// Validate each pool entry with per-field error paths
+	for i, p := range pool.Spec.Pools {
+		poolPath := field.NewPath("spec", "pools").Index(i)
+
+		if p.Start != nil {
+			if err := ipamv1.ValidateIPAddress(*p.Start); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("start"), *p.Start, "is not a valid IP address"))
 			}
 		}
-
-		// Validate End IP
-		if pool.End != nil {
-			if err := validateIP(*pool.End); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("end"),
-						*pool.End,
-						"is not a valid IP address",
-					),
-				)
+		if p.End != nil {
+			if err := ipamv1.ValidateIPAddress(*p.End); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("end"), *p.End, "is not a valid IP address"))
 			}
 		}
-
-		// Validate Subnet CIDR
-		if pool.Subnet != nil {
-			if _, _, err := net.ParseCIDR(string(*pool.Subnet)); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("subnet"),
-						*pool.Subnet,
-						"is not a valid CIDR",
-					),
-				)
+		if p.Subnet != nil {
+			if _, _, err := net.ParseCIDR(string(*p.Subnet)); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("subnet"), *p.Subnet, "is not a valid CIDR"))
 			}
 		}
-
-		// Validate pool-specific gateway IP
-		if pool.Gateway != nil {
-			if err := validateIP(*pool.Gateway); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("gateway"),
-						*pool.Gateway,
-						"is not a valid IP address",
-					),
-				)
+		if p.Gateway != nil {
+			if err := ipamv1.ValidateIPAddress(*p.Gateway); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("gateway"), *p.Gateway, "is not a valid IP address"))
 			}
 		}
-
-		// Validate pool-specific DNS server IPs
-		for j, dnsServer := range pool.DNSServers {
-			if err := validateIP(dnsServer); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("dnsServers").Index(j),
-						dnsServer,
-						"is not a valid IP address",
-					),
-				)
+		for j, dnsServer := range p.DNSServers {
+			if err := ipamv1.ValidateIPAddress(dnsServer); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("dnsServers").Index(j), dnsServer, "is not a valid IP address"))
 			}
 		}
-		// Validate start <= end if both are present and valid
-		if pool.Start != nil && pool.End != nil {
-			startIP := net.ParseIP(string(*pool.Start))
-			endIP := net.ParseIP(string(*pool.End))
-
-			// Only compare if both IPs parsed successfully
+		if p.Start != nil && p.End != nil {
+			startIP := net.ParseIP(string(*p.Start))
+			endIP := net.ParseIP(string(*p.End))
 			if startIP != nil && endIP != nil {
 				if bytes.Compare(startIP, endIP) > 0 {
-					allErrs = append(allErrs,
-						field.Invalid(
-							field.NewPath("spec", "pools").Index(i),
-							fmt.Sprintf("start: %s, end: %s", *pool.Start, *pool.End),
-							"start address must be less than or equal to end address",
-						),
-					)
+					allErrs = append(allErrs, field.Invalid(poolPath, fmt.Sprintf("start: %s, end: %s", *p.Start, *p.End), "start address must be less than or equal to end address"))
 				}
 			}
 		}

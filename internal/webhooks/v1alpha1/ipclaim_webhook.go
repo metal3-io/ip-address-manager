@@ -65,7 +65,7 @@ func (webhook *IPClaim) ValidateCreate(_ context.Context, ipClaim *ipamv1.IPClai
 
 	// Validate requested IP address if present in annotations
 	if requestedIP, ok := ipClaim.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
-		if err := validateIP(ipamv1.IPAddressStr(requestedIP)); err != nil {
+		if err := ipamv1.ValidateIPAddress(ipamv1.IPAddressStr(requestedIP)); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("metadata", "annotations", "ipAddress"),
@@ -121,7 +121,7 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim
 
 	// Validate requested IP address if present in annotations
 	if requestedIP, ok := newIPClaim.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
-		if err := validateIP(ipamv1.IPAddressStr(requestedIP)); err != nil {
+		if err := ipamv1.ValidateIPAddress(ipamv1.IPAddressStr(requestedIP)); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("metadata", "annotations", "ipAddress"),
