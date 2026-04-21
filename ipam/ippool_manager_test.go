@@ -17,7 +17,9 @@ limitations under the License.
 package ipam
 
 import (
+	"bytes"
 	"context"
+	"net"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -705,7 +707,11 @@ var _ = Describe("IPPool manager", func() {
 			}
 			Expect(nbAllocations).To(Equal(tc.expectedNbAllocations))
 			Expect(tc.ipPool.Status.LastUpdated).ToNot(BeNil())
-			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
+			if tc.expectedAllocations != nil {
+				Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
+			} else {
+				Expect(tc.ipPool.Status.Allocations).To(HaveLen(tc.expectedNbAllocations))
+			}
 
 			// get list of IPAddress objects
 			addressObjects := ipamv1.IPClaimList{}
@@ -1499,6 +1505,131 @@ var _ = Describe("IPPool manager", func() {
 				"inUseClaim": ipamv1.IPAddressStr("192.168.1.11"),
 			},
 			expectedNbAllocations: 1,
+		}),
+		Entry("Random strategy: new IPClaim gets IP within pool range", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix:         "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
+		Entry("Random strategy: new CAPI IPAddressClaim gets IP within pool range", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix:         "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabc",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
+		Entry("Random strategy: multiple claims get unique IPs", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix:         "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "claim1",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "claim2",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "caclaim1",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+				},
+			},
+			expectedNbAllocations: 3,
 		}),
 	)
 
@@ -3078,5 +3209,318 @@ var _ = Describe("IPPool manager", func() {
 			},
 		}),
 	)
+
+	// Helper to check if an IP is within a range.
+	// Uses lexicographic byte comparison so ranges that cross octet
+	// boundaries (e.g., 192.168.0.10 - 192.168.2.20) are handled correctly.
+	isIPInRange := func(ipStr ipamv1.IPAddressStr, startStr, endStr string) bool {
+		ip := net.ParseIP(string(ipStr))
+		start := net.ParseIP(startStr)
+		end := net.ParseIP(endStr)
+		if ip == nil || start == nil || end == nil {
+			return false
+		}
+		ip = ip.To16()
+		start = start.To16()
+		end = end.To16()
+		return bytes.Compare(ip, start) >= 0 && bytes.Compare(ip, end) <= 0
+	}
+
+	Context("isIPInRange helper", func() {
+		It("should handle ranges that cross byte boundaries", func() {
+			// 192.168.1.5 is inside [192.168.0.10, 192.168.2.20] but a naive
+			// per-byte comparison would reject it because byte 3 (5) is less
+			// than the start byte 3 (10).
+			Expect(isIPInRange("192.168.1.5", "192.168.0.10", "192.168.2.20")).To(BeTrue(),
+				"192.168.1.5 should be within 192.168.0.10-192.168.2.20")
+		})
+		It("should include the boundary IPs", func() {
+			Expect(isIPInRange("192.168.0.10", "192.168.0.10", "192.168.0.20")).To(BeTrue())
+			Expect(isIPInRange("192.168.0.20", "192.168.0.10", "192.168.0.20")).To(BeTrue())
+		})
+		It("should reject IPs outside the range", func() {
+			Expect(isIPInRange("192.168.0.9", "192.168.0.10", "192.168.0.20")).To(BeFalse())
+			Expect(isIPInRange("192.168.0.21", "192.168.0.10", "192.168.0.20")).To(BeFalse())
+		})
+	})
+
+	Context("Random allocation strategy", func() {
+		It("should allocate an IP within pool range", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, prefix, gateway, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(isIPInRange(allocatedAddress, "192.168.0.10", "192.168.0.20")).To(BeTrue(),
+				"allocated IP %s should be in range 192.168.0.10-192.168.0.20", allocatedAddress)
+			Expect(prefix).To(Equal(24))
+			Expect(*gateway).To(Equal(ipamv1.IPAddressStr("192.168.0.1")))
+		})
+
+		It("should allocate the last remaining IP in a nearly full pool", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.14")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			// All IPs except .12 are taken
+			addresses := map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.10"): "a",
+				ipamv1.IPAddressStr("192.168.0.11"): "b",
+				ipamv1.IPAddressStr("192.168.0.13"): "d",
+				ipamv1.IPAddressStr("192.168.0.14"): "e",
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.12")))
+		})
+
+		It("should return error when pool is exhausted", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.12")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.10"): "a",
+				ipamv1.IPAddressStr("192.168.0.11"): "b",
+				ipamv1.IPAddressStr("192.168.0.12"): "c",
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, _, _, err = ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should respect PreAllocations even with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.15")))
+		})
+
+		It("should respect requestedIP annotation even with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.16")))
+		})
+
+		It("should not allocate duplicate IPs with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+
+			addresses := map[ipamv1.IPAddressStr]string{}
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			// Allocate all 11 IPs and verify no duplicates
+			for i := range 11 {
+				ipClaim := &ipamv1.IPClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "TestRef-" + string(rune('a'+i)),
+					},
+				}
+				allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(addresses).NotTo(HaveKey(allocatedAddress), "duplicate IP allocated: %s", allocatedAddress)
+				addresses[allocatedAddress] = ipClaim.Name
+			}
+			Expect(addresses).To(HaveLen(11))
+		})
+
+		It("should produce non-sequential allocation order", func() {
+			// Run multiple independent allocation rounds and check that
+			// at least one produces a different first IP than sequential (.10).
+			// With 100 IPs and true randomness, the probability of always
+			// picking .10 in 20 rounds is (1/100)^20 ≈ 0, so this is reliable.
+			gotNonSequential := false
+			for range 20 {
+				ipPool := &ipamv1.IPPool{
+					Spec: ipamv1.IPPoolSpec{
+						Pools: []ipamv1.Pool{
+							{
+								Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+								End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.100")),
+							},
+						},
+						AllocationStrategy: ipamv1.AllocationStrategyRandom,
+						Prefix:             24,
+						Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					},
+				}
+				ipClaim := &ipamv1.IPClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "TestRef",
+					},
+				}
+				addresses := map[ipamv1.IPAddressStr]string{}
+
+				ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+				Expect(err).NotTo(HaveOccurred())
+
+				allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isIPInRange(allocatedAddress, "192.168.0.1", "192.168.0.100")).To(BeTrue())
+
+				if allocatedAddress != ipamv1.IPAddressStr("192.168.0.1") {
+					gotNonSequential = true
+					break
+				}
+			}
+			Expect(gotNonSequential).To(BeTrue(),
+				"20 rounds all returned .1 — allocation is not random")
+		})
+
+		It("capi: should allocate an IP within pool range with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+				Spec: capipamv1.IPAddressClaimSpec{
+					PoolRef: capipamv1.IPPoolReference{
+						Name: "abc",
+					},
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, prefix, gateway, err := ipPoolMgr.capiAllocateAddress(ipAddressClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(isIPInRange(allocatedAddress, "192.168.0.10", "192.168.0.20")).To(BeTrue(),
+				"allocated IP %s should be in range 192.168.0.10-192.168.0.20", allocatedAddress)
+			Expect(prefix).To(Equal(int32(24)))
+			Expect(*gateway).To(Equal(ipamv1.IPAddressStr("192.168.0.1")))
+		})
+	})
 
 })

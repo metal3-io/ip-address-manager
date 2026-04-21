@@ -17,6 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"bytes"
+	"fmt"
+	"net"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,6 +28,17 @@ const (
 	// IPPoolFinalizer allows IPPoolReconciler to clean up resources
 	// associated with IPPool before removing it from the apiserver.
 	IPPoolFinalizer = "ippool.ipam.metal3.io"
+)
+
+// AllocationStrategy defines the strategy for IP address allocation from a pool.
+// +kubebuilder:validation:Enum=sequential;random
+type AllocationStrategy string
+
+const (
+	// AllocationStrategySequential allocates IPs sequentially from pools (default).
+	AllocationStrategySequential AllocationStrategy = "sequential"
+	// AllocationStrategyRandom allocates IPs randomly from available pool addresses.
+	AllocationStrategyRandom AllocationStrategy = "random"
 )
 
 // MetaDataIPAddress contains the info to render th ip address. It is IP-version
@@ -61,6 +76,13 @@ type IPPoolSpec struct {
 
 	// Pools contains the list of IP addresses pools
 	Pools []Pool `json:"pools,omitempty"`
+
+	// +kubebuilder:default=sequential
+	// +kubebuilder:validation:Enum=sequential;random
+	// AllocationStrategy defines how IP addresses are allocated from the pools.
+	// "sequential" (default) allocates the first available IP.
+	// "random" allocates a random available IP.
+	AllocationStrategy AllocationStrategy `json:"allocationStrategy,omitempty"`
 
 	// PreAllocations contains the preallocated IP addresses
 	PreAllocations map[string]IPAddressStr `json:"preAllocations,omitempty"`
@@ -117,4 +139,59 @@ type IPPoolList struct {
 
 func init() {
 	objectTypes = append(objectTypes, &IPPool{}, &IPPoolList{})
+}
+
+// ValidateIPAddress validates that the given string is a valid IP address.
+func ValidateIPAddress(s IPAddressStr) error {
+	if s == "" {
+		return nil
+	}
+	if net.ParseIP(string(s)) == nil {
+		return fmt.Errorf("invalid IP address: %q", s)
+	}
+	return nil
+}
+
+// ValidatePool validates a single Pool entry: IP format, CIDR format, and start <= end.
+func ValidatePool(pool Pool) []string {
+	var errs []string
+
+	if pool.Start != nil {
+		if err := ValidateIPAddress(*pool.Start); err != nil {
+			errs = append(errs, fmt.Sprintf("start: %v", err))
+		}
+	}
+	if pool.End != nil {
+		if err := ValidateIPAddress(*pool.End); err != nil {
+			errs = append(errs, fmt.Sprintf("end: %v", err))
+		}
+	}
+	if pool.Subnet != nil {
+		if _, _, err := net.ParseCIDR(string(*pool.Subnet)); err != nil {
+			errs = append(errs, fmt.Sprintf("subnet: %v", err))
+		}
+	}
+	if pool.Gateway != nil {
+		if err := ValidateIPAddress(*pool.Gateway); err != nil {
+			errs = append(errs, fmt.Sprintf("gateway: %v", err))
+		}
+	}
+	for _, dns := range pool.DNSServers {
+		if err := ValidateIPAddress(dns); err != nil {
+			errs = append(errs, fmt.Sprintf("dnsServers: %v", err))
+		}
+	}
+
+	// Validate start <= end
+	if pool.Start != nil && pool.End != nil {
+		startIP := net.ParseIP(string(*pool.Start))
+		endIP := net.ParseIP(string(*pool.End))
+		if startIP != nil && endIP != nil {
+			if bytes.Compare(startIP, endIP) > 0 {
+				errs = append(errs, fmt.Sprintf("start %s is greater than end %s", *pool.Start, *pool.End))
+			}
+		}
+	}
+
+	return errs
 }

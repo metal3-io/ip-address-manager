@@ -38,8 +38,25 @@ func TestIPPoolDefault(t *testing.T) {
 	}
 	g.Expect(webhook.Default(ctx, c)).To(Succeed())
 
-	g.Expect(c.Spec).To(Equal(ipamv1.IPPoolSpec{}))
+	g.Expect(c.Spec.AllocationStrategy).To(Equal(ipamv1.AllocationStrategySequential))
 	g.Expect(c.Status).To(Equal(ipamv1.IPPoolStatus{}))
+}
+
+func TestIPPoolDefaultPreservesExistingStrategy(t *testing.T) {
+	g := NewWithT(t)
+	webhook := &IPPool{}
+
+	c := &ipamv1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "foo",
+		},
+		Spec: ipamv1.IPPoolSpec{
+			AllocationStrategy: ipamv1.AllocationStrategyRandom,
+		},
+	}
+	g.Expect(webhook.Default(ctx, c)).To(Succeed())
+
+	g.Expect(c.Spec.AllocationStrategy).To(Equal(ipamv1.AllocationStrategyRandom))
 }
 
 func TestIPPoolValidation(t *testing.T) {
@@ -452,6 +469,26 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 				Allocations: map[string]ipamv1.IPAddressStr{
 					"inuse": ipamv1.IPAddressStr("192.168.0.3"),
 				},
+			},
+		},
+		{
+			name:      "should fail when allocationStrategy changes",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategySequential,
+			},
+		},
+		{
+			name:      "should succeed when allocationStrategy stays the same",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
 			},
 		},
 		{
