@@ -64,7 +64,7 @@ func (webhook *IPPool) Default(_ context.Context, _ *ipamv1.IPPool) error {
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (webhook *IPPool) ValidateCreate(_ context.Context, ipPool *ipamv1.IPPool) (admission.Warnings, error) {
 	if ipPool == nil {
-		return nil, apierrors.NewBadRequest("expected a IPPool but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPPool but got nil")
 	}
 
 	allErrs := webhook.validatePoolRanges(ipPool)
@@ -82,13 +82,13 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 	}
 
 	if newIPPool == nil {
-		return nil, apierrors.NewBadRequest("expected a IPPool but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPPool but got nil")
 	}
 
 	if !reflect.DeepEqual(newIPPool.Spec.NamePrefix, oldIPPool.Spec.NamePrefix) {
 		allErrs = append(allErrs,
 			field.Invalid(
-				field.NewPath("spec", "NamePrefix"),
+				field.NewPath("spec", "namePrefix"),
 				newIPPool.Spec.NamePrefix,
 				"cannot be modified",
 			),
