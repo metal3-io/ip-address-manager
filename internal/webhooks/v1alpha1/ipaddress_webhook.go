@@ -49,7 +49,7 @@ func (webhook *IPAddress) Default(_ context.Context, _ *ipamv1.IPAddress) error 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (webhook *IPAddress) ValidateCreate(_ context.Context, ipAddress *ipamv1.IPAddress) (admission.Warnings, error) {
 	if ipAddress == nil {
-		return nil, apierrors.NewBadRequest("expected a IPAddress but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPAddress but got nil")
 	}
 
 	allErrs := field.ErrorList{}
@@ -117,7 +117,7 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPA
 	}
 
 	if newIPAddress == nil {
-		return nil, apierrors.NewBadRequest("expected a IPAddress but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPAddress but got nil")
 	}
 
 	if newIPAddress.Spec.Address != oldIPAddress.Spec.Address {

@@ -49,7 +49,7 @@ func (webhook *IPClaim) Default(_ context.Context, _ *ipamv1.IPClaim) error {
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (webhook *IPClaim) ValidateCreate(_ context.Context, ipClaim *ipamv1.IPClaim) (admission.Warnings, error) {
 	if ipClaim == nil {
-		return nil, apierrors.NewBadRequest("expected a IPClaim but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPClaim but got nil")
 	}
 
 	allErrs := field.ErrorList{}
@@ -90,7 +90,7 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim
 	}
 
 	if newIPClaim == nil {
-		return nil, apierrors.NewBadRequest("expected a IPClaim but got nil")
+		return nil, apierrors.NewBadRequest("expected an IPClaim but got nil")
 	}
 
 	if newIPClaim.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
