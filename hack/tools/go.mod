@@ -11,8 +11,8 @@ require (
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/golang/mock v1.6.0
 	github.com/google/go-github v17.0.0+incompatible
+	go.uber.org/mock v0.6.0
 	golang.org/x/oauth2 v0.36.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.8.1
 )
