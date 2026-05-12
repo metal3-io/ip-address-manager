@@ -1,0 +1,24 @@
+name: E2E PR Test
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+    branches:
+    - 'main'
+    # TODO: Add release branches when we we have release branches with e2e test code in them.
+    #- 'release-*'
+    paths-ignore:
+    - '**/*.md'
+    - 'docs/**'
+    - '.gitignore'
+    - 'LICENSE'
+    - 'SECURITY_CONTACTS'
+    - 'DCO'
+    - 'OWNERS'
+    - 'OWNERS_ALIASES'
+
+permissions: {}
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e-test.yml

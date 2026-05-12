@@ -31,6 +31,7 @@ updates:
   - "/"
   - "/api"
   - "/hack/tools"
+  - "/test"
   schedule:
     interval: "weekly"
     day: "monday"
