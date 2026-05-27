@@ -47,39 +47,42 @@ deployment process.
 
 ## Deployment and examples
 
+### Prerequisites
+
+- A running Kubernetes cluster (e.g. kind)
+- Clusterctl latest version
+
 ### Deploy IPAM
 
-Deploys IPAM CRDs and deploys IPAM controllers
+Deploys IPAM CRDs, RBAC, webhooks, and the controller:
 
 ```sh
-    make deploy
-```
-
-### Run locally
-
-Runs IPAM controller locally
-
-```sh
-    kubectl scale -n metal3-ipam-system \
-      deployment.v1.apps/metal3-ipam-controller-manager --replicas 0
-    make run
+# Run locally with clusterctl
+clusterctl init --ipam metal3
 ```
 
 ### Deploy an example pool
 
 ```sh
-    make deploy-examples
+make deploy-examples
+```
+
+### Check deployment was successful
+
+```sh
+kubectl get ippool -n metal3-ipam-system
+kubectl get ipaddress.ipam.metal3.io -n metal3-ipam-system
 ```
 
 ### Delete the example pool
 
 ```sh
-    make delete-examples
+make delete-examples
 ```
 
-#### Note
+## Known Limitations
 
-There is a known limitation when `kubectl apply` and `kubectl delete` for an
+When `kubectl apply` and `kubectl delete` for an
 `IPClaim` are executed in rapid succession (within the same second). In such
 cases, the `IPClaim` may be deleted, but the associated `IPAddress` might not
 be removed as expected, potentially leading to resource inconsistencies. This
