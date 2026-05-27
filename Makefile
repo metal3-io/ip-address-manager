@@ -47,8 +47,6 @@ KUBEBUILDER := $(TOOLS_BIN_DIR)/kubebuilder
 KUSTOMIZE := $(TOOLS_BIN_DIR)/kustomize
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN))
-SETUP_ENVTEST_VER := release-0.19
-SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 # Define Docker related variables. Releases should modify and double check these vars.
 # REGISTRY ?= gcr.io/$(shell gcloud config get-value project)
@@ -83,7 +81,7 @@ help:  ## Display this help
 ## Testing
 ## --------------------------------------
 
-export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.35.0
+export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.36.0
 KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
 
 .PHONY: setup-envtest
@@ -166,7 +164,7 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); ./install_kustomize.sh
 
 $(SETUP_ENVTEST):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install $(SETUP_ENVTEST_PKG)@$(SETUP_ENVTEST_VER)
+	cd $(TOOLS_DIR); ./install_setup_envtest.sh
 
 ## --------------------------------------
 ## Linting
@@ -293,19 +291,11 @@ deploy: generate-examples
 	kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment cert-manager-webhook
 	kubectl apply -f examples/_out/provider-components.yaml
 
-.PHONY: kind-create
-kind-create: ## create ipam kind cluster if needed
-	./hack/kind_with_registry.sh
-
 deploy-examples:
 	kubectl apply -f ./examples/_out/ippool.yaml
 
 delete-examples:
 	kubectl delete -f ./examples/_out/ippool.yaml || true
-
-.PHONY: kind-reset
-kind-reset: ## Destroys the "ipam" kind cluster.
-	kind delete cluster --name=ipam || true
 
 ## --------------------------------------
 ## Release
