@@ -16,7 +16,6 @@ limitations under the License.
 package webhooks
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -31,7 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-func validateIP(s ipamv1.IPAddressStr) error {
+// validateIPAddress validates that the given string is a valid IP address.
+func validateIPAddress(s ipamv1.IPAddressStr) error {
 	if s == "" {
 		return nil
 	}
@@ -57,7 +57,10 @@ type IPPool struct{}
 var _ admission.Defaulter[*ipamv1.IPPool] = &IPPool{}
 var _ admission.Validator[*ipamv1.IPPool] = &IPPool{}
 
-func (webhook *IPPool) Default(_ context.Context, _ *ipamv1.IPPool) error {
+func (webhook *IPPool) Default(_ context.Context, ipPool *ipamv1.IPPool) error {
+	if ipPool.Spec.AllocationStrategy == "" {
+		ipPool.Spec.AllocationStrategy = ipamv1.AllocationStrategySequential
+	}
 	return nil
 }
 
@@ -91,6 +94,27 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 				field.NewPath("spec", "NamePrefix"),
 				newIPPool.Spec.NamePrefix,
 				"cannot be modified",
+			),
+		)
+	}
+
+	// Treat an empty strategy as the default (sequential) so legacy objects
+	// stored before this field existed cannot be silently switched, and so
+	// the comparison is symmetric on both sides.
+	oldStrategy := oldIPPool.Spec.AllocationStrategy
+	if oldStrategy == "" {
+		oldStrategy = ipamv1.AllocationStrategySequential
+	}
+	newStrategy := newIPPool.Spec.AllocationStrategy
+	if newStrategy == "" {
+		newStrategy = ipamv1.AllocationStrategySequential
+	}
+	if newStrategy != oldStrategy {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "allocationStrategy"),
+				newIPPool.Spec.AllocationStrategy,
+				"cannot be modified after creation",
 			),
 		)
 	}
@@ -194,13 +218,14 @@ func (webhook *IPPool) isAddressInBonds(newPool *ipamv1.IPPool, address ipamv1.I
 	return false
 }
 
-// validatePoolRanges validates that start <= end for each pool and validates all IP addresses.
+// validatePoolRanges validates that start <= end for each pool and validates
+// the IP address fields defined in the IPPool spec.
 func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate gateway IP if present
+	// Validate spec-level gateway IP
 	if pool.Spec.Gateway != nil {
-		if err := validateIP(*pool.Spec.Gateway); err != nil {
+		if err := validateIPAddress(*pool.Spec.Gateway); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "gateway"),
@@ -211,9 +236,9 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 		}
 	}
 
-	// Validate DNS server IPs
+	// Validate spec-level DNS server IPs
 	for i, dnsServer := range pool.Spec.DNSServers {
-		if err := validateIP(dnsServer); err != nil {
+		if err := validateIPAddress(dnsServer); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "dnsServers").Index(i),
@@ -226,7 +251,7 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 
 	// Validate preAllocations IPs
 	for name, ipAddr := range pool.Spec.PreAllocations {
-		if err := validateIP(ipAddr); err != nil {
+		if err := validateIPAddress(ipAddr); err != nil {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "preAllocations", name),
@@ -237,87 +262,39 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 		}
 	}
 
-	for i, pool := range pool.Spec.Pools {
-		// Validate Start IP
-		if pool.Start != nil {
-			if err := validateIP(*pool.Start); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("start"),
-						*pool.Start,
-						"is not a valid IP address",
-					),
-				)
+	// Validate each pool entry
+	randomStrategy := pool.Spec.AllocationStrategy == ipamv1.AllocationStrategyRandom
+	for i, p := range pool.Spec.Pools {
+		poolPath := field.NewPath("spec", "pools").Index(i)
+		errCountBefore := len(allErrs)
+
+		// Address-range fields (Start/End/Subnet format and start <= end) are
+		// validated by the shared api helper, so the logic is not duplicated
+		// between the webhook and GetPoolSize.
+		if err := ipamv1.ValidatePool(p); err != nil {
+			allErrs = append(allErrs, field.Invalid(poolPath, "", err.Error()))
+		}
+		if p.Gateway != nil {
+			if err := validateIPAddress(*p.Gateway); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("gateway"), *p.Gateway, "is not a valid IP address"))
+			}
+		}
+		for j, dnsServer := range p.DNSServers {
+			if err := validateIPAddress(dnsServer); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath.Child("dnsServers").Index(j), dnsServer, "is not a valid IP address"))
 			}
 		}
 
-		// Validate End IP
-		if pool.End != nil {
-			if err := validateIP(*pool.End); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("end"),
-						*pool.End,
-						"is not a valid IP address",
-					),
-				)
-			}
-		}
-
-		// Validate Subnet CIDR
-		if pool.Subnet != nil {
-			if _, _, err := net.ParseCIDR(string(*pool.Subnet)); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("subnet"),
-						*pool.Subnet,
-						"is not a valid CIDR",
-					),
-				)
-			}
-		}
-
-		// Validate pool-specific gateway IP
-		if pool.Gateway != nil {
-			if err := validateIP(*pool.Gateway); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("gateway"),
-						*pool.Gateway,
-						"is not a valid IP address",
-					),
-				)
-			}
-		}
-
-		// Validate pool-specific DNS server IPs
-		for j, dnsServer := range pool.DNSServers {
-			if err := validateIP(dnsServer); err != nil {
-				allErrs = append(allErrs,
-					field.Invalid(
-						field.NewPath("spec", "pools").Index(i).Child("dnsServers").Index(j),
-						dnsServer,
-						"is not a valid IP address",
-					),
-				)
-			}
-		}
-		// Validate start <= end if both are present and valid
-		if pool.Start != nil && pool.End != nil {
-			startIP := net.ParseIP(string(*pool.Start))
-			endIP := net.ParseIP(string(*pool.End))
-
-			// Only compare if both IPs parsed successfully
-			if startIP != nil && endIP != nil {
-				if bytes.Compare(startIP, endIP) > 0 {
-					allErrs = append(allErrs,
-						field.Invalid(
-							field.NewPath("spec", "pools").Index(i),
-							fmt.Sprintf("start: %s, end: %s", *pool.Start, *pool.End),
-							"start address must be less than or equal to end address",
-						),
-					)
-				}
+		// The random allocation strategy needs a bounded, index-addressable pool
+		// so it can pick a random offset within the pool size. Pools that are
+		// unbounded (Start without End/Subnet) or too large to index (e.g. large
+		// IPv6 subnets) work with the sequential strategy but would otherwise fail
+		// silently at allocation time as "Exhausted IP Pools". Reject them here so
+		// the failure is explicit at apply time. Skip pools that already have field
+		// errors to avoid duplicate, redundant errors.
+		if randomStrategy && errCountBefore == len(allErrs) {
+			if _, err := ipamv1.GetPoolSize(p); err != nil {
+				allErrs = append(allErrs, field.Invalid(poolPath, "", fmt.Sprintf("cannot be used with allocationStrategy %q: %v", ipamv1.AllocationStrategyRandom, err)))
 			}
 		}
 	}

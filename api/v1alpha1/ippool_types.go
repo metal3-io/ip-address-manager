@@ -26,6 +26,16 @@ const (
 	IPPoolFinalizer = "ippool.ipam.metal3.io"
 )
 
+// AllocationStrategy defines the strategy for IP address allocation from a pool.
+type AllocationStrategy string
+
+const (
+	// AllocationStrategySequential allocates IPs sequentially from pools (default).
+	AllocationStrategySequential AllocationStrategy = "sequential"
+	// AllocationStrategyRandom allocates IPs randomly from available pool addresses.
+	AllocationStrategyRandom AllocationStrategy = "random"
+)
+
 // MetaDataIPAddress contains the info to render th ip address. It is IP-version
 // agnostic.
 type Pool struct {
@@ -61,6 +71,16 @@ type IPPoolSpec struct {
 
 	// Pools contains the list of IP addresses pools
 	Pools []Pool `json:"pools,omitempty"`
+
+	// +kubebuilder:default=sequential
+	// +kubebuilder:validation:Enum=sequential;random
+	// AllocationStrategy defines how IP addresses are allocated from the pools.
+	// "sequential" (default) allocates the first available IP.
+	// "random" allocates a random available IP.
+	// In both strategies, multiple pools are consumed in declaration order: a
+	// pool is fully exhausted before the next one is used, and the strategy only
+	// changes how an address is selected within a single pool.
+	AllocationStrategy AllocationStrategy `json:"allocationStrategy,omitempty"`
 
 	// PreAllocations contains the preallocated IP addresses
 	PreAllocations map[string]IPAddressStr `json:"preAllocations,omitempty"`
