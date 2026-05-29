@@ -38,3 +38,8 @@ out
 
 # ai stuff
 .claude
+
+# e2e test logs
+test/e2e/_artifacts
+junit.e2e_suite.*.xml
+artifacts-e2e-ipam.tar.gz

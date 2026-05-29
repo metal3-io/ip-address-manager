@@ -22,6 +22,7 @@ package tools
 
 import (
 	_ "github.com/jteeuwen/go-bindata/go-bindata"
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "go.uber.org/mock/mockgen"
 	_ "k8s.io/code-generator/cmd/conversion-gen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"

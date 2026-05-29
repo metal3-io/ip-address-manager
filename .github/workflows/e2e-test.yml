@@ -1,0 +1,56 @@
+name: E2E Test
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        default: "ubuntu-latest"
+      ginkgo-focus-labels:
+        type: string
+        default: ""
+        description: "Ginkgo label filter expression (e.g. 'basic', 'features'). Empty runs all tests."
+      ref:
+        type: string
+        default: ${{ github.ref }}
+      timeout-minutes:
+        type: number
+        default: 90
+
+permissions: {}
+
+jobs:
+  test:
+    name: E2E test
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        ref: ${{ inputs.ref }}
+        persist-credentials: false
+
+    - name: Calculate go version
+      id: vars
+      run: echo "go_version=$(make go-version)" >> $GITHUB_OUTPUT
+
+    - name: Set up Go
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      with:
+        go-version: ${{ steps.vars.outputs.go_version }}
+
+    - name: Run IPAM e2e Tests
+      env:
+        GINKGO_FOCUS_LABELS: "${{ inputs.ginkgo-focus-labels }}"
+      run: |
+        ${{ github.workspace }}/hack/e2e/ci-script.sh
+
+    - name: Upload artifacts
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: artifacts-e2e-ipam.tar.gz
+        path: test/e2e/_artifacts
+        if-no-files-found: error
+        overwrite: false
