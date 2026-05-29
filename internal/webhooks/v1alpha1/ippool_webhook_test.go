@@ -38,8 +38,25 @@ func TestIPPoolDefault(t *testing.T) {
 	}
 	g.Expect(webhook.Default(ctx, c)).To(Succeed())
 
-	g.Expect(c.Spec).To(Equal(ipamv1.IPPoolSpec{}))
+	g.Expect(c.Spec.AllocationStrategy).To(Equal(ipamv1.AllocationStrategySequential))
 	g.Expect(c.Status).To(Equal(ipamv1.IPPoolStatus{}))
+}
+
+func TestIPPoolDefaultPreservesExistingStrategy(t *testing.T) {
+	g := NewWithT(t)
+	webhook := &IPPool{}
+
+	c := &ipamv1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "foo",
+		},
+		Spec: ipamv1.IPPoolSpec{
+			AllocationStrategy: ipamv1.AllocationStrategyRandom,
+		},
+	}
+	g.Expect(webhook.Default(ctx, c)).To(Succeed())
+
+	g.Expect(c.Spec.AllocationStrategy).To(Equal(ipamv1.AllocationStrategyRandom))
 }
 
 func TestIPPoolValidation(t *testing.T) {
@@ -51,6 +68,8 @@ func TestIPPoolValidation(t *testing.T) {
 	malformedIP := ipamv1.IPAddressStr("not-an-ip")
 	invalidIPFormat := ipamv1.IPAddressStr("256.256.256.256")
 	malformedCIDR := ipamv1.IPSubnetStr("not-a-cidr")
+	validSubnet := ipamv1.IPSubnetStr("192.168.0.0/24")
+	largeV6Subnet := ipamv1.IPSubnetStr("2001:db8::/32")
 	validGateway := ipamv1.IPAddressStr("192.168.0.1")
 	malformedGateway := ipamv1.IPAddressStr("invalid-gateway")
 
@@ -288,6 +307,112 @@ func TestIPPoolValidation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "should succeed with random strategy when pool is bounded by start and end",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &endAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed with random strategy when pool is bounded by subnet only",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Subnet: &validSubnet},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed with random strategy when pool is bounded by start and subnet",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, Subnet: &validSubnet},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with random strategy when pool is unbounded (start only)",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with random strategy when one pool is unbounded",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr, End: &endAddr},
+						{Start: &startAddr},
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail with random strategy when pool is too large to index",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Pools: []ipamv1.Pool{
+						{Subnet: &largeV6Subnet},
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed with sequential strategy when pool is unbounded (start only)",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					AllocationStrategy: ipamv1.AllocationStrategySequential,
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -452,6 +577,26 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 				Allocations: map[string]ipamv1.IPAddressStr{
 					"inuse": ipamv1.IPAddressStr("192.168.0.3"),
 				},
+			},
+		},
+		{
+			name:      "should fail when allocationStrategy changes",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategySequential,
+			},
+		},
+		{
+			name:      "should succeed when allocationStrategy stays the same",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				AllocationStrategy: ipamv1.AllocationStrategyRandom,
 			},
 		},
 		{

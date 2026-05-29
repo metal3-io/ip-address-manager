@@ -59,6 +59,16 @@ spec:
           spec:
             description: IPPoolSpec defines the desired state of IPPool.
             properties:
+              allocationStrategy:
+                default: sequential
+                description: |-
+                  AllocationStrategy defines how IP addresses are allocated from the pools.
+                  "sequential" (default) allocates the first available IP.
+                  "random" allocates a random available IP.
+                enum:
+                - sequential
+                - random
+                type: string
               clusterName:
                 description: ClusterName is the name of the Cluster this object belongs
                   to.
