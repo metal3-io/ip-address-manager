@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"reflect"
 	"strings"
@@ -453,38 +454,37 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 		if ipAllocated {
 			break
 		}
-		index := 0
-		for !ipAllocated {
-			allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
-			if err != nil {
-				break
-			}
-			index++
-			// Check if requestedIP is present and matches the current address
-			if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
-				continue
-			}
-			if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
-				isRequestedIPAllocated = true
-			}
-			// We have a pre-allocated ip, we just need to ensure that it matches the current address
-			// if it does not, continue and try the next address
-			if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
-				continue
-			}
-			// Here the two addresses match, so we continue with that one
-			if ipPreAllocated {
-				ipAllocated = true
-			}
-			// If we have a preallocated address, this is useless, otherwise, check if the
-			// ip is free
-			if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
-				ipAllocated = true
-			}
-			if !ipAllocated {
-				continue
-			}
 
+		// PreAllocations and requestedIP always use sequential scan
+		if ipPreAllocated || requestedIP != "" {
+			index := 0
+			for !ipAllocated {
+				allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
+				if err != nil {
+					break
+				}
+				index++
+				if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
+					continue
+				}
+				if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
+					isRequestedIPAllocated = true
+				}
+				if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
+					continue
+				}
+				if ipPreAllocated {
+					ipAllocated = true
+				}
+				if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
+					ipAllocated = true
+				}
+			}
+		} else {
+			allocatedAddress, ipAllocated = m.selectIPFromPool(pool, addresses)
+		}
+
+		if ipAllocated {
 			if pool.Prefix != 0 {
 				prefix = pool.Prefix
 			}
@@ -552,38 +552,37 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 		if ipAllocated {
 			break
 		}
-		index := 0
-		for !ipAllocated {
-			allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
-			if err != nil {
-				break
-			}
-			index++
-			// Check if requestedIP is present and matches the current address
-			if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
-				continue
-			}
-			if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
-				isRequestedIPAllocated = true
-			}
-			// We have a pre-allocated ip, we just need to ensure that it matches the current address
-			// if it does not, continue and try the next address
-			if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
-				continue
-			}
-			// Here the two addresses match, so we continue with that one
-			if ipPreAllocated {
-				ipAllocated = true
-			}
-			// If we have a preallocated address, this is useless, otherwise, check if the
-			// ip is free
-			if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
-				ipAllocated = true
-			}
-			if !ipAllocated {
-				continue
-			}
 
+		// PreAllocations and requestedIP always use sequential scan
+		if ipPreAllocated || requestedIP != "" {
+			index := 0
+			for !ipAllocated {
+				allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
+				if err != nil {
+					break
+				}
+				index++
+				if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
+					continue
+				}
+				if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
+					isRequestedIPAllocated = true
+				}
+				if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
+					continue
+				}
+				if ipPreAllocated {
+					ipAllocated = true
+				}
+				if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
+					ipAllocated = true
+				}
+			}
+		} else {
+			allocatedAddress, ipAllocated = m.selectIPFromPool(pool, addresses)
+		}
+
+		if ipAllocated {
 			if pool.Prefix != 0 {
 				prefix = pool.Prefix
 			}
@@ -983,6 +982,47 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 	}
 	m.updateStatusTimestamp()
 	return addresses, nil
+}
+
+// selectIPFromPool picks an available IP from the given pool based on the allocation strategy.
+// Returns the selected IP and true, or empty string and false if no IP is available.
+func (m *IPPoolManager) selectIPFromPool(pool ipamv1.Pool, addresses map[ipamv1.IPAddressStr]string) (ipamv1.IPAddressStr, bool) {
+	if m.IPPool.Spec.AllocationStrategy == ipamv1.AllocationStrategyRandom {
+		// Pick a random offset in the pool and scan forward, wrapping around
+		// at the end. This walks each index at most once and returns the first
+		// free IP encountered, giving O(1) memory and removing the asymmetry
+		// of a fixed-size candidate window.
+		size, err := ipamv1.GetPoolSize(pool)
+		if err != nil || size <= 0 {
+			return "", false
+		}
+		start := rand.IntN(size) //nolint:gosec // cryptographic randomness not needed for IP allocation
+		for i := range size {
+			index := (start + i) % size
+			candidate, err := ipamv1.GetIPAddress(pool, index)
+			if err != nil {
+				continue
+			}
+			if _, ok := addresses[candidate]; !ok && candidate != "" {
+				return candidate, true
+			}
+		}
+		return "", false
+	}
+
+	// Sequential allocation (default)
+	index := 0
+	for {
+		candidate, err := ipamv1.GetIPAddress(pool, index)
+		if err != nil {
+			break
+		}
+		index++
+		if _, ok := addresses[candidate]; !ok && candidate != "" {
+			return candidate, true
+		}
+	}
+	return "", false
 }
 
 // formatAddressName renders the name of the IPAddress objects.
