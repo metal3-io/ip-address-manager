@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../../../../../config/default
+
+images:
+- name: quay.io/metal3-io/ip-address-manager
+  newTag: e2e-test

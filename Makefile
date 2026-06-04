@@ -32,15 +32,17 @@ export GOPROXY
 export GO111MODULE=on
 
 # Directories.
+ROOT_DIR := $(shell pwd)
 TOOLS_DIR := hack/tools
 APIS_DIR := api
+TEST_DIR := test
 WEBHOOKS_DIR := internal/webhooks
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
 BIN_DIR := bin
 
 # Binaries.
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+GOLANGCI_LINT := $(ROOT_DIR)/$(TOOLS_BIN_DIR)/golangci-lint
 MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/conversion-gen
 KUBEBUILDER := $(TOOLS_BIN_DIR)/kubebuilder
@@ -173,8 +175,9 @@ $(SETUP_ENVTEST):
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint codebase
 	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
-	cd $(APIS_DIR); ../$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
-	cd $(TOOLS_DIR)/release; ../../../$(GOLANGCI_LINT) run -v --build-tags=tools --modules-download-mode=readonly $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
+	cd $(APIS_DIR); $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
+	cd $(TOOLS_DIR)/release; $(GOLANGCI_LINT) run -v --build-tags=tools --modules-download-mode=readonly $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
+	cd $(TEST_DIR); $(GOLANGCI_LINT) run -v --build-tags=e2e $(GOLANGCI_LINT_EXTRA_ARGS) --timeout=10m
 
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
@@ -192,6 +195,8 @@ modules: ## Runs go mod to ensure proper vendoring.
 	cd $(TOOLS_DIR); go mod verify
 	cd $(APIS_DIR); go mod tidy
 	cd $(APIS_DIR); go mod verify
+	cd $(TEST_DIR); go mod tidy
+	cd $(TEST_DIR); go mod verify
 
 .PHONY: generate
 generate: ## Generate code
@@ -248,6 +253,10 @@ docker-build: ## Build the docker image for controller-manager
 	docker build --network=host --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 	MANIFEST_IMG=$(CONTROLLER_IMG)-$(ARCH) MANIFEST_TAG=$(TAG) $(MAKE) set-manifest-image
 	$(MAKE) set-manifest-pull-policy
+
+.PHONY: docker-build-e2e
+docker-build-e2e: ## Build the docker image for e2e tests (matches image name in e2e_conf.yaml)
+	docker build --network=host --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG):e2e-test
 
 .PHONY: docker-build-debug
 docker-build-debug: ## Build the docker image for controller-manager with debug info
@@ -367,9 +376,69 @@ verify-boilerplate:
 
 .PHONY: verify-modules
 verify-modules: modules
-	@if !(git diff --quiet HEAD -- go.sum go.mod hack/tools/go.mod hack/tools/go.sum); then \
+	@if !(git diff --quiet HEAD -- go.sum go.mod hack/tools/go.mod hack/tools/go.sum test/go.mod test/go.sum); then \
 		echo "go module files are out of date"; exit 1; \
 	fi
 
 go-version: ## Print the go version we use to compile our binaries and images
 	@echo $(GO_VERSION)
+
+## --------------------------------------
+## E2e stuff
+## --------------------------------------
+GINKGO_FOCUS ?=
+GINKGO_FOCUS_LABELS ?=
+GINKGO_SKIP ?=
+GINKGO_SKIP_LABELS ?=
+GINKGO_NODES ?= 2
+GINKGO_TIMEOUT ?= 30m
+GINKGO_POLL_PROGRESS_AFTER ?= 10m
+GINKGO_POLL_PROGRESS_INTERVAL ?= 2m
+E2E_CONF_FILE ?= $(ROOT_DIR)/test/e2e/config/e2e_conf.yaml
+USE_EXISTING_CLUSTER ?= false
+SKIP_RESOURCE_CLEANUP ?= false
+GINKGO_NOCOLOR ?= false
+GINKGO := $(TOOLS_BIN_DIR)/ginkgo
+
+# to set multiple ginkgo skip flags, if any
+ifneq ($(strip $(GINKGO_SKIP)),)
+_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),-skip="$(arg)")
+endif
+
+# to set multiple ginkgo skip labels, if any
+ifneq ($(strip $(GINKGO_SKIP_LABELS)),)
+_SKIP_LABELS_ARGS := --label-filter="!$(GINKGO_SKIP_LABELS)"
+endif
+
+# to focus on specific labels
+ifneq ($(strip $(GINKGO_FOCUS_LABELS)),)
+_FOCUS_LABELS_ARGS := --label-filter="$(GINKGO_FOCUS_LABELS)"
+endif
+
+ARTIFACTS ?= ${ROOT_DIR}/test/e2e/_artifacts
+
+.PHONY: test-e2e
+# Only runs tests make sure to build the e2e test image before running.
+# You can use the docker-build-e2e target to build the image.
+# features only: make test-e2e GINKGO_SKIP_LABELS=basic make test-e2e GINKGO_FOCUS_LABELS=features
+# basic only: make test-e2e GINKGO_SKIP_LABELS=features or make test-e2e GINKGO_FOCUS_LABELS=basic
+# all tests: make test-e2e
+test-e2e: $(GINKGO) $(KUSTOMIZE) ## Run the end-to-end tests
+	PATH=$(abspath $(TOOLS_BIN_DIR)):$(PATH) \
+	$(GINKGO) -v --trace -poll-progress-after=$(GINKGO_POLL_PROGRESS_AFTER) \
+		-poll-progress-interval=$(GINKGO_POLL_PROGRESS_INTERVAL) --tags=e2e \
+		--focus="$(GINKGO_FOCUS)" \
+		$(_SKIP_ARGS)  $(_SKIP_LABELS_ARGS) $(_FOCUS_LABELS_ARGS) \
+		--nodes=$(GINKGO_NODES) \
+		--timeout=$(GINKGO_TIMEOUT) \
+		--no-color=$(GINKGO_NOCOLOR) \
+		--output-dir="$(ARTIFACTS)" \
+		--junit-report="junit.e2e_suite.1.xml" \
+		$(GINKGO_ARGS) test/e2e -- \
+		-e2e.config="$(E2E_CONF_FILE)" \
+		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER) \
+		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
+		-e2e.artifacts-folder="$(ARTIFACTS)"
+
+$(GINKGO): $(TOOLS_DIR)/go.mod ## Build ginkgo from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/ginkgo github.com/onsi/ginkgo/v2/ginkgo

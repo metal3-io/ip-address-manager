@@ -1,0 +1,25 @@
+name: Periodic E2E Test
+
+on:
+  schedule:
+  # Run every day at 02:20 UTC (it is recommended to avoid running at the start of the hour)
+  - cron: '20 2 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  e2e-main:
+    uses: ./.github/workflows/e2e-test.yml
+    with:
+      ref: main
+
+#  e2e-release-1-14:
+#    uses: ./.github/workflows/e2e-test.yml
+#    with:
+#      ref: release-1.14
+
+#  e2e-release-1-15:
+#    uses: ./.github/workflows/e2e-test.yml
+#    with:
+#      ref: release-1.15
