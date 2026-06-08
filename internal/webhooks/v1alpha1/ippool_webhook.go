@@ -249,7 +249,8 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 		}
 	}
 
-	// Validate preAllocations IPs
+	// Validate preAllocations IPs.
+	ipToClaimName := make(map[netip.Addr]string, len(pool.Spec.PreAllocations))
 	for name, ipAddr := range pool.Spec.PreAllocations {
 		if err := validateIPAddress(ipAddr); err != nil {
 			allErrs = append(allErrs,
@@ -259,6 +260,23 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 					"is not a valid IP address",
 				),
 			)
+			continue
+		}
+
+		// Use netip.Addr.String() form as map key so that equivalent
+		// addresses with different textual representations (e.g. IPv6 with/without
+		// leading zeros) are detected as duplicates.
+		ipAddress, _ := netip.ParseAddr(string(ipAddr))
+		if existingClaim, exists := ipToClaimName[ipAddress]; exists {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("spec", "preAllocations", name),
+					ipAddr,
+					fmt.Sprintf("IP address is already pre-allocated to claim %q", existingClaim),
+				),
+			)
+		} else {
+			ipToClaimName[ipAddress] = name
 		}
 	}
 

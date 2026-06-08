@@ -308,6 +308,22 @@ func TestIPPoolValidation(t *testing.T) {
 			},
 		},
 		{
+			name:      "should succeed with unique preAllocation IPs",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "192.168.0.10",
+						"claim2": "192.168.0.11",
+						"claim3": "192.168.0.12",
+					},
+				},
+			},
+		},
+		{
 			name:      "should succeed with random strategy when pool is bounded by start and end",
 			expectErr: false,
 			c: &ipamv1.IPPool{
@@ -413,6 +429,57 @@ func TestIPPoolValidation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "should fail when multiple claims have the same preAllocated IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "192.168.0.10",
+						"claim2": "192.168.0.10",
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail when IPv6 preAllocations differ only in textual representation",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Start: &startAddr},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "2001:db8::1",
+						"claim2": "2001:0db8:0000:0000:0000:0000:0000:0001",
+					},
+				},
+			},
+		},
+		{
+			name:      "should succeed when IPv6 preAllocations are genuinely different",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "2001:db8::1",
+						"claim2": "2001:db8::2",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -439,6 +506,7 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 	invalidStartAddr := ipamv1.IPAddressStr("192.168.0.149")
 	invalidEndAddr := ipamv1.IPAddressStr("192.168.0.140")
 	subnet := ipamv1.IPSubnetStr("192.168.0.1/25")
+	v6Subnet := ipamv1.IPSubnetStr("2001:db8::/64")
 
 	tests := []struct {
 		name          string
@@ -617,6 +685,86 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			oldPoolStatus: ipamv1.IPPoolStatus{
 				Allocations: map[string]ipamv1.IPAddressStr{
 					"inuse": ipamv1.IPAddressStr("192.168.0.30"),
+				},
+			},
+		},
+		{
+			name:      "should succeed when update has unique preAllocation IPs",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("192.168.0.2"),
+					"claim2": ipamv1.IPAddressStr("192.168.0.3"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+			},
+		},
+		{
+			name:      "should fail when update has duplicate preAllocation IPs",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("192.168.0.2"),
+					"claim2": ipamv1.IPAddressStr("192.168.0.2"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+			},
+		},
+		{
+			name:      "should fail when update has IPv6 duplicates with different textual representation",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("2001:db8::1"),
+					"claim2": ipamv1.IPAddressStr("2001:0db8:0000:0000:0000:0000:0000:0001"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Subnet: &v6Subnet},
+				},
+			},
+		},
+		{
+			name:      "should succeed when IPv6 preAllocations are genuinely different",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Subnet: &v6Subnet},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("2001:db8::1"),
+					"claim2": ipamv1.IPAddressStr("2001:db8::2"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Subnet: &v6Subnet},
 				},
 			},
 		},
