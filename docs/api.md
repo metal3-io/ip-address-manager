@@ -41,7 +41,7 @@ The *spec* field contains the following :
 * **prefix**: This is a default prefix for this IPPool
 * **gateway**: This is a default gateway for this IPPool
 * **preAllocations**: This is a default preallocated IP address for this IPPool.
-Preallocations asossiate a claim's name to an IP address. It doesn't matter if
+Preallocations associate a claim's name to an IP address. It doesn't matter if
 the claim type is (metal3)IPClaim or (capi)IPAddressClaim.
 
 The *prefix* and *gateway* can be overridden per pool. The pool definition is
@@ -118,7 +118,7 @@ You can find CR examples in the
 ## Handling CAPI CRs
 
 This IPAM can be deployed and used as an
-[IPAM provider](https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/book/src/reference/glossary.md#ipam-provider)for
+[IPAM provider](https://cluster-api.sigs.k8s.io/developer/providers/contracts/ipam)for
 [CAPI](https://github.com/kubernetes-sigs/cluster-api).
 
 IPPool reconsiles (metal3)ipclaims into (metal3)ipaddresses
@@ -126,38 +126,29 @@ and (capi)ipaddressclaims into (capi)ipaddresses.
 
 ### IPAddressClaim
 
-Check out more on [IPAddressClaim docs](https://docs.openshift.com/container-platform/4.16/rest_api/network_apis/ipaddressclaim-ipam-cluster-x-k8s-io-v1beta1.html).
+Check out more on [IPAddressClaim docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddressclaim).
 
 ### IpAddress
 
-Check out more on [IPAddress docs](https://docs.openshift.com/container-platform/4.16/rest_api/network_apis/ipaddress-ipam-cluster-x-k8s-io-v1beta1.html).
+Check out more on [IPAddress docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddress).
 
 ### Set up via clusterctl
 
-Since it's not added to the built-in list of providers yet,
-you'll need to add the following to your
-```$XDG_CONFIG_HOME/cluster-api/clusterctl.yaml```
-if you want to install it using ```clusterctl init --ipam metal3```:
+Metal IPAM is an official IPAMProvider for CAPI. You can install Metal3 IPAM
+on a cluster with:
 
-```yaml
-providers:
-- name: metal3
-  url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
-  type: IPAMProvider
+```bash
+clusterctl init --ipam metal3
 ```
 
-If you are also specifying infrastructure provider
-metal3 liko so:
-```clusterctl init --infrastructure metal3 --ipam metal3```.
-It might cause a problem to have the same name
-for both providers if you are creating local
-[overrides layers](https://cluster-api.sigs.k8s.io/clusterctl/configuration#overrides-layer).
-Solution is to change the ipam providers name:
-```clusterctl init --infrastructure metal3 --ipam m3ipam``
+Install older version by specifying version number:
 
-```yaml
-providers:
-- name: m3ipam
-  url: https://github.com/metal3-io/ip-address-manager/releases/latest/ipam-components.yaml
-  type: IPAMProvider
+```bash
+clusterctl init --ipam metal3:v1.13.0
+```
+
+With infrastructure provider metal3:
+
+```bash
+clusterctl init --infrastructure metal3 --ipam metal3
 ```
