@@ -288,6 +288,37 @@ func TestIPPoolValidation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "should succeed with unique preAllocation IPs",
+			expectErr: false,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "192.168.0.10",
+						"claim2": "192.168.0.11",
+						"claim3": "192.168.0.12",
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail when multiple claims have the same preAllocated IP",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "192.168.0.10",
+						"claim2": "192.168.0.10",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -472,6 +503,46 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			oldPoolStatus: ipamv1.IPPoolStatus{
 				Allocations: map[string]ipamv1.IPAddressStr{
 					"inuse": ipamv1.IPAddressStr("192.168.0.30"),
+				},
+			},
+		},
+		{
+			name:      "should succeed when update has unique preAllocation IPs",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("192.168.0.2"),
+					"claim2": ipamv1.IPAddressStr("192.168.0.3"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+			},
+		},
+		{
+			name:      "should fail when update has duplicate preAllocation IPs",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
+				},
+				PreAllocations: map[string]ipamv1.IPAddressStr{
+					"claim1": ipamv1.IPAddressStr("192.168.0.2"),
+					"claim2": ipamv1.IPAddressStr("192.168.0.2"),
+				},
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				NamePrefix: "abcd",
+				Pools: []ipamv1.Pool{
+					{Start: &startAddr, End: &endAddr},
 				},
 			},
 		},
