@@ -282,6 +282,12 @@ set-manifest-image:
 	$(info Updating kustomize image patch file for manager resource)
 	sed -i'' -e 's@image: .*@image: \"'"${MANIFEST_IMG}:$(MANIFEST_TAG)"'\"@' ./config/default/manager_image_patch.yaml
 
+.PHONY: set-manifest-image-digest
+set-manifest-image-digest:
+	$(info Updating kustomize image patch file for manager resource)
+	@if [ -z "$(MANIFEST_DIGEST)" ]; then echo "MANIFEST_DIGEST is not set"; exit 1; fi
+	sed -i'' -e 's@image: .*@image: \"'"${MANIFEST_IMG}@$(MANIFEST_DIGEST)"'\"@' ./config/default/manager_image_patch.yaml
+
 
 .PHONY: set-manifest-pull-policy
 set-manifest-pull-policy:
@@ -336,7 +342,12 @@ release:
 	@if [ -z "${RELEASE_TAG}" ]; then echo "RELEASE_TAG is not set"; exit 1; fi
 	@if ! [ -z "$$(git status --porcelain)" ]; then echo "You have uncommitted changes"; exit 1; fi
 	git checkout "${RELEASE_TAG}"
-	MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(RELEASE_TAG) $(MAKE) set-manifest-image
+	@if [ -n "$(MANIFEST_DIGEST)" ]; then \
+		MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_DIGEST=$(MANIFEST_DIGEST) $(MAKE) set-manifest-image-digest; \
+	else \
+		echo "MANIFEST_DIGEST is not set, falling back to tag"; \
+		MANIFEST_IMG=$(CONTROLLER_IMG) MANIFEST_TAG=$(RELEASE_TAG) $(MAKE) set-manifest-image; \
+	fi
 	$(MAKE) release-manifests
 
 ## --------------------------------------
