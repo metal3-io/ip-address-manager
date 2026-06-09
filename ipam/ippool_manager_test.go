@@ -1930,14 +1930,15 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseAllocateAddress struct {
-		ipPool             *ipamv1.IPPool
-		ipClaim            *ipamv1.IPClaim
-		addresses          map[ipamv1.IPAddressStr]string
-		expectedAddress    ipamv1.IPAddressStr
-		expectedPrefix     int
-		expectedGateway    *ipamv1.IPAddressStr
-		expectedDNSServers []ipamv1.IPAddressStr
-		expectError        bool
+		ipPool               *ipamv1.IPPool
+		ipClaim              *ipamv1.IPClaim
+		addresses            map[ipamv1.IPAddressStr]string
+		expectedAddress      ipamv1.IPAddressStr
+		expectedPrefix       int
+		expectedGateway      *ipamv1.IPAddressStr
+		expectedDNSServers   []ipamv1.IPAddressStr
+		expectError          bool
+		expectedErrorMessage *string
 	}
 
 	DescribeTable("Test AllocateAddress",
@@ -1951,6 +1952,10 @@ var _ = Describe("IPPool manager", func() {
 			)
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
+				if tc.expectedErrorMessage != nil {
+					Expect(tc.ipClaim.Status.ErrorMessage).NotTo(BeNil())
+					Expect(*tc.ipClaim.Status.ErrorMessage).To(Equal(*tc.expectedErrorMessage))
+				}
 				return
 			}
 			Expect(err).NotTo(HaveOccurred())
@@ -2417,16 +2422,42 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectError: true,
 		}),
+		Entry("Invalid ipAddress annotation", testCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "not-a-valid-ip",
+					},
+				},
+			},
+			addresses:            map[ipamv1.IPAddressStr]string{},
+			expectError:          true,
+			expectedErrorMessage: ptr.To(`Invalid ipAddress annotation "not-a-valid-ip": not a valid IP address`),
+		}),
 	)
 
 	type testCapiCaseAllocateAddress struct {
-		ipPool          *ipamv1.IPPool
-		addresses       map[ipamv1.IPAddressStr]string
-		ipAddressClaim  *capipamv1.IPAddressClaim
-		expectedAddress ipamv1.IPAddressStr
-		expectedPrefix  int32
-		expectedGateway *ipamv1.IPAddressStr
-		expectError     bool
+		ipPool                   *ipamv1.IPPool
+		addresses                map[ipamv1.IPAddressStr]string
+		ipAddressClaim           *capipamv1.IPAddressClaim
+		expectedAddress          ipamv1.IPAddressStr
+		expectedPrefix           int32
+		expectedGateway          *ipamv1.IPAddressStr
+		expectError              bool
+		expectedConditionMessage string
 	}
 
 	DescribeTable("Test capiAllocateAddress",
@@ -2440,6 +2471,12 @@ var _ = Describe("IPPool manager", func() {
 			)
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
+				if tc.expectedConditionMessage != "" {
+					conditions := tc.ipAddressClaim.GetConditions()
+					Expect(conditions).NotTo(BeEmpty())
+					Expect(conditions[0].Message).To(Equal(tc.expectedConditionMessage))
+					Expect(conditions[0].Status).To(Equal(metav1.ConditionFalse))
+				}
 				return
 			}
 			Expect(err).NotTo(HaveOccurred())
@@ -2846,6 +2883,31 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.3"): "abcd",
 			},
 			expectError: true,
+		}),
+		Entry("Invalid ipAddress annotation", testCapiCaseAllocateAddress{
+			ipPool: &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "not-a-valid-ip",
+					},
+				},
+			},
+			addresses:                map[ipamv1.IPAddressStr]string{},
+			expectError:              true,
+			expectedConditionMessage: `Invalid ipAddress annotation "not-a-valid-ip": not a valid IP address`,
 		}),
 	)
 
