@@ -95,6 +95,22 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 		)
 	}
 
+	// Prevent changes to ClusterName if it was set before. Allow
+	// setting ClusterName if it was NOT set before, as this allows
+	// users to bind the IPPool to a cluster after creation.
+	// Changing the ClusterName of an IPPool causes a change in IPPool's
+	// ownerReference. There is no use case where changing ownerReference
+	// from one cluster to another is required.
+	if oldIPPool.Spec.ClusterName != nil && !reflect.DeepEqual(newIPPool.Spec.ClusterName, oldIPPool.Spec.ClusterName) {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "clusterName"),
+				newIPPool.Spec.ClusterName,
+				"cannot be modified",
+			),
+		)
+	}
+
 	// Validate the new pool ranges
 	allErrs = append(allErrs, webhook.validatePoolRanges(newIPPool)...)
 

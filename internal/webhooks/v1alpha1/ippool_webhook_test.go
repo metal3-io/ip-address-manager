@@ -21,6 +21,7 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -343,6 +344,24 @@ func TestIPPoolUpdateValidation(t *testing.T) {
 			oldPoolSpec: &ipamv1.IPPoolSpec{
 				NamePrefix: "abcd",
 			},
+		},
+		{
+			name:      "should fail when clusterName value changes",
+			expectErr: true,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				ClusterName: ptr.To("new-cluster"),
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{
+				ClusterName: ptr.To("old-cluster"),
+			},
+		},
+		{
+			name:      "should succeed when clusterName is added when it was previously empty",
+			expectErr: false,
+			newPoolSpec: &ipamv1.IPPoolSpec{
+				ClusterName: ptr.To("new-cluster"),
+			},
+			oldPoolSpec: &ipamv1.IPPoolSpec{},
 		},
 		{
 			name:      "should fail when updating to invalid range (start > end)",
