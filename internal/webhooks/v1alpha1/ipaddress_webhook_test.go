@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 func TestIPAddressDefault(t *testing.T) {
@@ -383,6 +384,132 @@ func TestIPAddressUpdateValidation(t *testing.T) {
 					Kind: "abcd",
 				},
 				Address: "192.168.1.10",
+			},
+		},
+		{
+			name:      "should fail when Prefix changes",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Prefix:  24,
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Prefix:  25,
+			},
+		},
+		{
+			name:      "should fail when Gateway changes",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: ptr.To(ipamv1.IPAddressStr("192.168.1.1")),
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: ptr.To(ipamv1.IPAddressStr("192.168.1.2")),
+			},
+		},
+		{
+			name:      "should fail when Gateway is set from nil",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: ptr.To(ipamv1.IPAddressStr("192.168.1.1")),
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: nil,
+			},
+		},
+		{
+			name:      "should fail when Gateway is unset to nil",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: nil,
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address: "192.168.1.10",
+				Gateway: ptr.To(ipamv1.IPAddressStr("192.168.1.1")),
+			},
+		},
+		{
+			name:      "should fail when DNSServers change",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: []ipamv1.IPAddressStr{"8.8.8.8"},
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: []ipamv1.IPAddressStr{"1.1.1.1"},
+			},
+		},
+		{
+			name:      "should fail when a DNSServer is added",
+			expectErr: true,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: []ipamv1.IPAddressStr{"8.8.8.8", "1.1.1.1"},
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: []ipamv1.IPAddressStr{"8.8.8.8"},
+			},
+		},
+		{
+			name:      "should succeed when DNSServers are nil vs empty slice (semantic equality)",
+			expectErr: false,
+			newAdd: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: []ipamv1.IPAddressStr{},
+			},
+			old: &ipamv1.IPAddressSpec{
+				Pool: corev1.ObjectReference{
+					Name: "abc",
+				},
+				Address:    "192.168.1.10",
+				DNSServers: nil,
 			},
 		},
 	}
