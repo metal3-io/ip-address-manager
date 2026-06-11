@@ -225,6 +225,7 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 	}
 
 	// Validate preAllocations IPs
+	ipToClaimName := make(map[ipamv1.IPAddressStr]string, len(pool.Spec.PreAllocations))
 	for name, ipAddr := range pool.Spec.PreAllocations {
 		if err := validateIP(ipAddr); err != nil {
 			allErrs = append(allErrs,
@@ -234,6 +235,17 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 					"is not a valid IP address",
 				),
 			)
+		}
+		if existingClaim, exists := ipToClaimName[ipAddr]; exists {
+			allErrs = append(allErrs,
+				field.Invalid(
+					field.NewPath("spec", "preAllocations", name),
+					ipAddr,
+					fmt.Sprintf("IP address is already pre-allocated to claim %q", existingClaim),
+				),
+			)
+		} else {
+			ipToClaimName[ipAddr] = name
 		}
 	}
 
