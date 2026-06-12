@@ -20,13 +20,13 @@ updates:
   - dependency-name: "*"
     update-types: ["version-update:semver-major"]
   cooldown:
-    default-days: 7
+    default-days: 3
   commit-message:
     prefix: ":seedling:"
   labels:
   - "ok-to-test"
   # Go
-- package-ecosystem: "gomod" # zizmor: ignore[dependabot-cooldown]
+- package-ecosystem: "gomod"
   directories:
   - "/"
   - "/api"
@@ -54,6 +54,8 @@ updates:
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
+  cooldown:
+    default-days: 3
   labels:
   - "ok-to-test"
 ## main branch config ends here
@@ -75,13 +77,13 @@ updates:
   - dependency-name: "*"
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   cooldown:
-    default-days: 7
+    default-days: 3
   commit-message:
     prefix: ":seedling:"
   labels:
   - "ok-to-test"
   # Go
-- package-ecosystem: "gomod" # zizmor: ignore[dependabot-cooldown]
+- package-ecosystem: "gomod"
   directories:
   - "/"
   - "/api"
@@ -105,6 +107,8 @@ updates:
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
+  cooldown:
+    default-days: 3
   labels:
   - "ok-to-test"
 
@@ -127,13 +131,13 @@ updates:
   - dependency-name: "*"
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   cooldown:
-    default-days: 7
+    default-days: 3
   commit-message:
     prefix: ":seedling:"
   labels:
   - "ok-to-test"
   # Go
-- package-ecosystem: "gomod" # zizmor: ignore[dependabot-cooldown]
+- package-ecosystem:
   directories:
   - "/"
   - "/api"
@@ -157,6 +161,8 @@ updates:
     update-types: ["version-update:semver-major", "version-update:semver-minor"]
   commit-message:
     prefix: ":seedling:"
+  cooldown:
+    default-days: 3
   labels:
   - "ok-to-test"
 
