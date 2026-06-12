@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2019 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,11 +26,6 @@ export CLUSTER_NAME="${CLUSTER_NAME:-test1}"
 export NAMESPACE="${NAMESPACE:-metal3-ipam-system}"
 
 # Outputs.
-COMPONENTS_CERT_MANAGER_GENERATED_FILE=${OUTPUT_DIR}/cert-manager.yaml
-COMPONENTS_CLUSTER_API_GENERATED_FILE=${SOURCE_DIR}/provider-components/core-components.yaml
-COMPONENTS_METAL3_GENERATED_FILE=${SOURCE_DIR}/provider-components/infrastructure-components.yaml
-
-PROVIDER_COMPONENTS_GENERATED_FILE=${OUTPUT_DIR}/provider-components.yaml
 IPPOOL_GENERATED_FILE=${OUTPUT_DIR}/ippool.yaml
 
 # Overwrite flag.
@@ -40,9 +35,9 @@ SCRIPT=$(basename "$0")
 while test $# -gt 0; do
         case "$1" in
           -h|--help)
-            echo "$SCRIPT - generates input yaml files for Cluster API on metal3"
+            echo "${SCRIPT} - generates input yaml files for Cluster API on metal3"
             echo " "
-            echo "$SCRIPT [options]"
+            echo "${SCRIPT} [options]"
             echo " "
             echo "options:"
             echo "-h, --help                show brief help"
@@ -63,35 +58,17 @@ while test $# -gt 0; do
         esac
 done
 
-if [ $OVERWRITE -ne 1 ] && [ -d "$OUTPUT_DIR" ]; then
+if [[ ${OVERWRITE} -ne 1 ]] && [[ -d "${OUTPUT_DIR}" ]]; then
   echo "ERR: Folder ${OUTPUT_DIR} already exists. Delete it manually before running this script."
   exit 1
 fi
 
 mkdir -p "${OUTPUT_DIR}"
-kubectl create namespace "${NAMESPACE}"
 
-# Get enhanced envsubst version to evaluate expressions like ${VAR:=default}
-ENVSUBST="${OUTPUT_DIR}/envsubst-go"
-curl --fail -Ss -L -o "${ENVSUBST}" https://github.com/a8m/envsubst/releases/download/v1.2.0/envsubst-"$(uname -s)"-"$(uname -m)"
-chmod +x "$ENVSUBST"
+# Use envsubst from PATH (supports expressions like ${VAR:=default})
+ENVSUBST="${ENVSUBST:-envsubst}"
 
 # Generate cluster resources.
-kustomize build "${SOURCE_DIR}/ippool" | "$ENVSUBST" > "${IPPOOL_GENERATED_FILE}"
+kustomize build "${SOURCE_DIR}/ippool" | "${ENVSUBST}" > "${IPPOOL_GENERATED_FILE}"
 echo "Generated ${IPPOOL_GENERATED_FILE}"
 
-# Get Cert-manager provider components file
-curl --fail -Ss -L -o "${COMPONENTS_CERT_MANAGER_GENERATED_FILE}" https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
-echo "Downloaded ${COMPONENTS_CERT_MANAGER_GENERATED_FILE}"
-
-# Generate Cluster API provider components file.
-kustomize build "github.com/kubernetes-sigs/cluster-api/config/default/?ref=main" | "$ENVSUBST" > "${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
-echo "Generated ${COMPONENTS_CLUSTER_API_GENERATED_FILE}"
-
-# Generate METAL3 Infrastructure Provider components file.
-kustomize build "${SOURCE_DIR}/../config/default" | "$ENVSUBST" > "${COMPONENTS_METAL3_GENERATED_FILE}"
-echo "Generated ${COMPONENTS_METAL3_GENERATED_FILE}"
-
-# Generate a single provider components file.
-kustomize build "${SOURCE_DIR}/provider-components" | envsubst > "${PROVIDER_COMPONENTS_GENERATED_FILE}"
-echo "Generated ${PROVIDER_COMPONENTS_GENERATED_FILE}"

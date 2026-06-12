@@ -298,14 +298,6 @@ set-manifest-pull-policy:
 ## Deploying
 ## --------------------------------------
 
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy: generate-examples
-	kubectl apply -f examples/_out/cert-manager.yaml
-	kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment cert-manager
-	kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment cert-manager-cainjector
-	kubectl wait --for=condition=Available --timeout=300s -n cert-manager deployment cert-manager-webhook
-	kubectl apply -f examples/_out/provider-components.yaml
-
 deploy-examples:
 	kubectl apply -f ./examples/_out/ippool.yaml
 
@@ -376,7 +368,6 @@ clean-release: ## Remove the release folder
 .PHONY: clean-examples
 clean-examples: ## Remove all the temporary files generated in the examples folder
 	rm -rf examples/_out/
-	rm -f examples/provider-components/provider-components-*.yaml
 
 .PHONY: verify
 verify: verify-boilerplate verify-modules

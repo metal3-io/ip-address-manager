@@ -47,43 +47,56 @@ deployment process.
 
 ## Deployment and examples
 
+### Prerequisites
+
+- A running Kubernetes cluster (e.g. kind)
+- Clusterctl
+- Kustomize
+- envsubst
+
 ### Deploy IPAM
 
-Deploys IPAM CRDs and deploys IPAM controllers
+Deploys IPAM CRDs, RBAC, webhooks, and the controller.
+Note: `clusterctl` will automatically install cert-manager if it is not already
+present.
 
 ```sh
-    make deploy
-```
-
-### Run locally
-
-Runs IPAM controller locally
-
-```sh
-    kubectl scale -n metal3-ipam-system \
-      deployment.v1.apps/metal3-ipam-controller-manager --replicas 0
-    make run
+clusterctl init --ipam metal3
 ```
 
 ### Deploy an example pool
 
 ```sh
-    make deploy-examples
+make generate-examples
+make deploy-examples
 ```
 
-### Delete the example pool
+### Check deployment was successful
 
 ```sh
-    make delete-examples
+kubectl get ippool -n metal3-ipam-system
+kubectl get ipaddress.ipam.metal3.io -n metal3-ipam-system
 ```
 
-#### Note
+### Clean up environment
 
-There is a known limitation when `kubectl apply` and `kubectl delete` for an
-`IPClaim` are executed in rapid succession (within the same second). In such
-cases, the `IPClaim` may be deleted, but the associated `IPAddress` might not
-be removed as expected, potentially leading to resource inconsistencies. This
-is not a common or typical use case. In normal scenarios, the operations work
-as expected. Since this issue occurs only under rare timing conditions, it has
-been classified as a low-priority item. We plan to address it in a future and
-it is currently documented as a known limitation.
+```sh
+# Clean up generated files
+make delete-examples
+```
+
+To clean up environment delete your cluster or delete the IPAM namespace
+
+```sh
+kubectl delete namespace metal3-ipam-system
+```
+
+## Known Limitations
+
+When `kubectl apply` and `kubectl delete` are executed for an `IPClaim` in rapid
+succession (within the same second), the `IPClaim` may be deleted, but the
+associated `IPAddress` might not be removed as expected, potentially leading to
+resource inconsistencies. This is not a common or typical use case. In normal
+scenarios, the operations work as expected. Since this issue occurs only under
+rare timing conditions, it has been classified as a low-priority item. We plan
+to address it in a future and it is currently documented as a known limitation.
