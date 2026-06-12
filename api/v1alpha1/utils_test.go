@@ -185,4 +185,182 @@ var _ = Describe("IPPool manager", func() {
 		}),
 	)
 
+	type testCaseGetPoolSize struct {
+		pool         Pool
+		expectError  bool
+		expectedSize int
+	}
+
+	DescribeTable("Test GetPoolSize",
+		func(tc testCaseGetPoolSize) {
+			size, err := GetPoolSize(tc.pool)
+			if tc.expectError {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(size).To(Equal(tc.expectedSize))
+			}
+		},
+		Entry("Empty Start and Subnet", testCaseGetPoolSize{
+			pool:        Pool{},
+			expectError: true,
+		}),
+		Entry("Start set, end and subnet unset", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+			},
+			expectError: true,
+		}),
+		Entry("Start and End set, inclusive range", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.20")),
+			},
+			expectedSize: 11,
+		}),
+		Entry("Start and End set, single address", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.10")),
+			},
+			expectedSize: 1,
+		}),
+		Entry("Start and End set, end before start", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.20")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.10")),
+			},
+			expectError: true,
+		}),
+		Entry("Start and Subnet set, subnet bounds the end", testCaseGetPoolSize{
+			pool: Pool{
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
+			},
+			expectedSize: 246,
+		}),
+		Entry("Subnet only excludes network address", testCaseGetPoolSize{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
+			},
+			expectedSize: 255,
+		}),
+		Entry("Subnet only with host bits set is normalized", testCaseGetPoolSize{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.10/24")),
+			},
+			expectedSize: 255,
+		}),
+		Entry("Invalid Start IP", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("not-an-ip")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.20")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid End IP", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("not-an-ip")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid Subnet with Start", testCaseGetPoolSize{
+			pool: Pool{
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("not-a-cidr")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid Subnet only", testCaseGetPoolSize{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("not-a-cidr")),
+			},
+			expectError: true,
+		}),
+	)
+
+	type testCaseValidatePool struct {
+		pool        Pool
+		expectError bool
+	}
+
+	DescribeTable("Test ValidatePool",
+		func(tc testCaseValidatePool) {
+			err := ValidatePool(tc.pool)
+			if tc.expectError {
+				Expect(err).To(HaveOccurred())
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+			}
+		},
+		// ValidatePool is lenient about presence: empty, Start-only and End-only
+		// pools are valid (the sequential strategy can use an unbounded pool).
+		Entry("Empty pool is valid", testCaseValidatePool{
+			pool: Pool{},
+		}),
+		Entry("Start only is valid", testCaseValidatePool{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+			},
+		}),
+		Entry("End only is valid", testCaseValidatePool{
+			pool: Pool{
+				End: (*IPAddressStr)(ptr.To("192.168.0.20")),
+			},
+		}),
+		Entry("Start and End set", testCaseValidatePool{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.20")),
+			},
+		}),
+		Entry("Start and Subnet set", testCaseValidatePool{
+			pool: Pool{
+				Start:  (*IPAddressStr)(ptr.To("192.168.0.10")),
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
+			},
+		}),
+		Entry("Subnet only", testCaseValidatePool{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("192.168.0.0/24")),
+			},
+		}),
+		Entry("End before Start", testCaseValidatePool{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.20")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.10")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid Start IP", testCaseValidatePool{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("not-an-ip")),
+				End:   (*IPAddressStr)(ptr.To("192.168.0.20")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid End IP", testCaseValidatePool{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("192.168.0.10")),
+				End:   (*IPAddressStr)(ptr.To("not-an-ip")),
+			},
+			expectError: true,
+		}),
+		Entry("Invalid Subnet", testCaseValidatePool{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("not-a-cidr")),
+			},
+			expectError: true,
+		}),
+		// A large IPv6 subnet is a valid pool even though its size exceeds the
+		// int range; GetPoolSize rejects it but ValidatePool must not, since the
+		// sequential strategy can still use it.
+		Entry("Large IPv6 subnet is valid", testCaseValidatePool{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/32")),
+			},
+		}),
+	)
+
 })
