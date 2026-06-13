@@ -84,7 +84,7 @@ help:  ## Display this help
 ## --------------------------------------
 
 export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.36.0
-KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
+KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path "$(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)")
 
 .PHONY: setup-envtest
 setup-envtest: $(SETUP_ENVTEST) ## Set up envtest (download kubebuilder assets)
@@ -92,7 +92,7 @@ setup-envtest: $(SETUP_ENVTEST) ## Set up envtest (download kubebuilder assets)
 
 .PHONY: unit
 unit: $(SETUP_ENVTEST) ## Run tests
-	$(shell $(SETUP_ENVTEST) use -p env $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)) && \
+	$(shell $(SETUP_ENVTEST) use -p env "$(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)") && \
 	go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out && \
 	cd $(APIS_DIR) && go test -v ./... -coverprofile ./cover.out && cd .. && \
 	cd $(WEBHOOKS_DIR) && go test -v ./... -coverprofile ./cover.out
@@ -102,7 +102,7 @@ test: generate lint unit
 
 .PHONY: unit-cover
 unit-cover: $(SETUP_ENVTEST) ## Run unit tests with code coverage
-	$(shell $(SETUP_ENVTEST) use -p env $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)) && \
+	$(shell $(SETUP_ENVTEST) use -p env "$(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION)") && \
 	go test ./controllers/... ./ipam/... -coverprofile=$(COVER_PROFILE) && \
 	go tool cover -func=$(COVER_PROFILE) && \
 	cd $(APIS_DIR) && go test -coverprofile=$(COVER_PROFILE) ./... && \
@@ -121,7 +121,7 @@ fuzz-run: ## Run all fuzz tests sequentially with fuzzing enabled (use FUZZ_TIME
 	@echo "Discovering fuzz tests..."
 	@cd test/fuzz && go test -list='Fuzz.*' | grep '^Fuzz' | while read -r fuzz_test; do \
 		echo "Running $$fuzz_test for $(FUZZ_TIME)..."; \
-		go test  -fuzz=$$fuzz_test -fuzztime='$(FUZZ_TIME)' || exit 1; \
+		go test  -fuzz=$$fuzz_test -fuzztime="$(FUZZ_TIME)" || exit 1; \
 	done
 	@echo "All fuzz tests completed successfully!"
 
@@ -280,13 +280,13 @@ docker-build-%:
 .PHONY: set-manifest-image
 set-manifest-image:
 	$(info Updating kustomize image patch file for manager resource)
-	sed -i'' -e 's@image: .*@image: \"'"${MANIFEST_IMG}:$(MANIFEST_TAG)"'\"@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's#image: .*#image: "'"${MANIFEST_IMG}:$(MANIFEST_TAG)"'"#' ./config/default/manager_image_patch.yaml
 
 .PHONY: set-manifest-image-digest
 set-manifest-image-digest:
 	$(info Updating kustomize image patch file for manager resource)
 	@if [ -z "$(MANIFEST_DIGEST)" ]; then echo "MANIFEST_DIGEST is not set"; exit 1; fi
-	sed -i'' -e 's@image: .*@image: \"'"${MANIFEST_IMG}@$(MANIFEST_DIGEST)"'\"@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's#image: .*#image: "'"${MANIFEST_IMG}"'@'"$(MANIFEST_DIGEST)"'"#' ./config/default/manager_image_patch.yaml
 
 
 .PHONY: set-manifest-pull-policy
