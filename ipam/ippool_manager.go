@@ -444,6 +444,14 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
 	isRequestedIPAllocated := false
 
+	if requestedIP != "" {
+		if net.ParseIP(string(requestedIP)) == nil {
+			msg := fmt.Sprintf("Invalid ipAddress annotation %q: not a valid IP address", requestedIP)
+			addressClaim.Status.ErrorMessage = ptr.To(msg)
+			return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New(msg)
+		}
+	}
+
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
 		addressClaim.Status.ErrorMessage = ptr.To("PreAllocation and requested ip address are conflicting")
@@ -533,6 +541,22 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 
 	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
 	isRequestedIPAllocated := false
+
+	if requestedIP != "" {
+		if net.ParseIP(string(requestedIP)) == nil {
+			msg := fmt.Sprintf("Invalid ipAddress annotation %q: not a valid IP address", requestedIP)
+			conditions := make([]metav1.Condition, 0, 1)
+			conditions = append(conditions, metav1.Condition{
+				Type:               capipamv1.IPAddressClaimReadyCondition,
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
+				Message:            msg,
+			})
+			addressClaim.SetConditions(conditions)
+			return "", 0, nil, errors.New(msg)
+		}
+	}
 
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
