@@ -19,11 +19,13 @@ if [ "${IS_CONTAINER}" != "false" ]; then
     # This script is a verification check only — generated output is not
     # written back to the host working tree.
     CODEGEN_DIR="$(mktemp -d -t codegen.XXXXXX)"
+    # This part is run outside of container and generated files should be
+    # cleaned up just in case this is run locally and not in test environment.
+    trap 'rm -rf "${CODEGEN_DIR}"' EXIT
     cp -a . "${CODEGEN_DIR}"
     cd "${CODEGEN_DIR}"
-    git config --global safe.directory "${CODEGEN_DIR}"
 
-    INPUT_FILES="$(git ls-files config) $(git ls-files | grep zz_generated)"
+    INPUT_FILES="$(find config -type f) $(find . -name 'zz_generated*' -type f)"
     cksum ${INPUT_FILES} > "${ARTIFACTS}/lint.cksums.before"
     export VERBOSE="--verbose"
     make generate
