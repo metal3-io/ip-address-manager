@@ -9,7 +9,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
 	k8s.io/api v0.35.5
-	k8s.io/apimachinery v0.35.5
+	k8s.io/apimachinery v0.35.6
 	k8s.io/klog/v2 v2.130.1
 	sigs.k8s.io/cluster-api v1.13.2
 	sigs.k8s.io/cluster-api/test v1.13.2
