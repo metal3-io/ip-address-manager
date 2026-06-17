@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/metal3-io/ip-address-manager v0.0.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
-	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/ginkgo/v2 v2.30.0
 	github.com/onsi/gomega v1.41.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.6
