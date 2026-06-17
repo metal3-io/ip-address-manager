@@ -9,9 +9,12 @@ WORKDIR="${WORKDIR:-/workdir}"
 
 if [ "${IS_CONTAINER}" != "false" ]; then
     export XDG_CACHE_HOME=/tmp/.cache
-    mkdir /tmp/unit
-    cp -r ./* /tmp/unit
-    cd /tmp/unit
+    UNIT_DIR="$(mktemp -d -t unit.XXXXXX)"
+    # This part is run outside of container and generated files should be
+    # cleaned up just in case this is run locally and not in test environment.
+    trap 'rm -rf "${UNIT_DIR}"' EXIT
+    cp -r ./* "${UNIT_DIR}"
+    cd "${UNIT_DIR}"
     make unit
 else
     "${CONTAINER_RUNTIME}" run --rm \

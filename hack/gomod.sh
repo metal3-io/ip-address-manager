@@ -15,9 +15,12 @@ WORKDIR="${WORKDIR:-/workdir}"
 if [ "${IS_CONTAINER}" != "false" ]; then
     export XDG_CACHE_HOME=/tmp/.cache
 
-    mkdir /tmp/gomod
-    cp -r . /tmp/gomod
-    cd /tmp/gomod
+    GOMOD_DIR="$(mktemp -d -t gomod.XXXXXX)"
+    # This part is run outside of container and generated files should be
+    # cleaned up just in case this is run locally and not in test environment.
+    trap 'rm -rf "${GOMOD_DIR}"' EXIT
+    cp -r . "${GOMOD_DIR}"
+    cd "${GOMOD_DIR}"
 
     STATUS="$(git status --porcelain)"
     if [ -n "${STATUS}" ]; then
