@@ -79,6 +79,7 @@ type CreateIPPoolInput struct {
 	DNSServers     []string
 	NamePrefix     string
 	PreAllocations map[string]ipamv1.IPAddressStr
+	ClusterName    string
 }
 
 // createIPPool creates an IPPool resource from the given config.
@@ -122,6 +123,10 @@ func createIPPool(ctx context.Context, clusterProxy framework.ClusterProxy, cfg 
 
 	if cfg.PreAllocations != nil {
 		spec.PreAllocations = cfg.PreAllocations
+	}
+
+	if cfg.ClusterName != "" {
+		spec.ClusterName = &cfg.ClusterName
 	}
 
 	ipPool := &ipamv1.IPPool{
