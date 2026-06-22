@@ -7,7 +7,7 @@ require (
 	github.com/metal3-io/ip-address-manager v0.0.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
 	github.com/onsi/ginkgo/v2 v2.31.0
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/gomega v1.42.0
 	k8s.io/api v0.35.6
 	k8s.io/apimachinery v0.35.6
 	k8s.io/klog/v2 v2.130.1
