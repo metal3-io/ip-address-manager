@@ -1,6 +1,6 @@
 module github.com/metal3-io/ip-address-manager/test
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/go-logr/logr v1.4.3
