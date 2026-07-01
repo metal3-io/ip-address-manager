@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "configMigration": true,
+  "baseBranchPatterns": [
+    "main",
+    "release-1.12",
+    "release-1.13"
+  ],
+  "enabledManagers": [
+    "custom.regex"
+  ],
+  "prCreation": "immediate",
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
+  "automerge": false,
+  "labels": [
+    "ok-to-test"
+  ],
+  "commitMessagePrefix": ":seedling: ",
+  "semanticCommits": "disabled",
+  "packageRules": [
+    {
+      "matchBaseBranches": [
+        "main"
+      ],
+      "description": "run before 6am on Mondays",
+      "schedule": [
+        "* 0-5 * * 1"
+      ]
+    },
+    {
+      "matchBaseBranches": [
+        "release-1.12",
+        "release-1.13"
+      ],
+      "description": "run before 6am every day",
+      "schedule": [
+        "* 0-5 * * *"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Bump container image digests in shell scripts",
+      "managerFilePatterns": [
+        "hack/verify-release\\.sh$"
+      ],
+      "matchStrings": [
+        "gcr\\.io/(?<depName>[^:]+):(?<currentValue>[^@]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "https://gcr.io"
+    }
+  ]
+}
