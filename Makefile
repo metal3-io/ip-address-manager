@@ -327,7 +327,10 @@ release-notes-tool:
 
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES) release-notes-tool
-	$(TOOLS_BIN_DIR)/release --releaseTag=$(RELEASE_TAG) > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md
+	@echo "Generating release notes for $(RELEASE_TAG)..."
+	@cd hack/tools && $(GO) run release/notes.go  $(RELEASE_NOTES_ARGS) \
+	--githubToken="$(GITHUB_TOKEN)" > $(realpath $(RELEASE_NOTES_DIR))/$(RELEASE_TAG).md
+	@echo "Release notes written to $(realpath $(RELEASE_NOTES_DIR))/$(RELEASE_TAG).md"
 
 .PHONY: release
 release:
