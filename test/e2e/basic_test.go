@@ -37,7 +37,7 @@ var _ = Describe("Metal3 IPAM basic functionality", Label("ipam", "basic"), func
 
 	AfterEach(func() {
 		// Delete the namespace to clean up all test resources
-		cleanupNamespace(ctx, bootstrapClusterProxy.GetClient(), namespace)
+		cleanupNamespace(ctx, bootstrapClusterProxy, namespace, artifactFolder, clusterctlConfigPath)
 	})
 
 	It("Should allocate an IPAddress via Metal3 IPClaim", func() {

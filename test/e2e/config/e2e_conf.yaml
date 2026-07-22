@@ -65,6 +65,23 @@ providers:
 - name: metal3
   type: IPAMProvider
   versions:
+  # n-2: released release-1.12 provider, used as the "old" version in the upgrade test.
+  - name: "v1.12.99"
+    value: "../data/ipamprovider-metal3/overlays/v1.12"
+    type: "kustomize"
+    contract: v1beta1
+    files:
+    - sourcePath: "../data/ipamprovider-metal3/overlays/v1.12/metadata.yaml"
+      targetName: "metadata.yaml"
+  # n-1: released release-1.13 provider, used as the "old" version in the upgrade test.
+  - name: "v1.13.99"
+    value: "../data/ipamprovider-metal3/overlays/v1.13"
+    type: "kustomize"
+    contract: v1beta2
+    files:
+    - sourcePath: "../data/ipamprovider-metal3/overlays/v1.13/metadata.yaml"
+      targetName: "metadata.yaml"
+  # current: built from the local source tree, used everywhere as the "current" version.
   - name: "v1.15.99"
     value: "../data/ipamprovider-metal3/overlays/e2e"
     type: "kustomize"
@@ -79,3 +96,9 @@ providers:
 intervals:
   default/wait-controllers: ["10m", "10s"]
   default/wait-ippool: ["60s", "5s"]
+  clusterctl-move/wait-ippool: ["60s", "5s"]
+  clusterctl-move/wait-controllers: ["15m", "10s"]
+
+variables:
+  KUBERNETES_VERSION: "v1.36.0"
+  IP_FAMILY: "IPv4"

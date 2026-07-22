@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -43,13 +44,29 @@ func testNamespace() string {
 	return fmt.Sprintf("%s%s-%s", prefix, cleaned, hash)
 }
 
-// cleanupNamespace deletes the test namespace, which cascade-deletes all resources within it.
+// dumpSpecResources dumps all resources in the given namespace to the artifact
+// folder before cleanup, so failing specs can be debugged from CI artifacts.
+func dumpSpecResources(ctx context.Context, clusterProxy framework.ClusterProxy, namespace, artifactFolder, clusterctlConfigPath string) {
+	By(fmt.Sprintf("Dumping all resources in namespace %s to artifacts", namespace))
+	framework.DumpAllResources(ctx, framework.DumpAllResourcesInput{
+		Lister:               clusterProxy.GetClient(),
+		KubeConfigPath:       clusterProxy.GetKubeconfigPath(),
+		ClusterctlConfigPath: clusterctlConfigPath,
+		Namespace:            namespace,
+		LogPath:              filepath.Join(artifactFolder, "clusters", clusterProxy.GetName(), "resources", namespace),
+	})
+}
+
+// cleanupNamespace dumps the namespace resources to the artifact folder and then
+// deletes the test namespace, which cascade-deletes all resources within it.
 // It honors the skipCleanup flag to preserve resources for debugging.
-func cleanupNamespace(ctx context.Context, cl client.Client, namespace string) {
+func cleanupNamespace(ctx context.Context, clusterProxy framework.ClusterProxy, namespace, artifactFolder, clusterctlConfigPath string) {
+	dumpSpecResources(ctx, clusterProxy, namespace, artifactFolder, clusterctlConfigPath)
 	if skipCleanup {
 		Logf("Skipping cleanup of namespace %s (SKIP_RESOURCE_CLEANUP=true)", namespace)
 		return
 	}
+	cl := clusterProxy.GetClient()
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
@@ -69,17 +86,18 @@ func cleanupNamespace(ctx context.Context, cl client.Client, namespace string) {
 
 // CreateIPPoolInput holds parameters for creating an IPPool in tests.
 type CreateIPPoolInput struct {
-	Name           string
-	Namespace      string
-	Start          string
-	End            string
-	Subnet         string
-	Prefix         int
-	Gateway        string
-	DNSServers     []string
-	NamePrefix     string
-	PreAllocations map[string]ipamv1.IPAddressStr
-	ClusterName    string
+	Name               string
+	Namespace          string
+	Start              string
+	End                string
+	Subnet             string
+	Prefix             int
+	Gateway            string
+	DNSServers         []string
+	NamePrefix         string
+	PreAllocations     map[string]ipamv1.IPAddressStr
+	ClusterName        string
+	AllocationStrategy ipamv1.AllocationStrategy
 }
 
 // createIPPool creates an IPPool resource from the given config.
@@ -119,6 +137,10 @@ func createIPPool(ctx context.Context, clusterProxy framework.ClusterProxy, cfg 
 
 	for _, dns := range cfg.DNSServers {
 		spec.DNSServers = append(spec.DNSServers, ipamv1.IPAddressStr(dns))
+	}
+
+	if cfg.AllocationStrategy != "" {
+		spec.AllocationStrategy = cfg.AllocationStrategy
 	}
 
 	if cfg.PreAllocations != nil {

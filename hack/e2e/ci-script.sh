@@ -54,4 +54,27 @@ if [[ "${USE_EXISTING_CLUSTER:-false}" == "true" ]]; then
   kind load docker-image quay.io/metal3-io/ip-address-manager:e2e-test
 fi
 
+# Increase inotify limits to avoid "too many open files" errors during
+# pivoting and clusterctl-upgrade e2e tests.
+# Apply directly when running as root; otherwise use non-interactive sudo.
+set_sysctl() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    sysctl "$@"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo -n sysctl "$@"
+  else
+    echo "ERROR: need root or passwordless sudo to set kernel parameters ($*)." >&2
+    echo "       Re-run as root, configure passwordless sudo, or set these sysctls on the host beforehand:" >&2
+    echo "         fs.inotify.max_user_instances=1024" >&2
+    echo "         fs.inotify.max_user_watches=524288" >&2
+    exit 1
+  fi
+}
+
+set_sysctl fs.inotify.max_user_instances=1024
+set_sysctl fs.inotify.max_user_watches=524288
+
+# Enable ClusterTopology feature for clusterctl-upgrade tests
+export CLUSTER_TOPOLOGY=true
+
 make test-e2e
