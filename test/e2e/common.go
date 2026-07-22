@@ -69,16 +69,17 @@ func cleanupNamespace(ctx context.Context, cl client.Client, namespace string) {
 
 // CreateIPPoolInput holds parameters for creating an IPPool in tests.
 type CreateIPPoolInput struct {
-	Name           string
-	Namespace      string
-	Start          string
-	End            string
-	Subnet         string
-	Prefix         int
-	Gateway        string
-	DNSServers     []string
-	NamePrefix     string
-	PreAllocations map[string]ipamv1.IPAddressStr
+	Name               string
+	Namespace          string
+	Start              string
+	End                string
+	Subnet             string
+	Prefix             int
+	Gateway            string
+	DNSServers         []string
+	NamePrefix         string
+	PreAllocations     map[string]ipamv1.IPAddressStr
+	AllocationStrategy ipamv1.AllocationStrategy
 }
 
 // createIPPool creates an IPPool resource from the given config.
@@ -118,6 +119,10 @@ func createIPPool(ctx context.Context, clusterProxy framework.ClusterProxy, cfg 
 
 	for _, dns := range cfg.DNSServers {
 		spec.DNSServers = append(spec.DNSServers, ipamv1.IPAddressStr(dns))
+	}
+
+	if cfg.AllocationStrategy != "" {
+		spec.AllocationStrategy = cfg.AllocationStrategy
 	}
 
 	if cfg.PreAllocations != nil {
