@@ -10,8 +10,6 @@ This document describes how to run the IPAM end-to-end tests.
 
 ## Running E2E Tests
 
-### All tests
-
 ```sh
 make docker-build-e2e
 make test-e2e
@@ -20,19 +18,34 @@ make test-e2e
 ./hack/e2e/ci-script.sh
 ```
 
-### Run only basic tests
+## CI Script
+
+The CI entry point is `hack/e2e/ci-script.sh`. It:
+
+1. Ensures required tools meet minimum versions
+1. Builds image from local repository
+1. Runs `make test-e2e`
+1. Collects artifacts into a tarball
+
+Label filtering is controlled via the `GINKGO_FOCUS_LABELS` environment variable.
+
+### Labels
+
+Use labels to run specific tests
 
 ```sh
-make docker-build-e2e
-make test-e2e GINKGO_FOCUS_LABELS=basic
+GINKGO_FOCUS_LABELS=basic ./hack/e2e/ci-script.sh
 ```
 
-### Run only feature tests
+Tests are organized using Ginkgo labels:
 
-```sh
-make docker-build-e2e
-make test-e2e GINKGO_FOCUS_LABELS=features
-```
+| Label | Description |
+|-------|-------------|
+| `ipam` | Base label for all IPAM e2e coverage |
+| `basic` | Core IPAM operations: IPPool CRUD, IP allocation via Metal3 and CAPI claims, garbage collection |
+| `features` | Advanced functionality: preallocations, pool exhaustion/recovery, multi-pool, status tracking, mixed claims |
+| `pivot` | `clusterctl move` / pivot workflow validation for IPAM resources across management clusters |
+| `clusterctl-upgrade` | `clusterctl upgrade` workflow validation from previous release to current provider version |
 
 ### Skip specific test labels
 
@@ -41,24 +54,14 @@ make docker-build-e2e
 make test-e2e GINKGO_SKIP_LABELS=features
 ```
 
-## Test Labels
-
-Tests are organized using Ginkgo labels:
-
-| Label | Description |
-|-------|-------------|
-| `basic` | Core IPAM operations: IPPool CRUD, IP allocation via Metal3 and CAPI claims, garbage collection |
-| `features` | Advanced functionality: preallocations, pool exhaustion/recovery, multi-pool, status tracking, mixed claims |
-
 ## Configuration
 
 ### Using an existing cluster
 
-To run against an already-running cluster (useful for debugging):
+To run against an already-running cluster:
 
 ```sh
-make docker-build-e2e
-make test-e2e USE_EXISTING_CLUSTER=true
+USE_EXISTING_CLUSTER=true ./hack/e2e/ci-script.sh
 ```
 
 ### Skipping cleanup
@@ -66,30 +69,7 @@ make test-e2e USE_EXISTING_CLUSTER=true
 To keep resources around after tests finish (for post-mortem debugging):
 
 ```sh
-make docker-build-e2e
-make test-e2e SKIP_RESOURCE_CLEANUP=true
-```
-
-## CI Script
-
-The CI entry point is `hack/e2e/ci-script.sh`. It:
-
-1. Ensures Go and kubectl meet minimum versions
-1. Builds image from local repository
-1. Runs `make test-e2e`
-1. Collects artifacts into a tarball
-
-Label filtering is controlled via the `GINKGO_FOCUS_LABELS` environment variable:
-
-```sh
-# Run basic tests only in CI
-GINKGO_FOCUS_LABELS=basic ./hack/e2e/ci-script.sh
-
-# Run feature tests only in CI
-GINKGO_FOCUS_LABELS=features ./hack/e2e/ci-script.sh
-
-# Run all tests (default)
-./hack/e2e/ci-script.sh
+SKIP_RESOURCE_CLEANUP=true ./hack/e2e/ci-script.sh
 ```
 
 ## Artifacts
