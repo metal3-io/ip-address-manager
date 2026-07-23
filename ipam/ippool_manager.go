@@ -385,18 +385,23 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 // Return a map where IP addresses is key and value is the associated (metal3 and/or capi) claim's name.
 func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
-) (map[ipamv1.IPAddressStr]string, error) {
+) (_ map[ipamv1.IPAddressStr]string, rerr error) {
 	var err error
 	var helper *patch.Helper
 	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
 		return addresses, fmt.Errorf("failed to init patch helper: %w", err)
 	}
+	deleted := false
 	// Always patch addressClaim exiting this function so we can persist any changes.
 	defer func() {
-		err = helper.Patch(ctx, addressClaim)
-		if err != nil {
-			m.Log.Error(err, "failed to Patch IPAddressClaim")
+		if deleted {
+			return
+		}
+		patchErr := helper.Patch(ctx, addressClaim)
+		if patchErr != nil {
+			m.Log.Error(patchErr, "failed to Patch IPAddressClaim")
+			rerr = patchErr
 		}
 	}()
 
@@ -419,6 +424,7 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 		if err != nil {
 			return addresses, err
 		}
+		deleted = true
 	}
 	return addresses, nil
 }
