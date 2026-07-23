@@ -138,7 +138,7 @@ if [[ -n "${CONTAINER_RUNTIME}" ]]; then
     declare -a GCRANE_CMD=(
         "${CONTAINER_RUNTIME}" run --rm
         --pull always
-        gcr.io/go-containerregistry/gcrane:latest
+        gcr.io/go-containerregistry/gcrane:v0.21.7@sha256:9f84ccb966ace4576dcd72543cc980056d037e499d5f389cd39a78e4b04740a6
     )
     declare -a OSVSCANNER_CMD=(
         "${CONTAINER_RUNTIME}" run --rm
