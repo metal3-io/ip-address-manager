@@ -71,6 +71,18 @@ func (webhook *IPPool) ValidateCreate(_ context.Context, ipPool *ipamv1.IPPool) 
 	}
 
 	allErrs := webhook.validatePoolRanges(ipPool)
+
+	allocationOutOfBonds, _ := webhook.checkPoolBonds(ipPool, ipPool)
+	for _, address := range allocationOutOfBonds {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "preAllocations"),
+				address,
+				"is out of bonds of the pools given",
+			),
+		)
+	}
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
