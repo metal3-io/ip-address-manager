@@ -3,7 +3,7 @@ module github.com/metal3-io/ip-address-manager/test
 go 1.26.0
 
 require (
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/metal3-io/ip-address-manager v0.0.0
 	github.com/metal3-io/ip-address-manager/api v0.0.0
 	github.com/onsi/ginkgo/v2 v2.32.0
@@ -11,7 +11,7 @@ require (
 	k8s.io/api v0.36.3
 	k8s.io/apimachinery v0.36.3
 	k8s.io/klog/v2 v2.140.0
-	sigs.k8s.io/cluster-api/api v1.14.0-beta.0
+	sigs.k8s.io/cluster-api/api v1.14.0-beta.1
 	sigs.k8s.io/cluster-api/test v1.14.0-beta.0
 	sigs.k8s.io/controller-runtime v0.24.1
 )
