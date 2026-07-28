@@ -179,6 +179,10 @@ func (webhook *IPPool) isAddressInBonds(newPool *ipamv1.IPPool, address ipamv1.I
 	}
 
 	for _, pool := range newPool.Spec.Pools {
+		if pool.Start == nil && pool.End == nil && pool.Subnet == nil {
+			continue
+		}
+
 		if pool.Start != nil {
 			startIP, err := netip.ParseAddr(string(*pool.Start))
 			if err != nil {
@@ -285,6 +289,11 @@ func (webhook *IPPool) validatePoolRanges(pool *ipamv1.IPPool) field.ErrorList {
 	for i, p := range pool.Spec.Pools {
 		poolPath := field.NewPath("spec", "pools").Index(i)
 		errCountBefore := len(allErrs)
+		if p.Start == nil && p.End == nil && p.Subnet == nil {
+			allErrs = append(allErrs,
+				field.Invalid(poolPath, "", "pool entry must specify at least one of start, end, or subnet"))
+			continue
+		}
 
 		// Address-range fields (Start/End/Subnet format and start <= end) are
 		// validated by the shared api helper, so the logic is not duplicated
