@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,6 +31,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -51,7 +53,9 @@ var (
 		Name: "abc",
 	}
 	capiPoolRef = &capipamv1.IPPoolReference{
-		Name: "abc",
+		Name:     "abc",
+		APIGroup: APIGroup,
+		Kind:     "IPPool",
 	}
 	prefix24int32  = ptr.To(int32(24))
 	testIPPoolName = "test-ippool"
@@ -682,6 +686,10 @@ var _ = Describe("IPPool manager", func() {
 		expectedAllocations          map[string]ipamv1.IPAddressStr
 		expectClearedErrorClaims     []string
 		expectClearedErrorCapiClaims []string
+		expectPreservedM3Refs        map[string]string
+		expectPreservedCAPIRefs      map[string]string
+		expectMovingClaims           []string
+		expectDeletedClaims          []string
 	}
 
 	DescribeTable("Test UpdateAddresses",
@@ -736,8 +744,23 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range addressObjects.Items {
+				// Checked separately below.
+				if _, ok := tc.expectPreservedM3Refs[claim.Name]; ok {
+					continue
+				}
+				// Checked separately below.
+				if slices.Contains(tc.expectMovingClaims, claim.Name) {
+					continue
+				}
 				if claim.DeletionTimestamp.IsZero() && claim.Status.ErrorMessage == nil {
 					Expect(claim.Status.Address).NotTo(BeNil())
+					// The claim status must reference an existing IPAddress object.
+					existingAddr := &ipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.Address.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -748,8 +771,24 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range capiAddressObjects.Items {
+				// Checked separately below
+				if _, ok := tc.expectPreservedCAPIRefs[claim.Name]; ok {
+					continue
+				}
+				// Checked separately below.
+				if slices.Contains(tc.expectMovingClaims, claim.Name) {
+					continue
+				}
 				if claim.DeletionTimestamp.IsZero() && !anyErrorInExistingClaim(claim) {
 					Expect(claim.Status.AddressRef).NotTo(BeNil())
+					Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
+					// The claim status must reference an existing IPAddress object.
+					existingAddr := &capipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.AddressRef.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -772,7 +811,62 @@ var _ = Describe("IPPool manager", func() {
 					"expected stale failure condition to be cleared on IPAddressClaim %s", name)
 				Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
 			}
-
+			// A claim whose referenced IPAddress is absent (e.g. in transit
+			// during a clusterctl move) must keep its reference unchanged: the
+			// manager must neither clear it nor re-allocate a different address.
+			for name, ref := range tc.expectPreservedM3Refs {
+				claim := &ipamv1.IPClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.Address).NotTo(BeNil(),
+					"expected preserved reference on IPClaim %s", name)
+				Expect(claim.Status.Address.Name).To(Equal(ref),
+					"expected reference on IPClaim %s to be preserved unchanged", name)
+			}
+			for name, ref := range tc.expectPreservedCAPIRefs {
+				claim := &capipamv1.IPAddressClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.AddressRef.Name).To(Equal(ref),
+					"expected reference on IPAddressClaim %s to be preserved unchanged", name)
+			}
+			// A claim being moved by clusterctl must be left entirely
+			// untouched: no IPAddress object may be created for it, so the
+			// controller does not race clusterctl's own IPAddress recreation.
+			for _, name := range tc.expectMovingClaims {
+				addrList := ipamv1.IPAddressList{}
+				Expect(c.List(context.TODO(), &addrList, opts)).To(Succeed())
+				for _, addr := range addrList.Items {
+					Expect(addr.Spec.Claim.Name).NotTo(Equal(name),
+						"expected no IPAddress created for moving IPClaim %s", name)
+				}
+				capiAddrList := capipamv1.IPAddressList{}
+				Expect(c.List(context.TODO(), &capiAddrList, opts)).To(Succeed())
+				for _, addr := range capiAddrList.Items {
+					Expect(addr.Spec.ClaimRef.Name).NotTo(Equal(name),
+						"expected no IPAddress created for moving IPAddressClaim %s", name)
+				}
+			}
+			// A terminating claim must have its finalizer removed so it can be
+			// garbage-collected, even when it carries a move label (the move
+			// guard must not block finalizer cleanup).
+			for _, name := range tc.expectDeletedClaims {
+				m3 := &ipamv1.IPClaim{}
+				m3Err := c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: "myns"}, m3)
+				capi := &capipamv1.IPAddressClaim{}
+				capiErr := c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: "myns"}, capi)
+				// Each case creates only one claim type, so the other type's
+				// Get always returns NotFound. Require BOTH to be NotFound so
+				// the assertion actually proves the created claim was deleted.
+				Expect(apierrors.IsNotFound(m3Err) && apierrors.IsNotFound(capiErr)).To(BeTrue(),
+					"expected terminating claim %s to have its finalizer removed and be deleted", name)
+			}
 		},
 		Entry("No Claims", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1926,6 +2020,268 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedNbAllocations:        1,
 			expectClearedErrorCapiClaims: []string{"stale-capi-claim"},
+		}),
+		// An in-transit claim (recent move label) with a reference to a
+		// not-yet-present IPAddress keeps its reference and is not re-allocated.
+		// Covers metal3 and CAPI in one pool.
+		Entry("Claims with a not-yet-present IPAddress are preserved", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abc",
+						Namespace:         "myns",
+						CreationTimestamp: timeNow,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{Name: "abcpref-192-168-0-99", Namespace: "myns"},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "cabc",
+						Namespace:         "myns",
+						CreationTimestamp: timeNow,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{Name: "cabcpref-192-168-0-99"},
+					},
+				},
+			},
+			expectRequeue:           true,
+			expectedNbAllocations:   0,
+			expectedAllocations:     map[string]ipamv1.IPAddressStr{},
+			expectPreservedM3Refs:   map[string]string{"abc": "abcpref-192-168-0-99"},
+			expectPreservedCAPIRefs: map[string]string{"cabc": "cabcpref-192-168-0-99"},
+		}),
+		// An old move label (past the grace window) must not block recovery of a
+		// dangling reference. Covers metal3 and CAPI in one pool.
+		Entry("Claims with a deleted IPAddress are re-allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abc",
+						Namespace:         "myns",
+						CreationTimestamp: timePast,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{Name: "abcpref-192-168-0-99", Namespace: "myns"},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "cabc",
+						Namespace:         "myns",
+						CreationTimestamp: timePast,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{Name: "abcpref-192-168-0-99"},
+					},
+				},
+			},
+			expectedNbAllocations: 2,
+		}),
+		// The skip compares the stored reference against the live address name.
+		// "manual" keeps its non-generated name (reference matches -> preserved,
+		// not re-allocated); "stale" points at a wrong name while its live
+		// address exists under another name (mismatch -> re-linked).
+		Entry("Manually named reference is kept; mismatched reference is re-linked", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{
+					"manual": ipamv1.IPAddressStr("192.168.0.11"),
+					"stale":  ipamv1.IPAddressStr("192.168.0.12"),
+				}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "manual", Namespace: "myns", Finalizers: []string{ipamv1.IPClaimFinalizer}},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{Name: "my-custom-addr", Namespace: "myns"},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "stale", Namespace: "myns", Finalizers: []string{ipamv1.IPClaimFinalizer}},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{Name: "abcpref-192-168-0-99", Namespace: "myns"},
+					},
+				},
+			},
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "my-custom-addr", Namespace: "myns"},
+					Spec: ipamv1.IPAddressSpec{
+						Pool:    corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+						Claim:   corev1.ObjectReference{Name: "manual", Namespace: "myns"},
+						Address: ipamv1.IPAddressStr("192.168.0.11"),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "abcpref-192-168-0-12", Namespace: "myns"},
+					Spec: ipamv1.IPAddressSpec{
+						Pool:    corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+						Claim:   corev1.ObjectReference{Name: "stale", Namespace: "myns"},
+						Address: ipamv1.IPAddressStr("192.168.0.12"),
+					},
+				},
+			},
+			expectedNbAllocations: 2,
+		}),
+		// A recent move label keeps a not-yet-landed claim in transit: skip
+		// allocation and requeue. Covers metal3 and CAPI in one pool.
+		Entry("Claims being moved are not allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abc",
+						Namespace:         "myns",
+						CreationTimestamp: timeNow,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "cabc",
+						Namespace:         "myns",
+						CreationTimestamp: timeNow,
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+				},
+			},
+			expectRequeue:         true,
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			expectMovingClaims:    []string{"abc", "cabc"},
+		}),
+		// A same-named pool from another IPAM provider must be ignored.
+		Entry("Claim referencing a foreign-provider pool is ignored", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "foreign", Namespace: "myns"},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: capipamv1.IPPoolReference{Name: "abc", APIGroup: "ipam.example.com", Kind: "IPPool"},
+					},
+				},
+			},
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			expectMovingClaims:    []string{"foreign"},
+		}),
+		// A terminating claim must have its finalizer removed even with a move
+		// label. Covers metal3 and CAPI in one pool.
+		Entry("Terminating move-labelled claims have their finalizers removed", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "term-claim",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+						Finalizers:        []string{ipamv1.IPClaimFinalizer},
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "cterm-claim",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+						Finalizers:        []string{IPAddressClaimFinalizer},
+						Labels:            map[string]string{"clusterctl.cluster.x-k8s.io/move-hierarchy": ""},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+				},
+			},
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			expectDeletedClaims:   []string{"term-claim", "cterm-claim"},
 		}),
 	)
 

@@ -36,6 +36,7 @@ import (
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
+	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -56,6 +57,10 @@ const (
 	requeueAfterPoolExhausted     = 15 * time.Second
 	requeueAfterNoFreeIP          = 15 * time.Second
 
+	// moveGracePeriod bounds how long a move-labelled claim is treated as
+	// in-transit.
+	moveGracePeriod = 10 * time.Minute
+
 	// in the log framework level 4 is the debug level, logs with this
 	// logging level are only visible if the debug output is enabled.
 	dbgLvl = 4
@@ -74,6 +79,10 @@ type IPPoolManager struct {
 	client client.Client
 	IPPool *ipamv1.IPPool
 	Log    logr.Logger
+	// m3AddressNames and capiAddressNames map a claim name to the name of its
+	// live IPAddress object, per claim kind. Rebuilt by getIndexes each reconcile.
+	m3AddressNames   map[string]string
+	capiAddressNames map[string]string
 }
 
 // NewIPPoolManager returns a new helper for managing a ipPool object.
@@ -156,6 +165,8 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		m.IPPool.Status.Allocations = make(map[string]ipamv1.IPAddressStr)
 	}
 	updatedAllocations := make(map[string]ipamv1.IPAddressStr)
+	m.m3AddressNames = make(map[string]string)
+	m.capiAddressNames = make(map[string]string)
 
 	addresses := make(map[ipamv1.IPAddressStr]string)
 
@@ -199,6 +210,7 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		}
 		updatedAllocations[claimName] = addressObject.Spec.Address
 		addresses[addressObject.Spec.Address] = claimName
+		m.m3AddressNames[claimName] = addressObject.Name
 	}
 
 	// get list of IPAddress objects for cluster.x-k8s.io addresses
@@ -210,11 +222,8 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 
 	// Iterate over the IPAddress objects to find all addresses and objects
 	for _, addressObject := range capiAddressObjects.Items {
-		// If IPPool does not point to this object, discard
-		if addressObject.Spec.PoolRef.Name == "" {
-			continue
-		}
-		if addressObject.Spec.PoolRef.Name != m.IPPool.Name {
+		// Discard addresses not targeting this pool.
+		if !m.capiPoolRefMatches(addressObject.Spec.PoolRef) {
 			continue
 		}
 
@@ -226,6 +235,7 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		}
 		updatedAllocations[claimName] = ipamv1.IPAddressStr(addressObject.Spec.Address)
 		addresses[ipamv1.IPAddressStr(addressObject.Spec.Address)] = claimName
+		m.capiAddressNames[claimName] = addressObject.Name
 	}
 
 	if !reflect.DeepEqual(updatedAllocations, m.IPPool.Status.Allocations) {
@@ -283,6 +293,37 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// capiPoolRefMatches reports whether a CAPI PoolRef targets this Metal3 IPPool.
+func (m *IPPoolManager) capiPoolRefMatches(ref capipamv1.IPPoolReference) bool {
+	return ref.Name == m.IPPool.Name &&
+		ref.APIGroup == APIGroup &&
+		(ref.Kind == "" || ref.Kind == "IPPool")
+}
+
+// isBeingMoved reports whether the object carries a clusterctl move label.
+func isBeingMoved(o metav1.Object) bool {
+	labels := o.GetLabels()
+	if _, ok := labels[clusterctlv1.ClusterctlMoveLabel]; ok {
+		return true
+	}
+	_, ok := labels[clusterctlv1.ClusterctlMoveHierarchyLabel]
+	return ok
+}
+
+// isInTransit reports whether a move-labelled claim is still within the grace
+// period and should be left untouched while its IPAddress lands.
+func isInTransit(o metav1.Object) bool {
+	if !isBeingMoved(o) {
+		return false
+	}
+	return time.Since(o.GetCreationTimestamp().Time) < moveGracePeriod
+}
+
+func remainingGracePeriod(o metav1.Object) time.Duration {
+	remaining := moveGracePeriod - time.Since(o.GetCreationTimestamp().Time)
+	return max(time.Second, remaining)
+}
+
 // UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
@@ -317,8 +358,21 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
+		_, inLedger := m.IPPool.Status.Allocations[addressClaim.Name]
+
+		// An in-transit claim not yet in the ledger waits; retry at grace expiry.
+		if addressClaim.DeletionTimestamp.IsZero() && !inLedger && isInTransit(&addressClaim) {
+			errorsFound = append(errorsFound, errors.New("waiting for moved IPAddress to land"))
+			transient = true
+			requeue = min(requeue, remainingGracePeriod(&addressClaim))
+			continue
+		}
+
+		// Skip claims whose recorded reference still matches the live IPAddress.
+		// A mismatch falls through to updateAddress to re-link or recover.
 		if addressClaim.Status.Address != nil && addressClaim.Status.ErrorMessage == nil &&
-			addressClaim.DeletionTimestamp.IsZero() {
+			addressClaim.DeletionTimestamp.IsZero() &&
+			addressClaim.Status.Address.Name == m.m3AddressNames[addressClaim.Name] {
 			continue
 		}
 
@@ -372,13 +426,23 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 	transient := false
 	// Iterate over the IPAddressClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
-		// If IPPool does not point to this object, discard
-		if addressClaim.Spec.PoolRef.Name != m.IPPool.Name {
+		// Discard claims that do not target this pool.
+		if !m.capiPoolRefMatches(addressClaim.Spec.PoolRef) {
+			continue
+		}
+
+		_, inLedger := m.IPPool.Status.Allocations[addressClaim.Name]
+
+		if addressClaim.DeletionTimestamp.IsZero() && !inLedger && isInTransit(&addressClaim) {
+			errorsFound = append(errorsFound, errors.New("waiting for moved IPAddress to land"))
+			transient = true
+			requeue = min(requeue, remainingGracePeriod(&addressClaim))
 			continue
 		}
 
 		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
-			addressClaim.DeletionTimestamp.IsZero() {
+			addressClaim.DeletionTimestamp.IsZero() &&
+			addressClaim.Status.AddressRef.Name == m.capiAddressNames[addressClaim.Name] {
 			continue
 		}
 
@@ -433,6 +497,9 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	addressClaim.Status.ErrorMessage = nil
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear the reference before re-allocating. The patch helper tracks it,
+		// so a dangling reference is removed even if createAddress fails.
+		addressClaim.Status.Address = nil
 		addresses, err = m.createAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -482,6 +549,14 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	}()
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear the reference and Ready condition before re-allocating.
+		addressClaim.Status.AddressRef = capipamv1.IPAddressReference{}
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: "Waiting for IPAddress allocation",
+		})
 		addresses, err = m.capiCreateAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -891,6 +966,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
 				Type:   capipamv1.IPAddressClaimReadyCondition,
 				Status: metav1.ConditionTrue,
+				Reason: "Allocated",
 			})
 			return addresses, nil
 		}
@@ -999,6 +1075,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
 		Type:   capipamv1.IPAddressClaimReadyCondition,
 		Status: metav1.ConditionTrue,
+		Reason: "Allocated",
 	})
 
 	return addresses, nil
