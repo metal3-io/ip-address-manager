@@ -518,8 +518,8 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		addressClaim.Status.ErrorMessage = ptr.To("Pre-allocated IP out of bond")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("pre-allocated IP out of bond")
+		addressClaim.Status.ErrorMessage = ptr.To("Pre-allocated IP out of bounds")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("pre-allocated IP out of bounds")
 	}
 	if !ipAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Exhausted IP Pools")
@@ -643,10 +643,10 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
 			Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message:            "Pre-allocated IP out of bond",
+			Message:            "Pre-allocated IP out of bounds",
 		})
 		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("pre-allocated IP out of bond")
+		return "", 0, nil, errors.New("pre-allocated IP out of bounds")
 	}
 	if !ipAllocated {
 		conditions := make([]metav1.Condition, 0, 1)
