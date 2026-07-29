@@ -183,6 +183,76 @@ var _ = Describe("IPPool manager", func() {
 			offset:      100,
 			expectError: true,
 		}),
+
+		Entry("IPv4 minimum address", testCaseAddOffsetToIP{
+			ip:         "0.0.0.0",
+			offset:     1,
+			expectedIP: "0.0.0.1",
+		}),
+		Entry("IPv4 maximum address no overflow", testCaseAddOffsetToIP{
+			ip:         "255.255.255.254",
+			offset:     1,
+			expectedIP: "255.255.255.255",
+		}),
+		Entry("IPv4 overflow from max address", testCaseAddOffsetToIP{
+			ip:          "255.255.255.255",
+			offset:      1,
+			expectError: true,
+		}),
+		Entry("IPv4 overflow from high address with large offset", testCaseAddOffsetToIP{
+			ip:          "255.255.255.0",
+			offset:      256,
+			expectError: true,
+		}),
+		Entry("IPv4 zero offset returns same address", testCaseAddOffsetToIP{
+			ip:         "10.0.0.1",
+			offset:     0,
+			expectedIP: "10.0.0.1",
+		}),
+
+		// IPv6 boundary tests
+		Entry("IPv6 minimum address", testCaseAddOffsetToIP{
+			ip:         "::",
+			offset:     1,
+			expectedIP: "::1",
+		}),
+		Entry("IPv6 maximum address no overflow", testCaseAddOffsetToIP{
+			ip:         "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+			offset:     1,
+			expectedIP: "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+		}),
+		Entry("IPv6 overflow from max address", testCaseAddOffsetToIP{
+			ip:          "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+			offset:      1,
+			expectError: true,
+		}),
+		Entry("IPv6 normal address with offset", testCaseAddOffsetToIP{
+			ip:         "2001:db8::1",
+			offset:     255,
+			expectedIP: "2001:db8::100",
+		}),
+		Entry("IPv6 zero offset returns same address", testCaseAddOffsetToIP{
+			ip:         "fe80::1",
+			offset:     0,
+			expectedIP: "fe80::1",
+		}),
+		Entry("IPv6 large address not mistaken for IPv4 overflow", testCaseAddOffsetToIP{
+			ip:         "2001:db8::ffff:ffff",
+			offset:     1,
+			expectedIP: "2001:db8::1:0:0",
+		}),
+		Entry("IPv6 with end IP within bounds", testCaseAddOffsetToIP{
+			ip:         "2001:db8::1",
+			endIP:      "2001:db8::ff",
+			offset:     10,
+			expectedIP: "2001:db8::b",
+		}),
+		Entry("IPv6 with end IP out of bounds", testCaseAddOffsetToIP{
+			ip:          "2001:db8::1",
+			endIP:       "2001:db8::ff",
+			offset:      1000,
+			expectError: true,
+		}),
 	)
 
 	type testCaseGetPoolSize struct {
