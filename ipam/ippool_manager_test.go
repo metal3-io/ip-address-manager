@@ -724,6 +724,14 @@ var _ = Describe("IPPool manager", func() {
 			for _, claim := range addressObjects.Items {
 				if claim.DeletionTimestamp.IsZero() && claim.Status.ErrorMessage == nil {
 					Expect(claim.Status.Address).NotTo(BeNil())
+					// The persisted claim status must reference an IPAddress
+					// object that actually exists in the cluster.
+					existingAddr := &ipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.Address.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -736,6 +744,15 @@ var _ = Describe("IPPool manager", func() {
 			for _, claim := range capiAddressObjects.Items {
 				if claim.DeletionTimestamp.IsZero() && !anyErrorInExistingClaim(claim) {
 					Expect(claim.Status.AddressRef).NotTo(BeNil())
+					Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
+					// The persisted claim status must reference an IPAddress
+					// object that actually exists.
+					existingAddr := &capipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.AddressRef.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -1631,6 +1648,90 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			expectedNbAllocations: 3,
+		}),
+		Entry("IPClaim with stale Status.Address and missing IPAddress is re-allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					// Points to an IPAddress that does not exist. The manager
+					// must clear this stale reference and re-allocate.
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-0-99",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			// No IPAddress objects exist, so the stale reference is dangling.
+			ipAddresses:           []*ipamv1.IPAddress{},
+			expectedNbAllocations: 1,
+		}),
+		Entry("CAPI IPAddressClaim with stale AddressRef and missing IPAddress is re-allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					// Points to an IPAddress that does not exist. The manager
+					// must clear this stale reference and re-allocate.
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
+							Name: "abcpref-192-168-0-99",
+						},
+					},
+				},
+			},
+			// No CAPI IPAddress objects exist, so the stale reference is dangling.
+			capiAddresses:         []*capipamv1.IPAddress{},
+			expectedNbAllocations: 1,
 		}),
 	)
 
