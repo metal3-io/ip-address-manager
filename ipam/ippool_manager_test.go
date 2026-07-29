@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"slices"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -681,6 +682,19 @@ var _ = Describe("IPPool manager", func() {
 		expectedAllocations          map[string]ipamv1.IPAddressStr
 		expectClearedErrorClaims     []string
 		expectClearedErrorCapiClaims []string
+		// Names of IPClaims whose Status.Address must be nil (cleared) after
+		// the reconcile, e.g. a dangling reference that could not be
+		// re-allocated.
+		expectClearedM3Claims []string
+		// Names of CAPI IPAddressClaims whose Status.AddressRef must be empty
+		// (cleared) after the reconcile.
+		expectClearedCAPIClaims []string
+		// expectPreservedM3Refs maps an IPClaim name to the Status.Address.Name
+		// that must be preserved unchanged after the reconcile.
+		expectPreservedM3Refs map[string]string
+		// expectPreservedCAPIRefs maps a CAPI IPAddressClaim name to the
+		// Status.AddressRef.Name that must be preserved unchanged.
+		expectPreservedCAPIRefs map[string]string
 	}
 
 	DescribeTable("Test UpdateAddresses",
@@ -735,8 +749,24 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range addressObjects.Items {
+				// Claims whose stale reference was intentionally cleared (and
+				// could not be re-allocated) are checked separately below.
+				if slices.Contains(tc.expectClearedM3Claims, claim.Name) {
+					continue
+				}
+				if _, ok := tc.expectPreservedM3Refs[claim.Name]; ok {
+					continue
+				}
 				if claim.DeletionTimestamp.IsZero() && claim.Status.ErrorMessage == nil {
 					Expect(claim.Status.Address).NotTo(BeNil())
+					// The persisted claim status must reference an IPAddress
+					// object that actually exists in the cluster.
+					existingAddr := &ipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.Address.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -747,8 +777,25 @@ var _ = Describe("IPPool manager", func() {
 
 			// Iterate over the IPAddress objects to find all indexes and objects
 			for _, claim := range capiAddressObjects.Items {
+				// Claims whose stale reference was intentionally cleared (and
+				// could not be re-allocated) are checked separately below.
+				if slices.Contains(tc.expectClearedCAPIClaims, claim.Name) {
+					continue
+				}
+				if _, ok := tc.expectPreservedCAPIRefs[claim.Name]; ok {
+					continue
+				}
 				if claim.DeletionTimestamp.IsZero() && !anyErrorInExistingClaim(claim) {
 					Expect(claim.Status.AddressRef).NotTo(BeNil())
+					Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
+					// The persisted claim status must reference an IPAddress
+					// object that actually exists.
+					existingAddr := &capipamv1.IPAddress{}
+					err = c.Get(context.TODO(), client.ObjectKey{
+						Name:      claim.Status.AddressRef.Name,
+						Namespace: tc.ipPool.Namespace,
+					}, existingAddr)
+					Expect(err).NotTo(HaveOccurred())
 				}
 			}
 
@@ -770,6 +817,51 @@ var _ = Describe("IPPool manager", func() {
 				Expect(anyErrorInExistingClaim(*claim)).To(BeFalse(),
 					"expected stale failure condition to be cleared on IPAddressClaim %s", name)
 				Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
+			}
+			// Verify that dangling references were cleared and persisted, even
+			// for claims where re-allocation could not complete.
+			for _, name := range tc.expectClearedM3Claims {
+				claim := &ipamv1.IPClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.Address).To(BeNil())
+			}
+			for _, name := range tc.expectClearedCAPIClaims {
+				claim := &capipamv1.IPAddressClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.AddressRef.Name).To(BeEmpty())
+			}
+			// A paused claim (mid clusterctl move) whose IPAddress is not
+			// present yet must keep its reference untouched: the manager must
+			// not clear it or re-allocate a different address.
+			for name, ref := range tc.expectPreservedM3Refs {
+				claim := &ipamv1.IPClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.Address).NotTo(BeNil(),
+					"expected preserved reference on paused IPClaim %s", name)
+				Expect(claim.Status.Address.Name).To(Equal(ref),
+					"expected reference on paused IPClaim %s to be preserved unchanged", name)
+			}
+			for name, ref := range tc.expectPreservedCAPIRefs {
+				claim := &capipamv1.IPAddressClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{
+					Name:      name,
+					Namespace: tc.ipPool.Namespace,
+				}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.AddressRef.Name).To(Equal(ref),
+					"expected reference on paused IPAddressClaim %s to be preserved unchanged", name)
 			}
 
 		},
@@ -1731,6 +1823,50 @@ var _ = Describe("IPPool manager", func() {
 			expectedNbAllocations:    1,
 			expectClearedErrorClaims: []string{"stale-claim"},
 		}),
+		Entry("IPClaim with stale Status.Address and missing IPAddress is re-allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					// Points to an IPAddress that does not exist. The manager
+					// must clear this stale reference and re-allocate.
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-0-99",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			// No IPAddress objects exist, so the stale reference is dangling.
+			ipAddresses:           []*ipamv1.IPAddress{},
+			expectedNbAllocations: 1,
+		}),
 		Entry("Stale error condition on already-allocated capi IPAddressClaim is cleared", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
@@ -1795,6 +1931,216 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedNbAllocations:        1,
 			expectClearedErrorCapiClaims: []string{"stale-capi-claim"},
+		}),
+		Entry("CAPI IPAddressClaim with stale AddressRef and missing IPAddress is re-allocated", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					// Points to an IPAddress that does not exist. The manager
+					// must clear this stale reference and re-allocate.
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
+							Name: "abcpref-192-168-0-99",
+						},
+					},
+				},
+			},
+			// No CAPI IPAddress objects exist, so the stale reference is dangling.
+			capiAddresses:         []*capipamv1.IPAddress{},
+			expectedNbAllocations: 1,
+		}),
+		Entry("IPClaim with stale Status.Address has it cleared even when re-allocation fails", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					// No pools, so re-allocation cannot succeed (exhausted).
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					// Dangling reference: the IPAddress does not exist.
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-0-99",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddresses:           []*ipamv1.IPAddress{},
+			expectError:           true,
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			// The stale reference must be cleared and persisted despite the
+			// allocation failure, so the claim is not stuck on later reconciles.
+			expectClearedM3Claims: []string{"abc"},
+		}),
+		Entry("CAPI IPAddressClaim with stale AddressRef has it cleared even when re-allocation fails", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					// No pools, so re-allocation cannot succeed (exhausted).
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					// Dangling reference: the IPAddress does not exist.
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
+							Name: "abcpref-192-168-0-99",
+						},
+					},
+				},
+			},
+			capiAddresses:         []*capipamv1.IPAddress{},
+			expectError:           true,
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			// The stale reference must be cleared and persisted despite the
+			// allocation failure.
+			expectClearedCAPIClaims: []string{"abc"},
+		}),
+		Entry("Paused metal3 IPClaim with missing IPAddress preserves its reference (mid-move)", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+						// clusterctl pauses objects while moving them. The
+						// referenced IPAddress has not been recreated on the
+						// target yet, but it must not be re-allocated.
+						Annotations: map[string]string{
+							clusterv1.PausedAnnotation: "",
+						},
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					Status: ipamv1.IPClaimStatus{
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-0-12",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			// IPAddress is "in transit": not present yet.
+			ipAddresses:           []*ipamv1.IPAddress{},
+			expectedNbAllocations: 0,
+			expectedAllocations:   map[string]ipamv1.IPAddressStr{},
+			// Reference must be preserved unchanged (no re-allocation).
+			expectPreservedM3Refs: map[string]string{"abc": "abcpref-192-168-0-12"},
+		}),
+		Entry("Paused CAPI IPAddressClaim with missing IPAddress preserves its reference (mid-move)", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+						Annotations: map[string]string{
+							clusterv1.PausedAnnotation: "",
+						},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
+							Name: "abcpref-192-168-0-12",
+						},
+					},
+				},
+			},
+			// IPAddress is "in transit": not present yet.
+			capiAddresses:           []*capipamv1.IPAddress{},
+			expectedNbAllocations:   0,
+			expectedAllocations:     map[string]ipamv1.IPAddressStr{},
+			expectPreservedCAPIRefs: map[string]string{"abc": "abcpref-192-168-0-12"},
 		}),
 	)
 
