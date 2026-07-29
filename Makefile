@@ -250,17 +250,17 @@ generate-examples: clean-examples ## Generate examples configurations to run a c
 
 .PHONY: docker-build
 docker-build: ## Build the docker image for controller-manager
-	docker build --network=host --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
+	docker build --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 	MANIFEST_IMG=$(CONTROLLER_IMG)-$(ARCH) MANIFEST_TAG=$(TAG) $(MAKE) set-manifest-image
 	$(MAKE) set-manifest-pull-policy
 
 .PHONY: docker-build-e2e
 docker-build-e2e: ## Build the docker image for e2e tests (matches image name in e2e_conf.yaml)
-	docker build --network=host --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG):e2e-test
+	docker build --pull --build-arg ARCH=$(ARCH) . -t $(CONTROLLER_IMG):e2e-test
 
 .PHONY: docker-build-debug
 docker-build-debug: ## Build the docker image for controller-manager with debug info
-	docker build --network=host --pull --build-arg LDFLAGS="-extldflags=-static" . \
+	docker build --pull --build-arg LDFLAGS="-extldflags=-static" . \
 	-t $(CONTROLLER_IMG):$(TAG)
 	MANIFEST_IMG=$(CONTROLLER_IMG) \
 	MANIFEST_TAG=$(TAG) \
