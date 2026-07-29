@@ -1063,6 +1063,8 @@ func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
 }
 
 // check if IPAddressClaim is stamped with an error.
+// Only Conditions[0] is checked because SetConditions
+// is always called with a single-element slice.
 func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
 	return len(addressClaim.Status.Conditions) > 0 &&
 		(addressClaim.Status.Conditions[0].Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
