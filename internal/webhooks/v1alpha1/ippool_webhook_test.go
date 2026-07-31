@@ -315,10 +315,30 @@ func TestIPPoolValidation(t *testing.T) {
 					Namespace: "foo",
 				},
 				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Subnet: &validSubnet},
+					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
 						"claim1": "192.168.0.10",
 						"claim2": "192.168.0.11",
 						"claim3": "192.168.0.12",
+					},
+				},
+			},
+		},
+		{
+			name:      "should fail when preAllocation is outside the declared pools at create",
+			expectErr: true,
+			c: &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+				},
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Subnet: &validSubnet},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"claim1": "10.0.0.5",
 					},
 				},
 			},
@@ -473,6 +493,9 @@ func TestIPPoolValidation(t *testing.T) {
 					Namespace: "foo",
 				},
 				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{Subnet: &largeV6Subnet},
+					},
 					PreAllocations: map[string]ipamv1.IPAddressStr{
 						"claim1": "2001:db8::1",
 						"claim2": "2001:db8::2",
