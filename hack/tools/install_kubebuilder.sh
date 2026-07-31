@@ -10,8 +10,8 @@ if ! command -v sha256sum &>/dev/null; then
 fi
 
 version=4.14.0
-arch=$(go env GOARCH)
-os=$(go env GOOS)
+arch="$(go env GOARCH)"
+os="$(go env GOOS)"
 
 mkdir -p ./bin
 

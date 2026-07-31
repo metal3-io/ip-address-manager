@@ -19,14 +19,14 @@ set -o pipefail
 
 # Directories.
 SOURCE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-OUTPUT_DIR=${OUTPUT_DIR:-${SOURCE_DIR}/_out}
+OUTPUT_DIR="${OUTPUT_DIR:-${SOURCE_DIR}/_out}"
 
 # Cluster.
 export CLUSTER_NAME="${CLUSTER_NAME:-test1}"
 export NAMESPACE="${NAMESPACE:-metal3-ipam-system}"
 
 # Outputs.
-IPPOOL_GENERATED_FILE=${OUTPUT_DIR}/ippool.yaml
+IPPOOL_GENERATED_FILE="${OUTPUT_DIR}/ippool.yaml"
 
 # Overwrite flag.
 OVERWRITE=0

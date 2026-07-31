@@ -25,7 +25,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT=$(realpath "$(dirname "${BASH_SOURCE[0]}")/../..")
+REPO_ROOT="$(realpath "$(dirname "${BASH_SOURCE[0]}")/../..")"
 cd "${REPO_ROOT}" || exit 1
 
 # Always collect artifacts before exiting
@@ -41,8 +41,8 @@ trap collect_artifacts EXIT
 "${REPO_ROOT}/hack/e2e/ensure_go.sh"
 
 # Verify they are available and have correct versions.
-PATH=$PATH:/usr/local/go/bin
-PATH=$PATH:$(go env GOPATH)/bin
+PATH="${PATH}:/usr/local/go/bin"
+PATH="${PATH}:$(go env GOPATH)/bin"
 
 # Build the IPAM image from the checked-out source.
 # The image name must match what e2e_conf.yaml expects for Kind loading.
