@@ -120,9 +120,9 @@ func deleteOwnerRefFromList(refList []metav1.OwnerReference,
 	if len(refList) == 1 {
 		return []metav1.OwnerReference{}, nil
 	}
-	refListLen := len(refList) - 1
-	refList[index] = refList[refListLen]
-	refList, err = deleteOwnerRefFromList(refList[:refListLen-1], objType, objMeta)
+	refListLastIndex := len(refList) - 1
+	refList[index] = refList[refListLastIndex]
+	refList, err = deleteOwnerRefFromList(refList[:refListLastIndex], objType, objMeta)
 	if err != nil {
 		return nil, err
 	}
