@@ -348,6 +348,26 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectError: true,
 		}),
+		Entry("Huge IPv6 /64 exceeds int64", testCaseGetPoolSize{
+			pool: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			expectError: true,
+		}),
+		Entry("Large IPv6 range that fits int64", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("2001:db8::")),
+				End:   (*IPAddressStr)(ptr.To("2001:db8::ffff")),
+			},
+			expectedSize: 65536,
+		}),
+		Entry("Large IPv6 Start/End range exceeds int64", testCaseGetPoolSize{
+			pool: Pool{
+				Start: (*IPAddressStr)(ptr.To("2001:db8::")),
+				End:   (*IPAddressStr)(ptr.To("2001:db8:ffff:ffff:ffff::")),
+			},
+			expectError: true,
+		}),
 	)
 
 	type testCaseValidatePool struct {
