@@ -53,7 +53,7 @@ func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
 				return "", err
 			}
 			if !ipNet.Contains(ip) {
-				return "", errors.New("IP address out of bonds")
+				return "", errors.New("IP address out of bounds")
 			}
 		}
 
@@ -71,7 +71,7 @@ func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
 
 		// Verify that the ip is in the subnet.
 		if !ipNet.Contains(ip) {
-			return "", errors.New("IP address out of bonds")
+			return "", errors.New("IP address out of bounds")
 		}
 	}
 	return IPAddressStr(ip.String()), nil
@@ -214,7 +214,7 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 		endIPInt = endIPInt.SetBytes(endIP)
 		// Computed IP is higher than the end IP.
 		if IPInt.Cmp(endIPInt) > 0 {
-			return nil, fmt.Errorf("IP address out of bonds for : %s", ip.String())
+			return nil, fmt.Errorf("IP address out of bounds for : %s", ip.String())
 		}
 	}
 

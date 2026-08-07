@@ -2214,7 +2214,7 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedPrefix: 26,
 		}),
-		Entry("One pool, pre-allocated, out of bonds", testCaseAllocateAddress{
+		Entry("One pool, pre-allocated, out of bounds", testCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
@@ -2710,7 +2710,7 @@ var _ = Describe("IPPool manager", func() {
 			expectedGateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.1")),
 			expectedPrefix:  26,
 		}),
-		Entry("One pool, pre-allocated, out of bonds", testCapiCaseAllocateAddress{
+		Entry("One pool, pre-allocated, out of bounds", testCapiCaseAllocateAddress{
 			ipPool: &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{

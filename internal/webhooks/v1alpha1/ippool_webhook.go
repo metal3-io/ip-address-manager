@@ -72,7 +72,7 @@ func (webhook *IPPool) ValidateCreate(_ context.Context, ipPool *ipamv1.IPPool) 
 
 	allErrs := webhook.validatePoolRanges(ipPool)
 
-	allocationOutOfBonds, _ := webhook.checkPoolBonds(ipPool, ipPool)
+	allocationOutOfBonds, _ := webhook.checkPoolBounds(ipPool, ipPool)
 	for _, address := range allocationOutOfBonds {
 		allErrs = append(allErrs,
 			field.Invalid(
@@ -134,25 +134,25 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 	// Validate the new pool ranges
 	allErrs = append(allErrs, webhook.validatePoolRanges(newIPPool)...)
 
-	allocationOutOfBonds, inUseOutOfBonds := webhook.checkPoolBonds(oldIPPool, newIPPool)
-	if len(allocationOutOfBonds) != 0 {
-		for _, address := range allocationOutOfBonds {
+	allocationOutOfBounds, inUseOutOfBounds := webhook.checkPoolBounds(oldIPPool, newIPPool)
+	if len(allocationOutOfBounds) != 0 {
+		for _, address := range allocationOutOfBounds {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "preAllocations"),
 					address,
-					"is out of bonds of the pools given",
+					"is out of bounds of the pools given",
 				),
 			)
 		}
 	}
-	if len(inUseOutOfBonds) != 0 {
-		for _, address := range inUseOutOfBonds {
+	if len(inUseOutOfBounds) != 0 {
+		for _, address := range inUseOutOfBounds {
 			allErrs = append(allErrs,
 				field.Invalid(
 					field.NewPath("spec", "pools"),
 					address,
-					"is in use but out of bonds of the pools given",
+					"is in use but out of bounds of the pools given",
 				),
 			)
 		}
@@ -164,27 +164,27 @@ func (webhook *IPPool) ValidateUpdate(_ context.Context, oldIPPool, newIPPool *i
 	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPPool").GroupKind(), newIPPool.Name, allErrs)
 }
 
-func (webhook *IPPool) checkPoolBonds(oldPool, newPool *ipamv1.IPPool) ([]ipamv1.IPAddressStr, []ipamv1.IPAddressStr) {
-	allocationOutOfBonds := []ipamv1.IPAddressStr{}
-	inUseOutOfBonds := []ipamv1.IPAddressStr{}
+func (webhook *IPPool) checkPoolBounds(oldPool, newPool *ipamv1.IPPool) ([]ipamv1.IPAddressStr, []ipamv1.IPAddressStr) {
+	allocationOutOfBounds := []ipamv1.IPAddressStr{}
+	inUseOutOfBounds := []ipamv1.IPAddressStr{}
 	for _, address := range newPool.Spec.PreAllocations {
-		inBonds := webhook.isAddressInBonds(newPool, address)
+		inBounds := webhook.isAddressInBounds(newPool, address)
 
-		if !inBonds {
-			allocationOutOfBonds = append(allocationOutOfBonds, address)
+		if !inBounds {
+			allocationOutOfBounds = append(allocationOutOfBounds, address)
 		}
 	}
 	for _, address := range oldPool.Status.Allocations {
-		inBonds := webhook.isAddressInBonds(newPool, address)
+		inBounds := webhook.isAddressInBounds(newPool, address)
 
-		if !inBonds {
-			inUseOutOfBonds = append(inUseOutOfBonds, address)
+		if !inBounds {
+			inUseOutOfBounds = append(inUseOutOfBounds, address)
 		}
 	}
-	return allocationOutOfBonds, inUseOutOfBonds
+	return allocationOutOfBounds, inUseOutOfBounds
 }
 
-func (webhook *IPPool) isAddressInBonds(newPool *ipamv1.IPPool, address ipamv1.IPAddressStr) bool {
+func (webhook *IPPool) isAddressInBounds(newPool *ipamv1.IPPool, address ipamv1.IPAddressStr) bool {
 	ip, err := netip.ParseAddr(string(address))
 	if err != nil {
 		return false
