@@ -121,6 +121,13 @@ func ValidatePool(entry Pool) error {
 	return nil
 }
 
+// ErrPoolSizeOverflow is returned by GetPoolSize when a pool is well-formed but
+// its size cannot be represented as an int (e.g. a very large IPv6 subnet such
+// as a /64 or larger). Callers can use errors.Is to tell this apart from a
+// pool that simply could not be sized (malformed/undeterminable), and react
+// accordingly (e.g. report an overflowed capacity vs. leave counts unknown).
+var ErrPoolSizeOverflow = errors.New("pool size exceeds int range")
+
 // GetPoolSize returns the number of indexable IP addresses in the given pool
 // entry, matching the index space accepted by GetIPAddress: GetIPAddress(entry, i)
 // is valid for i in [0, size) and returns an error for i >= size. Unlike
@@ -172,7 +179,7 @@ func GetPoolSize(entry Pool) (int, error) {
 		diff.Add(diff, big.NewInt(1))
 	}
 	if !diff.IsInt64() || diff.Int64() > math.MaxInt {
-		return 0, errors.New("pool size exceeds int range")
+		return 0, ErrPoolSizeOverflow
 	}
 	return int(diff.Int64()), nil
 }
