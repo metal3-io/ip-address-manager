@@ -12,8 +12,8 @@ if ! command -v sha256sum &>/dev/null; then
 fi
 
 version=v0.24.1
-arch=$(go env GOARCH)
-os=$(go env GOOS)
+arch="$(go env GOARCH)"
+os="$(go env GOOS)"
 
 # SHA256 checksums from https://github.com/kubernetes-sigs/controller-runtime/releases/tag/${version}
 key="${os}-${arch}"
@@ -33,7 +33,7 @@ mkdir -p ./bin
 url="https://github.com/kubernetes-sigs/controller-runtime/releases/download/${version}/setup-envtest-${os}-${arch}"
 curl -sfL "${url}" -o bin/setup-envtest
 
-actual_sha=$(sha256sum bin/setup-envtest | awk '{print $1}')
+actual_sha="$(sha256sum bin/setup-envtest | awk '{print $1}')"
 if [[ "${actual_sha}" != "${SETUP_ENVTEST_SHA256}" ]]; then
     echo "ERROR: SHA256 mismatch for setup-envtest ${key}" >&2
     echo "  expected: ${SETUP_ENVTEST_SHA256}" >&2
