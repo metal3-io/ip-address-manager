@@ -108,6 +108,28 @@ type IPPoolStatus struct {
 
 	// Allocations contains the map of objects and IP addresses they have
 	Allocations map[string]IPAddressStr `json:"indexes,omitempty"`
+
+	// Capacity is the total number of IP addresses that all the pools defined
+	// in the spec can hold. If the combined size of the pools is too large to
+	// represent as an int64 (for example a very large IPv6 subnet such as a
+	// /64 or larger), Capacity is reported as the int64 maximum and Overflow is
+	// set to true. If the pools cannot be sized at all, Capacity is omitted.
+	// +optional
+	Capacity *int64 `json:"capacity,omitempty"`
+
+	// AvailableIPCount is the number of IP addresses in the pools that are not
+	// currently in use, i.e. Capacity minus the addresses already allocated.
+	// It is omitted when the capacity is unknown or too large to count exactly
+	// (see Capacity and Overflow).
+	// +optional
+	AvailableIPCount *int64 `json:"availableIPCount,omitempty"`
+
+	// CapacityOverflow is true when the combined size of the pools is too large
+	// to represent exactly. In that case Capacity is capped at the int64
+	// maximum and AvailableIPCount is omitted. It is false during normal
+	// operation, including when the pool is fully allocated.
+	// +optional
+	CapacityOverflow bool `json:"capacityOverflow,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -117,6 +139,9 @@ type IPPoolStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels.cluster\\.x-k8s\\.io/cluster-name",description="Cluster to which this template belongs"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Metal3IPPool"
+// +kubebuilder:printcolumn:name="Capacity",type="integer",JSONPath=".status.capacity",description="Total allocatable IPs in the pool"
+// +kubebuilder:printcolumn:name="Available IPs",type="integer",JSONPath=".status.availableIPCount",description="Unallocated IPs in the pool"
+// +kubebuilder:printcolumn:name="Capacity Overflow",type="boolean",JSONPath=".status.capacityOverflow",description="Whether the pool capacity is too large to count exactly"
 // IPPool is the Schema for the ippools API.
 type IPPool struct {
 	metav1.TypeMeta   `json:",inline"`
