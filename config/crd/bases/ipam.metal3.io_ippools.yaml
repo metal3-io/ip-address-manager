@@ -34,6 +34,14 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - description: Total allocatable IPs in the pool
+      jsonPath: .status.capacity
+      name: Capacity
+      type: integer
+    - description: Unallocated IPs in the pool
+      jsonPath: .status.availableIPCount
+      name: Available IPs
+      type: integer
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -151,6 +159,22 @@ spec:
           status:
             description: IPPoolStatus defines the observed state of IPPool.
             properties:
+              availableIPCount:
+                description: |-
+                  AvailableIPCount is the number of IP addresses in the pools that are
+                  not currently in use, i.e. Capacity minus the addresses already
+                  allocated. Its omitted whenever the Capacity is omitted (see Capacity).
+                format: int64
+                type: integer
+              capacity:
+                description: |-
+                  Capacity is the total number of IP addresses that all
+                  the pools defined in the spec can hold.
+                  If the combined size of pools cannot be represented as an int64
+                  (for example, a very large IPv6 subnet such as a /64 or larger),
+                  Capacity and AvailableIPCount are omitted rather than reported.
+                format: int64
+                type: integer
               indexes:
                 additionalProperties:
                   description: IPAddress is used for validation of an IP address.
