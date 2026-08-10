@@ -24,6 +24,15 @@ import (
 	"net"
 )
 
+const (
+	// ipv6ByteLen is the byte length of an IPv6 address.
+	ipv6ByteLen = 16
+	// Big Int value of 255.255.255.255
+	// Maximum numeric value in hex format of the IPv4-Mapped IPv6 Address
+	// according to https://www.rfc-editor.org/rfc/rfc4291.html#section-2.5.5.2
+	maxIPv4Int = 0xFFFFFFFFFFFF
+)
+
 // GetIPAddress renders the IP address, taking the index, offset and step into
 // account, it is IP version agnostic.
 func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
@@ -182,11 +191,14 @@ func lastIPInSubnet(n *net.IPNet) net.IP {
 // Note that if the resulting IP address is in the format ::ffff:xxxx:xxxx then
 // ip.String will fail to select the correct type of ip.
 func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
-	ip4 := false
-	if ip.To4() != nil {
-		ip4 = true
+	// Detect IPv4 before normalizing to 16-byte form.
+	ip4 := ip.To4() != nil
+	// Normalize to the 16-byte form so the byte-length and value checks
+	// below hold for both ParseIP and ParseCIDR inputs.
+	ip = ip.To16()
+	if ip == nil {
+		return nil, errors.New("invalid IP address")
 	}
-
 	// Create big integers.
 	IPInt := big.NewInt(0)
 	OffsetInt := big.NewInt(int64(offset))
@@ -202,9 +214,12 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 
 	IPBytesLen := len(IPBytes)
 
-	// Verify that the IPv4 or IPv6 fulfills theirs constraints.
-	if (ip4 && IPBytesLen > 6 && IPBytes[4] != 255 && IPBytes[5] != 255) ||
-		(!ip4 && IPBytesLen > 16) {
+	// Verify that the IPv4 or IPv6 fulfills their constraints.
+	if ip4 {
+		if IPInt.Cmp(big.NewInt(maxIPv4Int)) > 0 {
+			return nil, fmt.Errorf("IP address overflow for : %s", ip.String())
+		}
+	} else if IPBytesLen > ipv6ByteLen {
 		return nil, fmt.Errorf("IP address overflow for : %s", ip.String())
 	}
 
@@ -218,7 +233,7 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 		}
 	}
 
-	// COpy the output back into an ip.
-	copy(ip[16-IPBytesLen:], IPBytes)
+	// Copy the output back into an ip.
+	copy(ip[ipv6ByteLen-IPBytesLen:], IPBytes)
 	return ip, nil
 }
