@@ -328,7 +328,7 @@ release-notes-tool:
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES_DIR) $(TOOLS_DIR)/go.mod ## Generates release notes for the given tag
 	@echo "Generating release notes for $(RELEASE_TAG)..."
-	@cd $(TOOLS_DIR) && $(GO) build -tags=tools -o $(BIN_DIR)/release ./release
+	@cd $(TOOLS_DIR) && go build -tags=tools -o $(BIN_DIR)/release ./release
 	@$(TOOLS_BIN_DIR)/release --releaseTag="$(RELEASE_TAG)" --githubToken="$${GITHUB_TOKEN}" > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md
 	@echo "Release notes written to $(realpath $(RELEASE_NOTES_DIR))/$(RELEASE_TAG).md"
 
