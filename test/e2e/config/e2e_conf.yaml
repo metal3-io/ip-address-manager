@@ -13,59 +13,59 @@ providers:
 - name: cluster-api
   type: CoreProvider
   versions:
-  - name: "{go://sigs.k8s.io/cluster-api@v1.13}"
-    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.13}/core-components.yaml"
+  - name: "{go://sigs.k8s.io/cluster-api@v1.14}"
+    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.14}/core-components.yaml"
     type: "url"
     contract: v1beta2
     replacements:
     - old: --metrics-addr=127.0.0.1:8080
       new: --metrics-addr=:8080
     files:
-    - sourcePath: "../data/shared/capi/v1.13/metadata.yaml"
+    - sourcePath: "../data/shared/capi/v1.14/metadata.yaml"
 
 - name: kubeadm
   type: BootstrapProvider
   versions:
-  - name: "{go://sigs.k8s.io/cluster-api@v1.13}"
-    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.13}/bootstrap-components.yaml"
+  - name: "{go://sigs.k8s.io/cluster-api@v1.14}"
+    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.14}/bootstrap-components.yaml"
     type: "url"
     contract: v1beta2
     replacements:
     - old: --metrics-addr=127.0.0.1:8080
       new: --metrics-addr=:8080
     files:
-    - sourcePath: "../data/shared/capi/v1.13/metadata.yaml"
+    - sourcePath: "../data/shared/capi/v1.14/metadata.yaml"
 
 - name: kubeadm
   type: ControlPlaneProvider
   versions:
-  - name: "{go://sigs.k8s.io/cluster-api@v1.13}"
-    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.13}/control-plane-components.yaml"
+  - name: "{go://sigs.k8s.io/cluster-api@v1.14}"
+    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.14}/control-plane-components.yaml"
     type: "url"
     contract: v1beta2
     replacements:
     - old: --metrics-addr=127.0.0.1:8080
       new: --metrics-addr=:8080
     files:
-    - sourcePath: "../data/shared/capi/v1.13/metadata.yaml"
+    - sourcePath: "../data/shared/capi/v1.14/metadata.yaml"
 
 - name: docker
   type: InfrastructureProvider
   versions:
-  - name: "{go://sigs.k8s.io/cluster-api@v1.13}"
-    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.13}/infrastructure-components-development.yaml"
+  - name: "{go://sigs.k8s.io/cluster-api@v1.14}"
+    value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{go://sigs.k8s.io/cluster-api@v1.14}/infrastructure-components-development.yaml"
     type: "url"
     contract: v1beta2
     replacements:
     - old: --metrics-addr=127.0.0.1:8080
       new: --metrics-addr=:8080
     files:
-    - sourcePath: "../data/shared/capd/v1.13/metadata.yaml"
+    - sourcePath: "../data/shared/capd/v1.14/metadata.yaml"
 
 - name: metal3
   type: IPAMProvider
   versions:
-  - name: "v1.14.99"
+  - name: "v1.15.99"
     value: "../data/ipamprovider-metal3/overlays/e2e"
     type: "kustomize"
     contract: v1beta2
