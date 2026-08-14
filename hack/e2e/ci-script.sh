@@ -54,4 +54,12 @@ if [[ "${USE_EXISTING_CLUSTER:-false}" == "true" ]]; then
   kind load docker-image quay.io/metal3-io/ip-address-manager:e2e-test
 fi
 
+# Increase inotify limits to avoid "too many open files" errors during
+# pivoting and clusterctl-upgrade e2e tests.
+sudo sysctl fs.inotify.max_user_instances=1024
+sudo sysctl fs.inotify.max_user_watches=524288
+
+# Enable ClusterTopology feature for clusterctl-upgrade tests
+export CLUSTER_TOPOLOGY=true
+
 make test-e2e
