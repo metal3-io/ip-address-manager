@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-MINIMUM_GO_VERSION=go1.26.5
+MINIMUM_GO_VERSION=go1.26.6
 
 # Ensure the go tool exists and is a viable version, or installs it
 verify_go_version()
