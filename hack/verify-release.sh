@@ -135,10 +135,12 @@ if [[ -n "${CONTAINER_RUNTIME}" ]]; then
     required_tools+=(
         "${CONTAINER_RUNTIME}"
     )
+    GCRANE_VERSION="v0.21.7"
+    GCRANE_SHA="sha256:9f84ccb966ace4576dcd72543cc980056d037e499d5f389cd39a78e4b04740a6"
     declare -a GCRANE_CMD=(
         "${CONTAINER_RUNTIME}" run --rm
         --pull always
-        gcr.io/go-containerregistry/gcrane:latest
+        "gcr.io/go-containerregistry/gcrane:${GCRANE_VERSION}@${GCRANE_SHA}"
     )
     declare -a OSVSCANNER_CMD=(
         "${CONTAINER_RUNTIME}" run --rm
