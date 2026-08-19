@@ -5,17 +5,6 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - authentication.k8s.io
   resources:
   - tokenreviews
@@ -36,19 +25,10 @@ rules:
   - list
   - watch
 - apiGroups:
-  - cluster.x-k8s.io
-  resources:
-  - clusters/status
-  verbs:
-  - get
-- apiGroups:
   - ipam.cluster.x-k8s.io
   resources:
   - ipaddressclaims
-  - ipaddresses
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -58,20 +38,27 @@ rules:
   - ipam.cluster.x-k8s.io
   resources:
   - ipaddressclaims/status
-  - ipaddresses/status
   verbs:
   - get
   - patch
   - update
 - apiGroups:
+  - ipam.cluster.x-k8s.io
   - ipam.metal3.io
   resources:
   - ipaddresses
-  - ipclaims
-  - ippools
   verbs:
   - create
   - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims
+  verbs:
   - get
   - list
   - patch
@@ -80,10 +67,25 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
-  - ipaddresses/status
   - ipclaims/status
-  - ippools/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ippools
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ippools/status
+  verbs:
+  - get
+  - patch
