@@ -224,6 +224,9 @@ func (r *IPPoolReconciler) IPClaimToIPPool(_ context.Context, obj client.Object)
 			if namespace == "" {
 				namespace = m3ipc.Namespace
 			}
+			if namespace != m3ipc.Namespace {
+				return []ctrl.Request{}
+			}
 			return []ctrl.Request{
 				{
 					NamespacedName: types.NamespacedName{
