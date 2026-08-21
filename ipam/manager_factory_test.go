@@ -44,4 +44,24 @@ var _ = Describe("Manager factory testing", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("wires the API reader through to the manager", func() {
+		apiReader := fakeclient.NewClientBuilder().WithScheme(setupScheme()).Build()
+		mgrIface, err := NewManagerFactory(managerClient, WithAPIReader(apiReader)).
+			NewIPPoolManager(&ipamv1.IPPool{}, clusterLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		mgr, ok := mgrIface.(*IPPoolManager)
+		Expect(ok).To(BeTrue())
+		Expect(mgr.collisionReader()).To(BeIdenticalTo(apiReader))
+	})
+
+	It("falls back to the cached client when no API reader is configured", func() {
+		mgrIface, err := managerFactory.NewIPPoolManager(&ipamv1.IPPool{}, clusterLog)
+		Expect(err).NotTo(HaveOccurred())
+
+		mgr, ok := mgrIface.(*IPPoolManager)
+		Expect(ok).To(BeTrue())
+		Expect(mgr.collisionReader()).To(BeIdenticalTo(managerClient))
+	})
+
 })
