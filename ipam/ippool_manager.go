@@ -33,6 +33,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
@@ -83,9 +84,20 @@ type IPPoolManagerInterface interface {
 
 // IPPoolManager is responsible for performing machine reconciliation.
 type IPPoolManager struct {
-	client client.Client
-	IPPool *ipamv1.IPPool
-	Log    logr.Logger
+	client   client.Client
+	IPPool   *ipamv1.IPPool
+	Log      logr.Logger
+	recorder events.EventRecorder
+
+	// foreignAddressNames holds the names of the IPAddress objects in this
+	// namespace that belong to another IPPool (or to no IPPool at all), mapped
+	// to the name of the owning pool. Both ipam.metal3.io and
+	// ipam.cluster.x-k8s.io objects are recorded, because a name is only unique
+	// within its own API group: creating a metal3 IPAddress whose name is
+	// already taken by a CAPI one succeeds, leaving two claims pointing at the
+	// same address. Populated by getIndexes from objects it already lists; a nil
+	// map disables the check.
+	foreignAddressNames map[string]string
 }
 
 // NewIPPoolManager returns a new helper for managing a ipPool object.
@@ -170,6 +182,7 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 	updatedAllocations := make(map[string]ipamv1.IPAddressStr)
 
 	addresses := make(map[ipamv1.IPAddressStr]string)
+	foreignAddressNames := make(map[string]string)
 
 	// After addresses map is populated, we consider that there are still addresses in use.
 	// However, when IPPool.Spec.PreAllocations is given, it can still hold addresses even
@@ -195,11 +208,10 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 
 	// Iterate over the IPAddress objects to find all addresses and objects
 	for _, addressObject := range addressObjects.Items {
-		// If IPPool does not point to this object, discard
-		if addressObject.Spec.Pool.Name == "" {
-			continue
-		}
+		// If IPPool does not point to this object, discard it from the
+		// allocations of this pool, but remember that its name is taken.
 		if addressObject.Spec.Pool.Name != m.IPPool.Name {
+			foreignAddressNames[addressObject.Name] = addressObject.Spec.Pool.Name
 			continue
 		}
 
@@ -222,11 +234,10 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 
 	// Iterate over the IPAddress objects to find all addresses and objects
 	for _, addressObject := range capiAddressObjects.Items {
-		// If IPPool does not point to this object, discard
-		if addressObject.Spec.PoolRef.Name == "" {
-			continue
-		}
+		// If IPPool does not point to this object, discard it from the
+		// allocations of this pool, but remember that its name is taken.
 		if addressObject.Spec.PoolRef.Name != m.IPPool.Name {
+			foreignAddressNames[addressObject.Name] = addressObject.Spec.PoolRef.Name
 			continue
 		}
 
@@ -244,6 +255,8 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		m.IPPool.Status.Allocations = updatedAllocations
 		m.updateStatusTimestamp()
 	}
+
+	m.foreignAddressNames = foreignAddressNames
 
 	return addresses, nil
 }
@@ -870,6 +883,19 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	// Set the index and IPAddress names
 	addressName := m.formatAddressName(allocatedAddress)
 
+	if owningPool, taken := m.foreignAddressNames[addressName]; taken {
+		msg := nameCollisionMessage(addressName)
+		m.Log.Info("IPAddress name is already taken by another IPPool",
+			"IPAddress", addressName, "owningIPPool", owningPool)
+		addressClaim.Status.ErrorMessage = ptr.To(msg)
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
+		}
+		// Plain error, not transient: the claim cannot be served until the
+		// colliding IPPool spec is fixed, so back off instead of requeueing.
+		return addresses, errors.New(msg)
+	}
+
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
 	// Construct ownerRefs for the IPClaim and the IPPool.
@@ -918,14 +944,22 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 		},
 	}
 
-	// Create the IPAddress object. If we get a conflict (that will set
-	// Transient error), then requeue to retrigger the reconciliation with
-	// the new state
+	// Create the IPAddress object. Names taken by another IPPool are already
+	// reported above, so AlreadyExists here means the cached list did not show
+	// the object yet: a concurrent claim in this pool, or a pool whose IPAddress
+	// was created since the last list. It is reported as a transient error so
+	// the claim is retried with backoff.
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
+			// Not the AlreadyExists case: surface the real error and requeue.
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
 			return addresses, err
+		}
+		msg := nameCollisionMessage(addressName)
+		addressClaim.Status.ErrorMessage = ptr.To(msg)
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
 		}
 		// createObject returns a ReconcileError only for AlreadyExists. An
 		// IPAddress for this IP exists, but the cached list did not show it.
@@ -1036,6 +1070,24 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	// Set the index and IPAddress names
 	addressName := m.formatAddressName(allocatedAddress)
 
+	if owningPool, taken := m.foreignAddressNames[addressName]; taken {
+		msg := nameCollisionMessage(addressName)
+		m.Log.Info("IPAddress name is already taken by another IPPool",
+			"IPAddress", addressName, "owningIPPool", owningPool)
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: msg,
+		})
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
+		}
+		// Plain error, not transient: the claim cannot be served until the
+		// colliding IPPool spec is fixed, so back off instead of requeueing.
+		return addresses, errors.New(msg)
+	}
+
 	m.Log.Info("Address allocated", "Claim", addressClaim.Name, "address", allocatedAddress)
 
 	// Construct ownerRefs for the IPAddressClaim and the IPPool.
@@ -1083,12 +1135,15 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 		},
 	}
 
-	// Create the IPAddress object. If we get a conflict (that will set
-	// Transient error), then requeue to retrigger the reconciliation with
-	// the new state
+	// Create the IPAddress object. Names taken by another IPPool are already
+	// reported above, so AlreadyExists here means the cached list did not show
+	// the object yet: a concurrent claim in this pool, or a pool whose IPAddress
+	// was created since the last list. It is reported as a transient error so
+	// the claim is retried with backoff.
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
+			// Not the AlreadyExists case: surface the real error and requeue.
 			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
 				Type:    capipamv1.IPAddressClaimReadyCondition,
 				Status:  metav1.ConditionFalse,
@@ -1096,6 +1151,16 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 				Message: "Failed to create associated IPAddress object",
 			})
 			return addresses, err
+		}
+		msg := nameCollisionMessage(addressName)
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: msg,
+		})
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
 		}
 		// AlreadyExists: reserve the IP for the rest of this reconcile, see createAddress.
 		addresses[allocatedAddress] = ""
@@ -1357,4 +1422,17 @@ func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
 	condition := meta.FindStatusCondition(addressClaim.Status.Conditions, capipamv1.IPAddressClaimReadyCondition)
 	return condition != nil && (condition.Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
 		condition.Reason == capipamv1.IPAddressClaimReadyPoolExhaustedReason)
+}
+
+// nameCollisionMessage renders the message for an IPAddress name that is
+// already taken. The owning pool is deliberately left out: the same message is
+// used when the owner is known (an object listed for another pool) and when it
+// is not (a create that lost a race), and the name is built from
+// spec.namePrefix and the address, so "kubectl get ipaddress <name> -o yaml"
+// shows the owner either way. The owning pool, when known, is logged.
+func nameCollisionMessage(addressName string) string {
+	return fmt.Sprintf(
+		"IPAddress %q already exists; another IPPool in this namespace may use the same spec.namePrefix",
+		addressName,
+	)
 }
