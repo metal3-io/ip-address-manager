@@ -20,6 +20,7 @@ import (
 	"errors"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -84,7 +85,6 @@ func (webhook *IPClaim) ValidateCreate(_ context.Context, ipClaim *ipamv1.IPClai
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
 func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim *ipamv1.IPClaim) (admission.Warnings, error) {
-	allErrs := field.ErrorList{}
 	if oldIPClaim == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
@@ -93,27 +93,13 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim
 		return nil, apierrors.NewBadRequest("expected an IPClaim but got nil")
 	}
 
-	if newIPClaim.Spec.Pool.Name != oldIPClaim.Spec.Pool.Name {
+	allErrs := field.ErrorList{}
+
+	if !equality.Semantic.DeepEqual(oldIPClaim.Spec, newIPClaim.Spec) {
 		allErrs = append(allErrs,
 			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPClaim.Spec.Pool,
-				"cannot be modified",
-			),
-		)
-	} else if newIPClaim.Spec.Pool.Namespace != oldIPClaim.Spec.Pool.Namespace {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPClaim.Spec.Pool,
-				"cannot be modified",
-			),
-		)
-	} else if newIPClaim.Spec.Pool.Kind != oldIPClaim.Spec.Pool.Kind {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPClaim.Spec.Pool,
+				field.NewPath("spec"),
+				newIPClaim.Spec,
 				"cannot be modified",
 			),
 		)
