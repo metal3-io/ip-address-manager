@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"net"
 	"reflect"
@@ -242,7 +243,85 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if err := m.updateAddressCounts(count); err != nil {
+		// Best-effort: don't fail reconcile just because counts can't be computed.
+		m.Log.Error(err, "Failed to update IP address counts")
+	}
 	return count, nil
+}
+
+// updateAddressCounts computes the total and available IP counts for the pool
+// and records them in the status. Total is the sum of all pool sizes, and available
+// is the total minus the number of the addresses currently in use (inUse).
+func (m *IPPoolManager) updateAddressCounts(inUse int) error {
+	var total int64
+	for _, pool := range m.IPPool.Spec.Pools {
+		size, err := ipamv1.GetPoolSize(pool)
+		if err != nil {
+			// The pool is well-formed but too large to represent as an int
+			// (e.g. a very large IPv6 subnet): report an overflowed capacity
+			// rather than treating it as a failure.
+			if errors.Is(err, ipamv1.ErrPoolSizeOverflow) {
+				m.setCapacityOverflow()
+				return nil
+			}
+			// The pool could not be sized at all: clear any previously
+			// published counts so we don't leave stale values.
+			m.clearAddressCounts()
+			return fmt.Errorf("failed to get pool size: %w", err)
+		}
+		// GetPoolSize bounds each pool to int, guard the sum so it can't wrap.
+		if total > math.MaxInt64-int64(size) {
+			m.setCapacityOverflow()
+			return nil
+		}
+		total += int64(size)
+	}
+
+	available := total - int64(inUse)
+	if available < 0 {
+		available = 0
+	}
+
+	if m.IPPool.Status.CapacityOverflow ||
+		m.IPPool.Status.Capacity == nil || *m.IPPool.Status.Capacity != total ||
+		m.IPPool.Status.AvailableIPCount == nil || *m.IPPool.Status.AvailableIPCount != available {
+		m.IPPool.Status.CapacityOverflow = false
+		m.IPPool.Status.Capacity = &total
+		m.IPPool.Status.AvailableIPCount = &available
+		m.updateStatusTimestamp()
+	}
+	return nil
+}
+
+// setCapacityOverflow records that the combined pool capacity is too large to
+// represent exactly: Capacity is capped at the int64 maximum, AvailableIPCount
+// is left unknown (a huge pool is not actually empty), and CapacityOverflow is
+// raised.
+func (m *IPPoolManager) setCapacityOverflow() {
+	maxCapacity := int64(math.MaxInt64)
+	if m.IPPool.Status.CapacityOverflow &&
+		m.IPPool.Status.Capacity != nil && *m.IPPool.Status.Capacity == maxCapacity &&
+		m.IPPool.Status.AvailableIPCount == nil {
+		return
+	}
+	m.IPPool.Status.CapacityOverflow = true
+	m.IPPool.Status.Capacity = &maxCapacity
+	m.IPPool.Status.AvailableIPCount = nil
+	m.updateStatusTimestamp()
+}
+
+// clearAddressCounts drops any previously published counts when the pool can no
+// longer be sized, so the status does not report stale values.
+func (m *IPPoolManager) clearAddressCounts() {
+	if !m.IPPool.Status.CapacityOverflow &&
+		m.IPPool.Status.Capacity == nil && m.IPPool.Status.AvailableIPCount == nil {
+		return
+	}
+	m.IPPool.Status.CapacityOverflow = false
+	m.IPPool.Status.Capacity = nil
+	m.IPPool.Status.AvailableIPCount = nil
+	m.updateStatusTimestamp()
 }
 
 // UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
