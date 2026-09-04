@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
@@ -57,9 +58,10 @@ type IPPoolManagerInterface interface {
 
 // IPPoolManager is responsible for performing machine reconciliation.
 type IPPoolManager struct {
-	client client.Client
-	IPPool *ipamv1.IPPool
-	Log    logr.Logger
+	client   client.Client
+	IPPool   *ipamv1.IPPool
+	Log      logr.Logger
+	recorder events.EventRecorder
 }
 
 // NewIPPoolManager returns a new helper for managing a ipPool object.
@@ -759,6 +761,14 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	// Transient error), then requeue to retrigger the reconciliation with
 	// the new state
 	if err := createObject(ctx, m.client, addressObject); err != nil {
+		if collision, poolName, claimName := m.isNameCollision(ctx, addressName, addressClaim.Name); collision {
+			msg := fmt.Sprintf("IPAddress name collision: %q already exists, owned by IPPool %q / IPClaim %q (likely a duplicate spec.namePrefix)", addressName, poolName, claimName)
+			addressClaim.Status.ErrorMessage = ptr.To(msg)
+			if m.recorder != nil {
+				m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
+			}
+			return addresses, WithTerminalError(errors.New(msg))
+		}
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
@@ -865,6 +875,20 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	// Transient error), then requeue to retrigger the reconciliation with
 	// the new state
 	if err := createObject(ctx, m.client, addressObject); err != nil {
+		if collision, poolName, claimName := m.capiIsNameCollision(ctx, addressName, addressClaim.Name); collision {
+			msg := fmt.Sprintf("IPAddress name collision: %q already exists, owned by IPPool %q / IPClaim %q (likely a duplicate spec.namePrefix)", addressName, poolName, claimName)
+			addressClaim.SetConditions([]metav1.Condition{{
+				Type:               capipamv1.IPAddressClaimReadyCondition,
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
+				Message:            msg,
+			}})
+			if m.recorder != nil {
+				m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
+			}
+			return addresses, WithTerminalError(errors.New(msg))
+		}
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
 			conditions := make([]metav1.Condition, 0, 1)
@@ -1069,4 +1093,34 @@ func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
 	return len(addressClaim.Status.Conditions) > 0 &&
 		(addressClaim.Status.Conditions[0].Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
 			addressClaim.Status.Conditions[0].Reason == capipamv1.IPAddressClaimReadyPoolExhaustedReason)
+}
+
+// isNameCollision returns true if an IPAddress with the given name already
+// exists but is NOT owned by this pool/claim (i.e. a namePrefix collision),
+// along with the owning pool and claim names for the error message.
+func (m *IPPoolManager) isNameCollision(ctx context.Context, name, claimName string) (bool, string, string) {
+	existing := &ipamv1.IPAddress{}
+	key := client.ObjectKey{Name: name, Namespace: m.IPPool.Namespace}
+	if err := m.client.Get(ctx, key, existing); err != nil {
+		return false, "", ""
+	}
+	// Benign only if this exact pool+claim already owns the address (stale-cache race).
+	if existing.Spec.Pool.Name == m.IPPool.Name && existing.Spec.Claim.Name == claimName {
+		return false, "", ""
+	}
+	return true, existing.Spec.Pool.Name, existing.Spec.Claim.Name
+}
+
+// capiIsNameCollision is the CAPI-typed equivalent of isNameCollision.
+func (m *IPPoolManager) capiIsNameCollision(ctx context.Context, name, claimName string) (bool, string, string) {
+	existing := &capipamv1.IPAddress{}
+	key := client.ObjectKey{Name: name, Namespace: m.IPPool.Namespace}
+	if err := m.client.Get(ctx, key, existing); err != nil {
+		return false, "", ""
+	}
+	// Benign only if this exact pool+claim already owns the address (stale-cache race).
+	if existing.Spec.PoolRef.Name == m.IPPool.Name && existing.Spec.ClaimRef.Name == claimName {
+		return false, "", ""
+	}
+	return true, existing.Spec.PoolRef.Name, existing.Spec.ClaimRef.Name
 }
