@@ -274,7 +274,21 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.Address != nil && addressClaim.DeletionTimestamp.IsZero() {
-			continue
+			// Verify the referenced IPAddress still exists before skipping.
+			existingAddr := &ipamv1.IPAddress{}
+			key := client.ObjectKey{
+				Name:      addressClaim.Status.Address.Name,
+				Namespace: m.IPPool.Namespace,
+			}
+			getErr := m.client.Get(ctx, key, existingAddr)
+			if getErr == nil {
+				continue
+			}
+			if !apierrors.IsNotFound(getErr) {
+				return 0, getErr
+			}
+			// IPAddress is gone: clear stale reference and fall through to re-allocate.
+			addressClaim.Status.Address = nil
 		}
 
 		if addressClaim.Status.ErrorMessage != nil && addressClaim.DeletionTimestamp.IsZero() {
@@ -315,7 +329,21 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.AddressRef.Name != "" && addressClaim.DeletionTimestamp.IsZero() {
-			continue
+			// Verify the referenced IPAddress still exists before skipping.
+			existingAddr := &capipamv1.IPAddress{}
+			key := client.ObjectKey{
+				Name:      addressClaim.Status.AddressRef.Name,
+				Namespace: m.IPPool.Namespace,
+			}
+			getErr := m.client.Get(ctx, key, existingAddr)
+			if getErr == nil {
+				continue
+			}
+			if !apierrors.IsNotFound(getErr) {
+				return 0, getErr
+			}
+			// IPAddress is gone: clear stale reference and fall through to re-allocate.
+			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{}
 		}
 
 		if anyErrorInExistingClaim(addressClaim) && addressClaim.DeletionTimestamp.IsZero() {
