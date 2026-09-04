@@ -44,6 +44,7 @@ func TestIPClaimCreateValidation(t *testing.T) {
 	tests := []struct {
 		name      string
 		claimName string
+		namespace string
 		expectErr bool
 		ipPool    corev1.ObjectReference
 	}{
@@ -51,22 +52,45 @@ func TestIPClaimCreateValidation(t *testing.T) {
 			name:      "should succeed when ipPool is correct",
 			expectErr: false,
 			claimName: "abc-1",
+			namespace: "foo",
 			ipPool: corev1.ObjectReference{
 				Name: "abc",
+			},
+		},
+		{
+			name:      "should succeed when ipPool namespace matches claim namespace",
+			expectErr: false,
+			claimName: "abc-1",
+			namespace: "foo",
+			ipPool: corev1.ObjectReference{
+				Name:      "abc",
+				Namespace: "foo",
 			},
 		},
 		{
 			name:      "should fail without ipPool",
 			expectErr: true,
 			claimName: "abc-1",
+			namespace: "foo",
 			ipPool:    corev1.ObjectReference{},
 		},
 		{
 			name:      "should fail without ipPool name",
 			expectErr: true,
 			claimName: "abc-1",
+			namespace: "foo",
 			ipPool: corev1.ObjectReference{
 				Namespace: "abc",
+			},
+		},
+		{
+			name:      "should fail when ipPool namespace differs from claim namespace",
+			expectErr: true,
+			claimName: "abc-1",
+			namespace: "foo",
+			ipPool: corev1.ObjectReference{
+				Name:      "abc",
+				Namespace: "other-namespace",
 			},
 		},
 	}
@@ -78,7 +102,7 @@ func TestIPClaimCreateValidation(t *testing.T) {
 
 			obj := &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
+					Namespace: tt.namespace,
 					Name:      tt.claimName,
 				},
 				Spec: ipamv1.IPClaimSpec{

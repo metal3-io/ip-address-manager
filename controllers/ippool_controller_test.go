@@ -379,7 +379,7 @@ var _ = Describe("IPPool controller", func() {
 				ExpectRequest: false,
 			},
 		),
-		Entry("IPPool in Spec, with namespace",
+		Entry("IPPool in Spec, same namespace",
 			TestCaseM3IPCToM3IPP{
 				IPClaim: &ipamv1.IPClaim{
 					ObjectMeta: testObjectMeta,
@@ -404,6 +404,20 @@ var _ = Describe("IPPool controller", func() {
 					},
 				},
 				ExpectRequest: true,
+			},
+		),
+		Entry("IPPool in Spec, cross-namespace reference rejected",
+			TestCaseM3IPCToM3IPP{
+				IPClaim: &ipamv1.IPClaim{
+					ObjectMeta: testObjectMeta,
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "other-ns",
+						},
+					},
+				},
+				ExpectRequest: false,
 			},
 		),
 	)

@@ -57,7 +57,22 @@ func FuzzIPClaimToIPPool(f *testing.F) {
 			return
 		}
 
-		// Should return exactly one request when pool name is specified
+		// Determine the effective namespace
+		poolNamespace := ipClaim.Spec.Pool.Namespace
+		if poolNamespace == "" {
+			poolNamespace = ipClaim.Namespace
+		}
+
+		// Cross-namespace references must be rejected
+		if poolNamespace != ipClaim.Namespace {
+			if len(reqs) != 0 {
+				t.Errorf("expected no requests for cross-namespace pool reference (claim ns=%q, pool ns=%q), got %d",
+					ipClaim.Namespace, poolNamespace, len(reqs))
+			}
+			return
+		}
+
+		// Should return exactly one request when pool name is specified and namespace matches
 		if len(reqs) != 1 {
 			t.Errorf("expected 1 request, got %d", len(reqs))
 			return
@@ -71,14 +86,10 @@ func FuzzIPClaimToIPPool(f *testing.F) {
 				ipClaim.Spec.Pool.Name, req.NamespacedName.Name)
 		}
 
-		// Verify namespace logic
-		expectedNamespace := ipClaim.Spec.Pool.Namespace
-		if expectedNamespace == "" {
-			expectedNamespace = ipClaim.Namespace
-		}
-		if req.NamespacedName.Namespace != expectedNamespace {
+		// Verify namespace is the claim's namespace
+		if req.NamespacedName.Namespace != ipClaim.Namespace {
 			t.Errorf("namespace mismatch: expected %s, got %s",
-				expectedNamespace, req.NamespacedName.Namespace)
+				ipClaim.Namespace, req.NamespacedName.Namespace)
 		}
 	})
 }
