@@ -164,9 +164,11 @@ fi
 cleanup()
 {
     rm -rf "${TMP_DIR}"
+    rm -f "${CONFIG_FILE}"
 }
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/verify-release-XXXXX")"
+CONFIG_FILE=".osv-scanner.toml"
 RELEASE_JSON="${TMP_DIR}/release.json"
 RELEASES_JSON="${TMP_DIR}/releases.json"
 SCAN_LOG="${TMP_DIR}/scan.log"
@@ -621,21 +623,21 @@ verify_module_releases()
 verify_vulnerabilities()
 {
     # run osv-scanner to verify if we have open vulnerabilities in deps
-    local go_version config_file=".osv-scanner.toml"
+    local go_version
 
     echo "Verifying vulnerabilities ..."
 
     go_version="$(make go-version)"
-    echo "GoVersionOverride = \"${go_version}\"" > "${config_file}"
+    echo "GoVersionOverride = \"${go_version}\"" > "${CONFIG_FILE}"
     "${OSVSCANNER_CMD[@]}" scan \
         --recursive \
-        --config="${config_file}" \
+        --config="${CONFIG_FILE}" \
         ./ > "${SCAN_LOG}" || true
 
     if ! grep -q "No vulnerabilities found" "${SCAN_LOG}"; then
         cat "${SCAN_LOG}"
     fi
-    rm -f "${config_file}"
+    rm -f "${CONFIG_FILE}"
 
     echo -e "Done\n"
 }
