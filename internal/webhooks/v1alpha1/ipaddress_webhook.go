@@ -20,6 +20,7 @@ import (
 	"errors"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -111,7 +112,6 @@ func (webhook *IPAddress) ValidateCreate(_ context.Context, ipAddress *ipamv1.IP
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
 func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPAddress *ipamv1.IPAddress) (admission.Warnings, error) {
-	allErrs := field.ErrorList{}
 	if oldIPAddress == nil {
 		return nil, apierrors.NewInternalError(errors.New("unable to convert existing object"))
 	}
@@ -120,72 +120,18 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPA
 		return nil, apierrors.NewBadRequest("expected an IPAddress but got nil")
 	}
 
-	if newIPAddress.Spec.Address != oldIPAddress.Spec.Address {
-		allErrs = append(allErrs,
+	if !equality.Semantic.DeepEqual(oldIPAddress.Spec, newIPAddress.Spec) {
+		allErrs := field.ErrorList{
 			field.Invalid(
-				field.NewPath("spec", "address"),
-				newIPAddress.Spec.Address,
+				field.NewPath("spec"),
+				newIPAddress.Spec,
 				"cannot be modified",
 			),
-		)
+		}
+		return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
 	}
 
-	if newIPAddress.Spec.Pool.Name != oldIPAddress.Spec.Pool.Name {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPAddress.Spec.Pool,
-				"cannot be modified",
-			),
-		)
-	} else if newIPAddress.Spec.Pool.Namespace != oldIPAddress.Spec.Pool.Namespace {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPAddress.Spec.Pool,
-				"cannot be modified",
-			),
-		)
-	} else if newIPAddress.Spec.Pool.Kind != oldIPAddress.Spec.Pool.Kind {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "pool"),
-				newIPAddress.Spec.Pool,
-				"cannot be modified",
-			),
-		)
-	}
-
-	if newIPAddress.Spec.Claim.Name != oldIPAddress.Spec.Claim.Name {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "claim"),
-				newIPAddress.Spec.Claim,
-				"cannot be modified",
-			),
-		)
-	} else if newIPAddress.Spec.Claim.Namespace != oldIPAddress.Spec.Claim.Namespace {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "claim"),
-				newIPAddress.Spec.Claim,
-				"cannot be modified",
-			),
-		)
-	} else if newIPAddress.Spec.Claim.Kind != oldIPAddress.Spec.Claim.Kind {
-		allErrs = append(allErrs,
-			field.Invalid(
-				field.NewPath("spec", "claim"),
-				newIPAddress.Spec.Claim,
-				"cannot be modified",
-			),
-		)
-	}
-
-	if len(allErrs) == 0 {
-		return nil, nil
-	}
-	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
+	return nil, nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
