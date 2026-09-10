@@ -234,26 +234,24 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
-	_, err := m.m3UpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
-	}
-	count, err := m.capiUpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
-// It returns the number of current allocations. Current allocation include
-// both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 	addresses, err := m.getIndexes(ctx)
 	if err != nil {
 		return 0, err
 	}
+	addresses, err = m.m3UpdateAddresses(ctx, addresses)
+	if err != nil {
+		return 0, err
+	}
+	addresses, err = m.capiUpdateAddresses(ctx, addresses)
+	if err != nil {
+		return 0, err
+	}
+	return len(addresses), nil
+}
 
+// UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
+// It returns the updated addresses map.
+func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context, addresses map[ipamv1.IPAddressStr]string) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := ipamv1.IPClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -261,9 +259,9 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
-		return 0, err
+		return addresses, err
 	}
 
 	// Iterate over the IPClaim objects to find all addresses and objects
@@ -282,19 +280,15 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		}
 		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			return addresses, err
 		}
 	}
-	return len(addresses), nil
+	return addresses, nil
 }
 
 // UpdateCAPIAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
-// It returns the number of current allocations.
-func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		return 0, err
-	}
+// It returns the updated addresses map.
+func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context, addresses map[ipamv1.IPAddressStr]string) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := capipamv1.IPAddressClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -302,9 +296,9 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
-		return 0, err
+		return addresses, err
 	}
 
 	// Iterate over the IPAddressClaim objects to find all addresses and objects
@@ -323,10 +317,10 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			return addresses, err
 		}
 	}
-	return len(addresses), nil
+	return addresses, nil
 }
 
 // UpdateAddress creates metal3 ipaddress or deletes it. Address can be deleted if it

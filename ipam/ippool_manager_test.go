@@ -1634,6 +1634,78 @@ var _ = Describe("IPPool manager", func() {
 		}),
 	)
 
+	It("UpdateAddresses does not reuse an address when the metal3 IPAddress create is not yet visible to a list", func() {
+		ipPool := &ipamv1.IPPool{
+			ObjectMeta: ipPoolMeta,
+			Spec: ipamv1.IPPoolSpec{
+				Pools: []ipamv1.Pool{
+					{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					},
+				},
+				Prefix:     24,
+				Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				NamePrefix: "abcpref",
+			},
+		}
+		objects := []client.Object{
+			&ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "m3claim",
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+				},
+			},
+			&capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "capiclaim",
+					Namespace: "myns",
+				},
+				Spec: capipamv1.IPAddressClaimSpec{
+					PoolRef: *capiPoolRef,
+				},
+			},
+		}
+		fakeClient := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+			WithStatusSubresource(objects...).WithObjects(objects...).Build()
+		c := &staleAddressListClient{Client: fakeClient, listCounts: map[string]int{}}
+
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		nbAllocations, err := ipPoolMgr.UpdateAddresses(context.TODO())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(nbAllocations).To(Equal(2))
+		Expect(ipPool.Status.Allocations).To(Equal(map[string]ipamv1.IPAddressStr{
+			"m3claim":   ipamv1.IPAddressStr("192.168.0.11"),
+			"capiclaim": ipamv1.IPAddressStr("192.168.0.12"),
+		}))
+
+		// The indexes are fetched once for the whole reconciliation, so the
+		// stale list cannot be observed a second time.
+		Expect(c.listCounts[fmt.Sprintf("%T", &ipamv1.IPAddressList{})]).To(Equal(1))
+		Expect(c.listCounts[fmt.Sprintf("%T", &capipamv1.IPAddressList{})]).To(Equal(1))
+
+		// Distinct IPAddress objects were persisted, one per phase.
+		m3Address := &ipamv1.IPAddress{}
+		Expect(fakeClient.Get(context.TODO(), client.ObjectKey{
+			Name: "abcpref-192-168-0-11", Namespace: "myns",
+		}, m3Address)).To(Succeed())
+		Expect(m3Address.Spec.Claim.Name).To(Equal("m3claim"))
+
+		capiAddress := &capipamv1.IPAddress{}
+		Expect(fakeClient.Get(context.TODO(), client.ObjectKey{
+			Name: "abcpref-192-168-0-12", Namespace: "myns",
+		}, capiAddress)).To(Succeed())
+		Expect(capiAddress.Spec.ClaimRef.Name).To(Equal("capiclaim"))
+	})
+
 	type testCaseCreateAddresses struct {
 		ipPool              *ipamv1.IPPool
 		ipClaim             *ipamv1.IPClaim
@@ -3610,3 +3682,20 @@ var _ = Describe("IPPool manager", func() {
 	})
 
 })
+
+// staleAddressListClient simulates an informer cache that has not caught up
+// with freshly created metal3 IPAddress objects: listing them never returns
+// anything. It also counts the lists performed per list type, so tests can
+// assert how often the address indexes are fetched.
+type staleAddressListClient struct {
+	client.Client
+	listCounts map[string]int
+}
+
+func (c *staleAddressListClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	c.listCounts[fmt.Sprintf("%T", list)]++
+	if _, ok := list.(*ipamv1.IPAddressList); ok {
+		return nil
+	}
+	return c.Client.List(ctx, list, opts...)
+}
