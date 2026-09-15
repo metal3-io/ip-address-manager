@@ -5,8 +5,7 @@ on:
     types: [opened, edited, reopened, synchronize, ready_for_review]
     branches:
     - 'main'
-    # TODO: Add release branches when we we have release branches with e2e test code in them.
-    #- 'release-*'
+    - 'release-1.14'
     paths-ignore:
     - '**/*.md'
     - 'docs/**'
