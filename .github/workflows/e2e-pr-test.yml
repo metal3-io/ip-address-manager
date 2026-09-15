@@ -20,4 +20,4 @@ permissions: {}
 
 jobs:
   e2e:
-    uses: ./.github/workflows/e2e-test.yml
+    uses: $/.github/workflows/e2e-test.yml
