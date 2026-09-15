@@ -41,7 +41,15 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+    controller-runtime:
+      patterns: [ "sigs.k8s.io/controller-runtime" ]
+    test:
+      patterns: [ "github.com/onsi/*" ]
+    logr:
+      patterns: [ "github.com/go-logr/*" ]
+    mock:
+      patterns: [ "go.uber.org/mock" ]
   ignore:
   # Ignore controller-runtime as its upgraded manually.
   - dependency-name: "sigs.k8s.io/controller-runtime"
@@ -98,7 +106,15 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+    controller-runtime:
+      patterns: [ "sigs.k8s.io/controller-runtime" ]
+    test:
+      patterns: [ "github.com/onsi/*" ]
+    logr:
+      patterns: [ "github.com/go-logr/*" ]
+    mock:
+      patterns: [ "go.uber.org/mock" ]
   ignore:
   # golang.org/x/* only releases minors no patches, so minors have to be allowed
   - dependency-name: "golang.org/x/*"
@@ -152,7 +168,15 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/test" ]
+      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+    controller-runtime:
+      patterns: [ "sigs.k8s.io/controller-runtime" ]
+    test:
+      patterns: [ "github.com/onsi/*" ]
+    logr:
+      patterns: [ "github.com/go-logr/*" ]
+    mock:
+      patterns: [ "go.uber.org/mock" ]
   ignore:
   # golang.org/x/* only releases minors no patches, so minors have to be allowed
   - dependency-name: "golang.org/x/*"
