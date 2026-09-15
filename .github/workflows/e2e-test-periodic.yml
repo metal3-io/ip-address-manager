@@ -10,12 +10,12 @@ permissions: {}
 
 jobs:
   e2e-main:
-    uses: ./.github/workflows/e2e-test.yml
+    uses: $/.github/workflows/e2e-test.yml
     with:
       ref: main
 
   e2e-release-1-14:
-    uses: ./.github/workflows/e2e-test.yml
+    uses: $/.github/workflows/e2e-test.yml
     with:
       ref: release-1.14
 
