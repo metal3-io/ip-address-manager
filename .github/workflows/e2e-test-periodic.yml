@@ -14,12 +14,8 @@ jobs:
     with:
       ref: main
 
-#  e2e-release-1-14:
-#    uses: ./.github/workflows/e2e-test.yml
-#    with:
-#      ref: release-1.14
+  e2e-release-1-14:
+    uses: ./.github/workflows/e2e-test.yml
+    with:
+      ref: release-1.14
 
-#  e2e-release-1-15:
-#    uses: ./.github/workflows/e2e-test.yml
-#    with:
-#      ref: release-1.15
