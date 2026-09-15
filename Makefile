@@ -280,13 +280,15 @@ docker-build-%:
 .PHONY: set-manifest-image
 set-manifest-image:
 	$(info Updating kustomize image patch file for manager resource)
-	sed -i'' -e 's#image: .*#image: $(MANIFEST_IMG):$(MANIFEST_TAG)#' ./config/default/manager_image_patch.yaml
+	# The manifest image address should be wrapped with '"' to ensure that
+	# IPv6 addresses are not considered as array in yaml.
+	sed -i'' -e 's#image: .*#image: "$(MANIFEST_IMG):$(MANIFEST_TAG)"#' ./config/default/manager_image_patch.yaml
 
 .PHONY: set-manifest-image-digest
 set-manifest-image-digest:
 	$(info Updating kustomize image patch file for manager resource)
 	@if [ -z "$(MANIFEST_DIGEST)" ]; then echo "MANIFEST_DIGEST is not set"; exit 1; fi
-	sed -i'' -e 's#image: .*#image: $(MANIFEST_IMG)@$(MANIFEST_DIGEST)#' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's#image: .*#image: "$(MANIFEST_IMG)@$(MANIFEST_DIGEST)"#' ./config/default/manager_image_patch.yaml
 
 
 .PHONY: set-manifest-pull-policy
