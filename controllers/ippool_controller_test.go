@@ -466,4 +466,148 @@ var _ = Describe("IPPool controller", func() {
 			},
 		),
 	)
+
+	type TestCaseM3IPAToM3IPP struct {
+		IPAddress     *ipamv1.IPAddress
+		ExpectRequest bool
+	}
+
+	DescribeTable("IPAddress To IPPool tests",
+		func(tc TestCaseM3IPAToM3IPP) {
+			r := IPPoolReconciler{}
+			obj := client.Object(tc.IPAddress)
+			reqs := r.IPAddressToIPPool(context.Background(), obj)
+
+			if tc.ExpectRequest {
+				Expect(reqs).To(HaveLen(1), "Expected 1 request, found %d", len(reqs))
+
+				req := reqs[0]
+				Expect(req.NamespacedName.Name).To(Equal(tc.IPAddress.Spec.Pool.Name),
+					"Expected name %s, found %s", tc.IPAddress.Spec.Pool.Name, req.NamespacedName.Name)
+				if tc.IPAddress.Spec.Pool.Namespace == "" {
+					Expect(req.NamespacedName.Namespace).To(Equal(tc.IPAddress.Namespace),
+						"Expected namespace %s, found %s", tc.IPAddress.Namespace, req.NamespacedName.Namespace)
+				} else {
+					Expect(req.NamespacedName.Namespace).To(Equal(tc.IPAddress.Spec.Pool.Namespace),
+						"Expected namespace %s, found %s", tc.IPAddress.Spec.Pool.Namespace, req.NamespacedName.Namespace)
+				}
+			} else {
+				Expect(reqs).To(BeEmpty(), "Expected 0 request, found %d", len(reqs))
+			}
+		},
+		Entry("No IPPool in Spec",
+			TestCaseM3IPAToM3IPP{
+				IPAddress: &ipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec:       ipamv1.IPAddressSpec{},
+				},
+				ExpectRequest: false,
+			},
+		),
+		Entry("IPPool in Spec, with namespace",
+			TestCaseM3IPAToM3IPP{
+				IPAddress: &ipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+		Entry("IPPool in Spec, no namespace",
+			TestCaseM3IPAToM3IPP{
+				IPAddress: &ipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name: "abc",
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+	)
+
+	type TestCaseK8SIPAToM3IPP struct {
+		IPAddress     *capipamv1.IPAddress
+		ExpectRequest bool
+	}
+
+	DescribeTable("CAPI IPAddress To IPPool tests",
+		func(tc TestCaseK8SIPAToM3IPP) {
+			r := IPPoolReconciler{}
+			obj := client.Object(tc.IPAddress)
+			reqs := r.CAPIIPAddressToIPPool(context.Background(), obj)
+
+			if tc.ExpectRequest {
+				Expect(reqs).To(HaveLen(1), "Expected 1 request, found %d", len(reqs))
+
+				req := reqs[0]
+				Expect(req.NamespacedName.Name).To(Equal(tc.IPAddress.Spec.PoolRef.Name),
+					"Expected name %s, found %s", tc.IPAddress.Spec.PoolRef.Name, req.NamespacedName.Name)
+				Expect(req.NamespacedName.Namespace).To(Equal(tc.IPAddress.Namespace),
+					"Expected namespace %s, found %s", tc.IPAddress.Namespace, req.NamespacedName.Namespace)
+			} else {
+				Expect(reqs).To(BeEmpty(), "Expected 0 request, found %d", len(reqs))
+			}
+		},
+		Entry("No IPPool in Spec",
+			TestCaseK8SIPAToM3IPP{
+				IPAddress: &capipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec:       capipamv1.IPAddressSpec{},
+				},
+				ExpectRequest: false,
+			},
+		),
+		Entry("Metal3 IPPool in Spec",
+			TestCaseK8SIPAToM3IPP{
+				IPAddress: &capipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
+							Name:     "abc",
+							Kind:     "IPPool",
+							APIGroup: ipamv1.GroupVersion.Group,
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+		Entry("Metal3 IPPool in Spec, empty kind",
+			TestCaseK8SIPAToM3IPP{
+				IPAddress: &capipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
+							Name:     "abc",
+							APIGroup: ipamv1.GroupVersion.Group,
+						},
+					},
+				},
+				ExpectRequest: true,
+			},
+		),
+		Entry("Foreign provider IPPool in Spec is ignored",
+			TestCaseK8SIPAToM3IPP{
+				IPAddress: &capipamv1.IPAddress{
+					ObjectMeta: testObjectMeta,
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
+							Name:     "abc",
+							Kind:     "InClusterIPPool",
+							APIGroup: "ipam.cluster.x-k8s.io",
+						},
+					},
+				},
+				ExpectRequest: false,
+			},
+		),
+	)
 })

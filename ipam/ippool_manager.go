@@ -245,6 +245,13 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// refNamespaceMatches reports whether an ObjectReference namespace refers to
+// the given namespace. An empty reference namespace is a valid local reference
+// and is treated as the current namespace.
+func refNamespaceMatches(refNamespace, namespace string) bool {
+	return refNamespace == "" || refNamespace == namespace
+}
+
 // UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
@@ -274,7 +281,29 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.Address != nil && addressClaim.DeletionTimestamp.IsZero() {
-			continue
+			existingAddr := &ipamv1.IPAddress{}
+			key := client.ObjectKey{
+				Name:      addressClaim.Status.Address.Name,
+				Namespace: m.IPPool.Namespace,
+			}
+			getErr := m.client.Get(ctx, key, existingAddr)
+			// Skip only if the address exists, is not being deleted, and still
+			// belongs to this claim and pool. The status reference must also be
+			// local (empty or this namespace): the lookup is scoped to the pool
+			// namespace, so a status reference naming another namespace must not
+			// be treated as satisfied. An empty reference namespace is a valid
+			// local reference.
+			if getErr == nil && existingAddr.DeletionTimestamp.IsZero() &&
+				refNamespaceMatches(addressClaim.Status.Address.Namespace, addressClaim.Namespace) &&
+				existingAddr.Spec.Claim.Name == addressClaim.Name &&
+				refNamespaceMatches(existingAddr.Spec.Claim.Namespace, addressClaim.Namespace) &&
+				existingAddr.Spec.Pool.Name == m.IPPool.Name &&
+				refNamespaceMatches(existingAddr.Spec.Pool.Namespace, m.IPPool.Namespace) {
+				continue
+			}
+			if getErr != nil && !apierrors.IsNotFound(getErr) {
+				return 0, getErr
+			}
 		}
 
 		if addressClaim.Status.ErrorMessage != nil && addressClaim.DeletionTimestamp.IsZero() {
@@ -315,7 +344,24 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.AddressRef.Name != "" && addressClaim.DeletionTimestamp.IsZero() {
-			continue
+			existingAddr := &capipamv1.IPAddress{}
+			key := client.ObjectKey{
+				Name:      addressClaim.Status.AddressRef.Name,
+				Namespace: m.IPPool.Namespace,
+			}
+			getErr := m.client.Get(ctx, key, existingAddr)
+			// Skip only if the address exists, is not being deleted, and still
+			// belongs to this claim and pool. CAPI claim/pool references are
+			// name-only and always resolve within this namespace, so there are
+			// no namespaces to compare here.
+			if getErr == nil && existingAddr.DeletionTimestamp.IsZero() &&
+				existingAddr.Spec.ClaimRef.Name == addressClaim.Name &&
+				existingAddr.Spec.PoolRef.Name == m.IPPool.Name {
+				continue
+			}
+			if getErr != nil && !apierrors.IsNotFound(getErr) {
+				return 0, getErr
+			}
 		}
 
 		if anyErrorInExistingClaim(addressClaim) && addressClaim.DeletionTimestamp.IsZero() {
@@ -357,6 +403,11 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	addressClaim.Status.ErrorMessage = nil
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear any address reference before re-allocating. The patch helper
+		// above tracks this, so a dangling reference (an IPAddress that no
+		// longer exists) is removed even if createAddress fails. On success,
+		// createAddress sets the reference to the freshly allocated address.
+		addressClaim.Status.Address = nil
 		addresses, err = m.createAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -406,6 +457,12 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	}()
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear any address reference before re-allocating. The patch helper
+		// above tracks this, so a dangling reference (an IPAddress that no
+		// longer exists) is removed even if capiCreateAddress fails. On
+		// success, capiCreateAddress sets the reference to the freshly
+		// allocated address.
+		addressClaim.Status.AddressRef = capipamv1.IPAddressReference{}
 		addresses, err = m.capiCreateAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
