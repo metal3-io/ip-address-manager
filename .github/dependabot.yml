@@ -41,7 +41,7 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/*" ]
     controller-runtime:
       patterns: [ "sigs.k8s.io/controller-runtime" ]
     test:
@@ -106,7 +106,7 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/*" ]
     controller-runtime:
       patterns: [ "sigs.k8s.io/controller-runtime" ]
     test:
@@ -168,7 +168,7 @@ updates:
     kubernetes:
       patterns: [ "k8s.io/*" ]
     capi:
-      patterns: [ "sigs.k8s.io/cluster-api/*" ]
+      patterns: [ "sigs.k8s.io/cluster-api", "sigs.k8s.io/cluster-api/*" ]
     controller-runtime:
       patterns: [ "sigs.k8s.io/controller-runtime" ]
     test:
