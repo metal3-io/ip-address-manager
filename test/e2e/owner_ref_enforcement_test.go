@@ -1,10 +1,8 @@
 package e2e
 
 import (
-	"fmt"
+	"context"
 	"net"
-	"os"
-	"path/filepath"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
@@ -13,103 +11,74 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
-	"sigs.k8s.io/cluster-api/test/framework"
-	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
-	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	kindv1 "sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
-	kind "sigs.k8s.io/kind/pkg/cluster"
-	"sigs.k8s.io/kind/pkg/cmd"
 )
 
 // This test verifies that IPAM correctly sets ownerReferences when the
 // OwnerReferencesPermissionEnforcement admission plugin is enabled.
 // This plugin requires controllers to have delete permission to set ownerReferences.
 // See: https://github.com/metal3-io/baremetal-operator/issues/3304
+//
+// The CAPI test framework enables the OwnerReferencesPermissionEnforcement admission
+// plugin on the bootstrap kind cluster by default, so these tests run against the
+// shared bootstrapClusterProxy without needing a dedicated cluster.
+// See: https://github.com/kubernetes-sigs/cluster-api/pull/13805 and
+// test/framework/bootstrap/kind_provider.go (createKindCluster).
+//
+// NOTE: This assumption only holds when the CAPI framework creates the bootstrap
+// cluster. With -e2e.use-existing-cluster, SetupBootstrapCluster skips framework Kind
+// creation and the supplied API server may not enable this admission plugin, so the
+// spec could pass without actually exercising it. In that mode we skip these specs.
 
-// The controller fetches the Cluster
-// object via the controller-runtime cache. The cache requires list+watch RBAC on
-// clusters.cluster.x-k8s.io. Without list+watch, the cache informer
-// fails to sync and the controller cannot fetch the Cluster, causing it to return
-// early without processing any IPClaims for that pool.
+// skipIfPluginNotGuaranteed skips the spec when we cannot guarantee that the
+// OwnerReferencesPermissionEnforcement admission plugin is enabled on the cluster.
+func skipIfPluginNotGuaranteed() {
+	if useExistingCluster {
+		Skip("Skipping OwnerReferencesPermissionEnforcement specs: with -e2e.use-existing-cluster " +
+			"the admission plugin is not guaranteed to be enabled on the provided cluster")
+	}
+}
 
 var _ = Describe("IPAM with OwnerReferencesPermissionEnforcement", Label("ipam", "rbac"), func() {
 	var (
-		clusterName    string
-		kubeconfigPath string
-		clusterProxy   framework.ClusterProxy
-		kindProvider   *kind.Provider
+		namespace       string
+		ownerRefCluster *clusterv1.Cluster
 	)
 
 	BeforeEach(func() {
+		skipIfPluginNotGuaranteed()
+		namespace = testNamespace()
+		ownerRefCluster = nil
 		validateGlobals()
-		clusterName = "ipam-ownerref"
-
-		By("Creating kind cluster with OwnerReferencesPermissionEnforcement enabled")
-		kindProvider, kubeconfigPath = createKindClusterWithOwnerRefEnforcement(clusterName)
-
-		By("Loading IPAM image into the kind cluster")
-		err := bootstrap.LoadImagesToKindCluster(ctx, bootstrap.LoadImagesToKindClusterInput{
-			Name:   clusterName,
-			Images: e2eConfig.Images,
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Setting up cluster proxy")
-		clusterProxy = framework.NewClusterProxy("ownerref-test", kubeconfigPath, initScheme())
-		Expect(clusterProxy).ToNot(BeNil())
-
-		By("Initializing IPAM on cluster")
-		clusterctl.Init(ctx, clusterctl.InitInput{
-			KubeconfigPath:        clusterProxy.GetKubeconfigPath(),
-			ClusterctlConfigPath:  clusterctlConfigPath,
-			CoreProvider:          "cluster-api",
-			BootstrapProviders:    []string{"kubeadm"},
-			ControlPlaneProviders: []string{"kubeadm"},
-			IPAMProviders:         e2eConfig.IPAMProviders(),
-			LogFolder:             filepath.Join(artifactFolder, "clusters", clusterName),
-		})
-
-		By("Waiting for IPAM controller")
-		controllersDeployments := framework.GetControllerDeployments(ctx, framework.GetControllerDeploymentsInput{
-			Lister: clusterProxy.GetClient(),
-		})
-		for _, deployment := range controllersDeployments {
-			framework.WaitForDeploymentsAvailable(ctx, framework.WaitForDeploymentsAvailableInput{
-				Getter:     clusterProxy.GetClient(),
-				Deployment: deployment,
-			}, e2eConfig.GetIntervals("default", "wait-controllers")...)
-		}
-	})
-
-	AfterEach(func() {
-		if skipCleanup {
-			Logf("Skipping cleanup of kind cluster %s (SKIP_RESOURCE_CLEANUP=true)", clusterName)
-			return
-		}
-		if clusterProxy != nil {
-			clusterProxy.Dispose(ctx)
-		}
-		if kindProvider != nil {
-			Expect(kindProvider.Delete(clusterName, kubeconfigPath)).To(Succeed())
-		}
-		if kubeconfigPath != "" {
-			os.Remove(kubeconfigPath)
-		}
-	})
-
-	It("Should allocate IPs with valid ownerReferences", func() {
-		cl := clusterProxy.GetClient()
-		namespace := testNamespace()
-
-		By("Creating test namespace")
+		cl := bootstrapClusterProxy.GetClient()
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{Name: namespace},
 		}
 		err := cl.Create(ctx, ns)
 		if err != nil && !apierrors.IsAlreadyExists(err) {
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 		}
+	})
+
+	AfterEach(func() {
+		// The CAPI core controller adds the "cluster.cluster.x-k8s.io" finalizer to the
+		// Cluster. Because this Cluster points at a non-existent infrastructure object and
+		// is never fully reconciled, its deletion can stall, which would block namespace
+		// teardown. Delete it and force-remove its finalizer BEFORE cleanupNamespace so the
+		// namespace can actually be deleted.
+		//
+		// Only do this when cleanup is enabled: when SKIP_RESOURCE_CLEANUP=true we must
+		// leave the Cluster (and the pool it can garbage-collect) intact so failed runs
+		// remain inspectable, matching cleanupNamespace's behavior.
+		if ownerRefCluster != nil && !skipCleanup {
+			By("Deleting the CAPI Cluster and clearing its finalizers")
+			deleteClusterAndRemoveFinalizer(ctx, bootstrapClusterProxy.GetClient(), ownerRefCluster)
+		}
+		cleanupNamespace(ctx, bootstrapClusterProxy, namespace, artifactFolder, clusterctlConfigPath)
+	})
+
+	It("Should allocate IPs with valid ownerReferences", func() {
+		cl := bootstrapClusterProxy.GetClient()
 
 		By("Creating a CAPI Cluster as ownerReference target")
 		cluster := &clusterv1.Cluster{
@@ -126,9 +95,11 @@ var _ = Describe("IPAM with OwnerReferencesPermissionEnforcement", Label("ipam",
 			},
 		}
 		Expect(cl.Create(ctx, cluster)).To(Succeed())
+		// Record it so AfterEach tears it down before the namespace is deleted.
+		ownerRefCluster = cluster
 
 		By("Creating an IPPool with ClusterName set")
-		ipPool := createIPPool(ctx, clusterProxy, CreateIPPoolInput{
+		ipPool := createIPPool(ctx, bootstrapClusterProxy, CreateIPPoolInput{
 			Name:        "test-pool",
 			Namespace:   namespace,
 			Start:       "192.168.10.10",
@@ -142,7 +113,7 @@ var _ = Describe("IPAM with OwnerReferencesPermissionEnforcement", Label("ipam",
 		})
 
 		By("Creating an IPClaim")
-		ipClaim := createIPClaim(ctx, clusterProxy, ipPool.Name, "test-claim", namespace)
+		ipClaim := createIPClaim(ctx, bootstrapClusterProxy, ipPool.Name, "test-claim", namespace)
 
 		By("Waiting for IPClaim to get allocated address")
 		Eventually(func(g Gomega) {
@@ -177,10 +148,40 @@ var _ = Describe("IPAM with OwnerReferencesPermissionEnforcement", Label("ipam",
 	})
 })
 
+// deleteClusterAndRemoveFinalizer deletes the given CAPI Cluster and force-removes
+// its finalizers so the object is garbage-collected promptly.
+func deleteClusterAndRemoveFinalizer(ctx context.Context, cl client.Client, cluster *clusterv1.Cluster) {
+	// Best-effort delete; ignore if already gone.
+	if err := cl.Delete(ctx, cluster); err != nil && !apierrors.IsNotFound(err) {
+		Logf("Warning: failed to delete Cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
+	}
+
+	// Clear finalizers so the Cluster can be removed even if its controller never
+	// completes deletion.
+	Eventually(func(g Gomega) {
+		fresh := &clusterv1.Cluster{}
+		err := cl.Get(ctx, client.ObjectKeyFromObject(cluster), fresh)
+		if apierrors.IsNotFound(err) {
+			return
+		}
+		g.Expect(err).NotTo(HaveOccurred())
+		if len(fresh.Finalizers) > 0 {
+			fresh.Finalizers = nil
+			g.Expect(cl.Update(ctx, fresh)).To(Succeed())
+		}
+	}, "60s", "2s").Should(Succeed())
+
+	// Wait for the Cluster to be fully removed before namespace cleanup proceeds.
+	Eventually(func() bool {
+		return apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(cluster), &clusterv1.Cluster{}))
+	}, "60s", "2s").Should(BeTrue(), "Cluster %s/%s should be deleted", cluster.Namespace, cluster.Name)
+}
+
 var _ = Describe("IPClaim with pre-existing ownerReference", Label("ipam", "rbac"), func() {
 	var namespace string
 
 	BeforeEach(func() {
+		skipIfPluginNotGuaranteed()
 		namespace = testNamespace()
 		validateGlobals()
 		cl := bootstrapClusterProxy.GetClient()
@@ -194,7 +195,7 @@ var _ = Describe("IPClaim with pre-existing ownerReference", Label("ipam", "rbac
 	})
 
 	AfterEach(func() {
-		cleanupNamespace(ctx, bootstrapClusterProxy.GetClient(), namespace)
+		cleanupNamespace(ctx, bootstrapClusterProxy, namespace, artifactFolder, clusterctlConfigPath)
 	})
 
 	It("Should allocate an IP when IPClaim has an ownerReference", func() {
@@ -340,40 +341,3 @@ var _ = Describe("IPClaim with pre-existing ownerReference", Label("ipam", "rbac
 		Expect(net.ParseIP(string(ipAddr.Spec.Address))).ToNot(BeNil(), "Should be valid IP")
 	})
 })
-
-// createKindClusterWithOwnerRefEnforcement creates a kind cluster with the
-// OwnerReferencesPermissionEnforcement admission plugin enabled.
-func createKindClusterWithOwnerRefEnforcement(name string) (*kind.Provider, string) {
-	kubeconfigFile, err := os.CreateTemp("", "e2e-ownerref-kind-")
-	Expect(err).ToNot(HaveOccurred())
-	kubeconfigPath := kubeconfigFile.Name()
-	kubeconfigFile.Close()
-
-	cfg := &kindv1.Cluster{
-		Nodes: []kindv1.Node{
-			{
-				Role: kindv1.ControlPlaneRole,
-				KubeadmConfigPatches: []string{
-					`kind: ClusterConfiguration
-apiServer:
-  extraArgs:
-    enable-admission-plugins: "NodeRestriction,OwnerReferencesPermissionEnforcement"`,
-				},
-			},
-		},
-	}
-	kindv1.SetDefaultsCluster(cfg)
-
-	provider := kind.NewProvider(kind.ProviderWithLogger(cmd.NewLogger()))
-	err = provider.Create(
-		name,
-		kind.CreateWithKubeconfigPath(kubeconfigPath),
-		kind.CreateWithV1Alpha4Config(cfg),
-		kind.CreateWithNodeImage(fmt.Sprintf("%s:%s", bootstrap.DefaultNodeImageRepository, bootstrap.DefaultNodeImageVersion)),
-		kind.CreateWithRetain(true),
-	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(kubeconfigPath).To(BeAnExistingFile())
-
-	return provider, kubeconfigPath
-}

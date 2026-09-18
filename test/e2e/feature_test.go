@@ -33,7 +33,7 @@ var _ = Describe("Metal3 IPAM advanced features", Label("ipam", "features"), fun
 	})
 
 	AfterEach(func() {
-		cleanupNamespace(ctx, bootstrapClusterProxy.GetClient(), namespace)
+		cleanupNamespace(ctx, bootstrapClusterProxy, namespace, artifactFolder, clusterctlConfigPath)
 	})
 
 	Context("Preallocation", func() {
