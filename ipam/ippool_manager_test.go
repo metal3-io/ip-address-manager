@@ -1635,15 +1635,16 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseCreateAddresses struct {
-		ipPool              *ipamv1.IPPool
-		ipClaim             *ipamv1.IPClaim
-		ipAddresses         []*ipamv1.IPAddress
-		addresses           map[ipamv1.IPAddressStr]string
-		expectRequeue       bool
-		expectError         bool
-		expectedIPAddresses []string
-		expectedAddresses   map[ipamv1.IPAddressStr]string
-		expectedAllocations map[string]ipamv1.IPAddressStr
+		ipPool               *ipamv1.IPPool
+		ipClaim              *ipamv1.IPClaim
+		ipAddresses          []*ipamv1.IPAddress
+		addresses            map[ipamv1.IPAddressStr]string
+		expectRequeue        bool
+		expectError          bool
+		expectedIPAddresses  []string
+		expectedAddresses    map[ipamv1.IPAddressStr]string
+		expectedAllocations  map[string]ipamv1.IPAddressStr
+		expectedClaimAddress string
 	}
 
 	DescribeTable("Test CreateAddresses",
@@ -1685,15 +1686,27 @@ var _ = Describe("IPPool manager", func() {
 			}
 			Expect(tc.ipClaim.Finalizers).To(HaveLen(1))
 
+			// Assert the claim's status reference was linked (or left unlinked) as
+			// expected.
+			if tc.expectedClaimAddress != "" {
+				Expect(tc.ipClaim.Status.Address).NotTo(BeNil(), "expected the claim to be linked to an IPAddress")
+				Expect(tc.ipClaim.Status.Address.Name).To(Equal(tc.expectedClaimAddress))
+			} else {
+				Expect(tc.ipClaim.Status.Address).To(BeNil(), "expected the claim to be left unlinked")
+			}
+
 			Expect(allocatedMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
 		},
 		Entry("Already exists", testCaseCreateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					NamePrefix: "abcpref",
+				},
 				Status: ipamv1.IPPoolStatus{
 					Allocations: map[string]ipamv1.IPAddressStr{
-						"abc": ipamv1.IPAddressStr("foo-0"),
+						"abc": ipamv1.IPAddressStr("192.168.0.15"),
 					},
 				},
 			},
@@ -1702,9 +1715,124 @@ var _ = Describe("IPPool manager", func() {
 					Name: "abc",
 				},
 			},
-			expectedAllocations: map[string]ipamv1.IPAddressStr{
-				"abc": ipamv1.IPAddressStr("foo-0"),
+			// The IPAddress exists and matches ippool allocation, so createAddress
+			// re-links the claim to it without allocating a new one.
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-0-15",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Address: "192.168.0.15",
+						Pool:    corev1.ObjectReference{Name: "abc"},
+						Claim:   corev1.ObjectReference{Name: "abc"},
+					},
+				},
 			},
+			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": ipamv1.IPAddressStr("192.168.0.15"),
+			},
+			// The claim must be re-linked to the existing IPAddress.
+			expectedClaimAddress: "abcpref-192-168-0-15",
+		}),
+		Entry("Stale allocation, IPAddress missing, returns error", testCaseCreateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					// Allocation lingers but its IPAddress object was deleted.
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"abc": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "abc",
+				},
+			},
+			// No IPAddress object exists for the allocation -> createAddress must
+			// NOT re-stamp a missing IPAddress. It returns the NotFound error so
+			// the reconcile retries; the allocation is left untouched (getIndexes
+			// clears it on the next loop, then a fresh address is allocated) and
+			// no new IPAddress is created here.
+			expectError: true,
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": ipamv1.IPAddressStr("192.168.0.15"),
+			},
+			expectedAddresses:   map[ipamv1.IPAddressStr]string{},
+			expectedIPAddresses: []string{},
+			// Rejected path: the claim must be left unlinked (Status.Address nil).
+			expectedClaimAddress: "",
+		}),
+		Entry("Stale allocation, IPAddress being deleted, don't re-link, requeues", testCaseCreateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"abc": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{},
+			ipClaim: &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "abc",
+				},
+			},
+			// The allocated IPAddress still exists but is terminating
+			// (DeletionTimestamp set). createAddress must NOT re-link the claim to a
+			// dying IPAddress. Instead it returns a transient ReconcileError so the
+			// claim is requeued; once the IPAddress is fully deleted, a later
+			// reconcile clears the stale allocation and allocates a fresh address.
+			// A finalizer keeps the object present in the fake client despite the
+			// DeletionTimestamp.
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abcpref-192-168-0-15",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+						Finalizers: []string{
+							ipamv1.IPClaimFinalizer,
+						},
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Address: "192.168.0.15",
+						Pool:    corev1.ObjectReference{Name: "abc"},
+						Claim:   corev1.ObjectReference{Name: "abc"},
+					},
+				},
+			},
+			expectRequeue:     true,
+			expectedAddresses: map[ipamv1.IPAddressStr]string{},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": ipamv1.IPAddressStr("192.168.0.15"),
+			},
+			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			// Rejected path: the claim must be left unlinked (Status.Address nil)
+			// rather than pointed at the terminating IPAddress.
+			expectedClaimAddress: "",
 		}),
 		Entry("Not allocated yet, pre-allocated", testCaseCreateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1737,7 +1865,8 @@ var _ = Describe("IPPool manager", func() {
 			expectedAddresses: map[ipamv1.IPAddressStr]string{
 				ipamv1.IPAddressStr("192.168.0.15"): "abc",
 			},
-			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			expectedIPAddresses:  []string{"abcpref-192-168-0-15"},
+			expectedClaimAddress: "abcpref-192-168-0-15",
 		}),
 		Entry("Not allocated yet", testCaseCreateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1770,7 +1899,8 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.12"): "abc",
 				ipamv1.IPAddressStr("192.168.0.11"): "bcd",
 			},
-			expectedIPAddresses: []string{"abcpref-192-168-0-12"},
+			expectedIPAddresses:  []string{"abcpref-192-168-0-12"},
+			expectedClaimAddress: "abcpref-192-168-0-12",
 		}),
 		Entry("Not allocated yet, conflict", testCaseCreateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1850,15 +1980,16 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseCapiCreateAddresses struct {
-		ipPool              *ipamv1.IPPool
-		ipAddressClaim      *capipamv1.IPAddressClaim
-		ipAddresses         []*capipamv1.IPAddress
-		addresses           map[ipamv1.IPAddressStr]string
-		expectRequeue       bool
-		expectError         bool
-		expectedIPAddresses []string
-		expectedAddresses   map[ipamv1.IPAddressStr]string
-		expectedAllocations map[string]ipamv1.IPAddressStr
+		ipPool               *ipamv1.IPPool
+		ipAddressClaim       *capipamv1.IPAddressClaim
+		ipAddresses          []*capipamv1.IPAddress
+		addresses            map[ipamv1.IPAddressStr]string
+		expectRequeue        bool
+		expectError          bool
+		expectedIPAddresses  []string
+		expectedAddresses    map[ipamv1.IPAddressStr]string
+		expectedAllocations  map[string]ipamv1.IPAddressStr
+		expectedClaimAddress string
 	}
 
 	DescribeTable("Test capiCreateAddresses",
@@ -1899,15 +2030,26 @@ var _ = Describe("IPPool manager", func() {
 				// TODO add further testing later
 			}
 
+			// Assert the claim's status reference was linked (or left unlinked) as
+			// expected.
+			if tc.expectedClaimAddress != "" {
+				Expect(tc.ipAddressClaim.Status.AddressRef.Name).To(Equal(tc.expectedClaimAddress), "expected the claim to be linked to an IPAddress")
+			} else {
+				Expect(tc.ipAddressClaim.Status.AddressRef.Name).To(BeEmpty(), "expected the claim to be left unlinked")
+			}
+
 			Expect(allocatedMap).To(Equal(tc.expectedAddresses))
 			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
 		},
 		Entry("Already exists", testCaseCapiCreateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					NamePrefix: "abcpref",
+				},
 				Status: ipamv1.IPPoolStatus{
 					Allocations: map[string]ipamv1.IPAddressStr{
-						"abc": "foo-0",
+						"abc": "192.168.0.15",
 					},
 				},
 			},
@@ -1916,9 +2058,123 @@ var _ = Describe("IPPool manager", func() {
 					Name: "abc",
 				},
 			},
-			expectedAllocations: map[string]ipamv1.IPAddressStr{
-				"abc": "foo-0",
+			// The IPAddress exists and matches ippool allocation, so capiCreateAddress
+			// re-links the claim to it without allocating a new one.
+			ipAddresses: []*capipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-0-15",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressSpec{
+						Address:  "192.168.0.15",
+						PoolRef:  capipamv1.IPPoolReference{Name: "abc", APIGroup: APIGroup},
+						ClaimRef: capipamv1.IPAddressClaimReference{Name: "abc"},
+					},
+				},
 			},
+			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": "192.168.0.15",
+			},
+			// The claim must be re-linked to the existing IPAddress.
+			expectedClaimAddress: "abcpref-192-168-0-15",
+		}),
+		Entry("Stale allocation, IPAddress missing, returns error", testCaseCapiCreateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					// Allocation lingers but its IPAddress object was deleted.
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"abc": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "abc",
+				},
+			},
+			// No IPAddress object exists for the allocation -> capiCreateAddress
+			// must NOT re-stamp a missing IPAddress. It returns the NotFound error
+			// so the reconcile retries; allocation is left untouched and no new
+			// IPAddress is created here.
+			expectError: true,
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": ipamv1.IPAddressStr("192.168.0.15"),
+			},
+			expectedAddresses:   map[ipamv1.IPAddressStr]string{},
+			expectedIPAddresses: []string{},
+			// Rejected path: the claim must be left unlinked (AddressRef empty).
+			expectedClaimAddress: "",
+		}),
+		Entry("Stale allocation, IPAddress being deleted, don't re-link, requeues", testCaseCapiCreateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"abc": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+				},
+			},
+			addresses: map[ipamv1.IPAddressStr]string{},
+			ipAddressClaim: &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "abc",
+				},
+			},
+			// The allocated IPAddress still exists but is terminating
+			// (DeletionTimestamp set). capiCreateAddress must NOT re-link the claim to
+			// a dying IPAddress. Instead it returns a transient ReconcileError so the
+			// claim is requeued; once the IPAddress is fully deleted, a later
+			// reconcile clears the stale allocation and allocates a fresh address.
+			// A finalizer keeps the object present in the fake client despite the
+			// DeletionTimestamp.
+			ipAddresses: []*capipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "abcpref-192-168-0-15",
+						Namespace:         "myns",
+						DeletionTimestamp: &timeNow,
+						Finalizers: []string{
+							IPAddressClaimFinalizer,
+						},
+					},
+					Spec: capipamv1.IPAddressSpec{
+						Address:  "192.168.0.15",
+						PoolRef:  capipamv1.IPPoolReference{Name: "abc", APIGroup: APIGroup},
+						ClaimRef: capipamv1.IPAddressClaimReference{Name: "abc"},
+					},
+				},
+			},
+			expectRequeue:     true,
+			expectedAddresses: map[ipamv1.IPAddressStr]string{},
+			expectedAllocations: map[string]ipamv1.IPAddressStr{
+				"abc": ipamv1.IPAddressStr("192.168.0.15"),
+			},
+			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			// Rejected path: the claim must be left unlinked (AddressRef empty)
+			// rather than pointed at the terminating IPAddress.
+			expectedClaimAddress: "",
 		}),
 		Entry("Not allocated yet, pre-allocated", testCaseCapiCreateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1951,7 +2207,8 @@ var _ = Describe("IPPool manager", func() {
 			expectedAddresses: map[ipamv1.IPAddressStr]string{
 				ipamv1.IPAddressStr("192.168.0.15"): "abc",
 			},
-			expectedIPAddresses: []string{"abcpref-192-168-0-15"},
+			expectedIPAddresses:  []string{"abcpref-192-168-0-15"},
+			expectedClaimAddress: "abcpref-192-168-0-15",
 		}),
 		Entry("Not allocated yet", testCaseCapiCreateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -1984,7 +2241,8 @@ var _ = Describe("IPPool manager", func() {
 				"192.168.0.12": "abc",
 				"192.168.0.11": "bcd",
 			},
-			expectedIPAddresses: []string{"abcpref-192-168-0-12"},
+			expectedIPAddresses:  []string{"abcpref-192-168-0-12"},
+			expectedClaimAddress: "abcpref-192-168-0-12",
 		}),
 		Entry("Not allocated yet, conflict", testCaseCapiCreateAddresses{
 			ipPool: &ipamv1.IPPool{
