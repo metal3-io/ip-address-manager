@@ -63,6 +63,16 @@ func (webhook *IPClaim) ValidateCreate(_ context.Context, ipClaim *ipamv1.IPClai
 		)
 	}
 
+	if ipClaim.Spec.Pool.Namespace != "" && ipClaim.Spec.Pool.Namespace != ipClaim.Namespace {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("spec", "pool", "namespace"),
+				ipClaim.Spec.Pool.Namespace,
+				"must be empty or match the claim's namespace",
+			),
+		)
+	}
+
 	// Validate requested IP address if present in annotations
 	if requestedIP, ok := ipClaim.ObjectMeta.Annotations["ipAddress"]; ok && requestedIP != "" {
 		if err := validateIPAddress(ipamv1.IPAddressStr(requestedIP)); err != nil {
