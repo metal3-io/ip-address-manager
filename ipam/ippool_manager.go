@@ -23,6 +23,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -44,6 +45,11 @@ const (
 	IPAddressClaimFinalizer = "ipam.metal3.io/ipaddressclaim"
 	IPAddressFinalizer      = "ipam.metal3.io/ipaddress"
 	IPAddressAnnotation     = "ipAddress"
+
+	// requeueAfterIPAddressDeletion is how long to wait before requeuing a claim
+	// whose allocated IPAddress is being deleted. The claim cannot be re-linked to
+	// a terminating IPAddress, so we wait for the deletion to complete and retry.
+	requeueAfterIPAddressDeletion = 5 * time.Second
 )
 
 // IPPoolManagerInterface is an interface for a IPPoolManager.
@@ -660,11 +666,36 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	}
 
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
-		addressClaim.Status.Address = &corev1.ObjectReference{
-			Name:      m.formatAddressName(allocatedAddress),
+		// Check if allocation map already has an entry for this claim. Before
+		// re-linking the claim to it, verify the referenced IPAddress object
+		// still exists.
+		addressName := m.formatAddressName(allocatedAddress)
+		existingAddress := &ipamv1.IPAddress{}
+		err := m.client.Get(ctx, client.ObjectKey{
+			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
+		}, existingAddress)
+		if err == nil && existingAddress.DeletionTimestamp.IsZero() {
+			// A non-terminating IPAddress object exists, so we can safely
+			// re-link the claim to it.
+			addressClaim.Status.Address = &corev1.ObjectReference{
+				Name:      addressName,
+				Namespace: m.IPPool.Namespace,
+			}
+			return addresses, nil
 		}
-		return addresses, nil
+		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
+			// The IPAddress object exists but is being deleted. We must not re-link the claim to it.
+			// Mark the error as transient so the reconcile loop will retry after the specified duration.
+			err = WithTransientError(
+				fmt.Errorf("allocated IPAddress %s is being deleted, waiting for deletion to complete", addressName),
+				requeueAfterIPAddressDeletion,
+			)
+		}
+		// The IPAddress object does not exist: the allocation in the pool is stale.
+		// This should be transient and resolved on the next reconcile loop. We
+		// return the error and let the next reconcile attempt handle it.
+		return addresses, err
 	}
 
 	// Get a new index for this machine
@@ -761,10 +792,35 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	}
 
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
-		addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
-			Name: m.formatAddressName(allocatedAddress),
+		// Check if allocation map already has an entry for this claim. Before
+		// re-linking the claim to it, verify the referenced IPAddress object
+		// still exists.
+		addressName := m.formatAddressName(allocatedAddress)
+		existingAddress := &capipamv1.IPAddress{}
+		err := m.client.Get(ctx, client.ObjectKey{
+			Name:      addressName,
+			Namespace: m.IPPool.Namespace,
+		}, existingAddress)
+		if err == nil && existingAddress.DeletionTimestamp.IsZero() {
+			// A non-terminating IPAddress object exists, so we can safely
+			// re-link the claim to it.
+			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
+				Name: addressName,
+			}
+			return addresses, nil
 		}
-		return addresses, nil
+		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
+			// The IPAddress object exists but is being deleted. We must not re-link the claim to it.
+			// Mark the error as transient so the reconcile loop will retry after the specified duration.
+			err = WithTransientError(
+				fmt.Errorf("allocated IPAddress %s is being deleted, waiting for deletion to complete", addressName),
+				requeueAfterIPAddressDeletion,
+			)
+		}
+		// The IPAddress object does not exist: the allocation in the pool is stale.
+		// This should be transient and resolved on the next reconcile loop. We
+		// return the error and let the next reconcile attempt handle it.
+		return addresses, err
 	}
 
 	// Get a new index for this machine
