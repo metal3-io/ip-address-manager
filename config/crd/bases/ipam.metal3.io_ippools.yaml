@@ -34,6 +34,18 @@ spec:
       jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - description: Total allocatable IPs in the pool
+      jsonPath: .status.capacity
+      name: Capacity
+      type: integer
+    - description: Unallocated IPs in the pool
+      jsonPath: .status.availableIPCount
+      name: Available IPs
+      type: integer
+    - description: Whether the pool capacity is too large to count exactly
+      jsonPath: .status.capacityOverflow
+      name: Capacity Overflow
+      type: boolean
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -151,6 +163,30 @@ spec:
           status:
             description: IPPoolStatus defines the observed state of IPPool.
             properties:
+              availableIPCount:
+                description: |-
+                  AvailableIPCount is the number of IP addresses in the pools that are not
+                  currently in use, i.e. Capacity minus the addresses already allocated.
+                  It is omitted when the capacity is unknown or too large to count exactly
+                  (see Capacity and Overflow).
+                format: int64
+                type: integer
+              capacity:
+                description: |-
+                  Capacity is the total number of IP addresses that all the pools defined
+                  in the spec can hold. If the combined size of the pools is too large to
+                  represent as an int64 (for example a very large IPv6 subnet such as a
+                  /64 or larger), Capacity is reported as the int64 maximum and Overflow is
+                  set to true. If the pools cannot be sized at all, Capacity is omitted.
+                format: int64
+                type: integer
+              capacityOverflow:
+                description: |-
+                  CapacityOverflow is true when the combined size of the pools is too large
+                  to represent exactly. In that case Capacity is capped at the int64
+                  maximum and AvailableIPCount is omitted. It is false during normal
+                  operation, including when the pool is fully allocated.
+                type: boolean
               indexes:
                 additionalProperties:
                   description: IPAddress is used for validation of an IP address.
