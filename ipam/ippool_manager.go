@@ -689,11 +689,27 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	}
 
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
-		addressClaim.Status.Address = &corev1.ObjectReference{
-			Name:      m.formatAddressName(allocatedAddress),
+		// Check if allocation map already has an entry for this claim. Before
+		// re-linking the claim to it, verify the referenced IPAddress object
+		// still exists.
+		addressName := m.formatAddressName(allocatedAddress)
+		existingAddress := &ipamv1.IPAddress{}
+		err := m.client.Get(ctx, client.ObjectKey{
+			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
+		}, existingAddress)
+		// If a corresponding IPAddress object exists, we can safely re-link the claim to it.
+		if err == nil {
+			addressClaim.Status.Address = &corev1.ObjectReference{
+				Name:      addressName,
+				Namespace: m.IPPool.Namespace,
+			}
+			return addresses, nil
 		}
-		return addresses, nil
+		// If the IPAddress object does not exist, the allocation in the pool is stale.
+		// This should be transient and resolved on the next reconcile loop.
+		// We simply return the error and let the next reconcile attempt handle it.
+		return addresses, err
 	}
 
 	// Get a new index for this machine
@@ -790,10 +806,26 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	}
 
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
-		addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
-			Name: m.formatAddressName(allocatedAddress),
+		// Check if allocation map already has an entry for this claim. Before
+		// re-linking the claim to it, verify the referenced IPAddress object
+		// still exists.
+		addressName := m.formatAddressName(allocatedAddress)
+		existingAddress := &capipamv1.IPAddress{}
+		err := m.client.Get(ctx, client.ObjectKey{
+			Name:      addressName,
+			Namespace: m.IPPool.Namespace,
+		}, existingAddress)
+		// If a corresponding IPAddress object exists, we can safely re-link the claim to it.
+		if err == nil {
+			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
+				Name: addressName,
+			}
+			return addresses, nil
 		}
-		return addresses, nil
+		// If the IPAddress object does not exist, the allocation in the pool is stale.
+		// This should be transient and resolved on the next reconcile loop.
+		// We simply return the error and let the next reconcile attempt handle it.
+		return addresses, err
 	}
 
 	// Get a new index for this machine
