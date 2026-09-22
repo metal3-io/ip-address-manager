@@ -21,10 +21,9 @@ set -o pipefail
 MINIMUM_GO_VERSION=go1.26.6
 
 # Ensure the go tool exists and is a viable version, or installs it
-verify_go_version()
-{
+verify_go_version() {
     # If go is not available on the path, get it
-    if ! [ -x "$(command -v go)" ]; then
+    if ! [[ -x "$(command -v go)" ]]; then
         if [[ "${OSTYPE}" == "linux-gnu" ]]; then
             echo 'go not found, installing'
             curl -sLo "/tmp/${MINIMUM_GO_VERSION}.linux-amd64.tar.gz" "https://go.dev/dl/${MINIMUM_GO_VERSION}.linux-amd64.tar.gz"
