@@ -21,6 +21,7 @@ limitations under the License.
 package tools
 
 import (
+	_ "fybrik.io/crdoc"
 	_ "github.com/jteeuwen/go-bindata/go-bindata"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "go.uber.org/mock/mockgen"
