@@ -42,6 +42,7 @@ BIN_DIR := bin
 
 # Binaries.
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+CRDOC := $(TOOLS_BIN_DIR)/crdoc
 GOLANGCI_LINT := $(ROOT_DIR)/$(TOOLS_BIN_DIR)/golangci-lint
 MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 CONVERSION_GEN := $(TOOLS_BIN_DIR)/conversion-gen
@@ -150,6 +151,9 @@ build-api: ## Builds api directory.
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
+$(CRDOC): $(TOOLS_DIR)/go.mod # Build crdoc from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/crdoc fybrik.io/crdoc
+
 $(GOLANGCI_LINT):
 		hack/ensure-golangci-lint.sh $(TOOLS_DIR)/$(BIN_DIR)
 
@@ -227,7 +231,7 @@ generate-go: $(CONTROLLER_GEN) $(MOCKGEN) $(CONVERSION_GEN) $(KUBEBUILDER) $(KUS
 		ManagerFactoryInterface
 
 .PHONY: generate-manifests
-generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
+generate-manifests: $(CONTROLLER_GEN) $(CRDOC) ## Generate manifests e.g. CRD, RBAC etc.
 	$(CONTROLLER_GEN) \
 		paths=./ \
 		paths=./api/... \
@@ -239,6 +243,7 @@ generate-manifests: $(CONTROLLER_GEN) ## Generate manifests e.g. CRD, RBAC etc.
 		output:rbac:dir=$(RBAC_ROOT) \
 		output:webhook:dir=$(WEBHOOK_ROOT) \
 		webhook
+	CRDOC=$(abspath $(CRDOC)) ./hack/gen-api-doc.sh
 
 .PHONY: generate-examples
 generate-examples: clean-examples ## Generate examples configurations to run a cluster.

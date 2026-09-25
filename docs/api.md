@@ -1,154 +1,805 @@
-# API and Resource Definitions
+# API Reference
 
-This describes a setup where the IPAM component is deployed. It is agnostic of
-the IP version. All examples are given with IPv4 but could be IPv6.
+Packages:
 
-## IPPool
+- [ipam.metal3.io/v1alpha1](#ipammetal3iov1alpha1)
 
-An IPPool is an object representing a set of IP addresses pools to be used for
-IP address allocations.
+# ipam.metal3.io/v1alpha1
 
-Example pool:
+Resource Types:
 
-```yaml
-apiVersion: ipam.metal3.io/v1alpha1
-kind: IPPool
-metadata:
-  name: pool1
-  namespace: default
-spec:
-  clusterName: cluster1
-  namePrefix: test1-prov
-  pools:
-  - start: 192.168.0.10
-    end: 192.168.0.30
-    prefix: 25
-    gateway: 192.168.0.1
-  - subnet: 192.168.1.1/26
-  - subnet: 192.168.1.128/25
-  prefix: 24
-  gateway: 192.168.1.1
-  preAllocations:
-    claim1: 192.168.0.12
-```
+- [IPAddress](#ipaddress)
 
-The *spec* field contains the following :
+- [IPClaim](#ipclaim)
 
-* **clusterName**: That is the name of the cluster to which this pool belongs
-  it is used to verify whether the resource is paused.
-* **namePrefix**: That is the prefix used to generate the IPAddress.
-* **pools**: this is a list of IP address pools
-* **prefix**: This is a default prefix for this IPPool
-* **gateway**: This is a default gateway for this IPPool
-* **preAllocations**: This is a default preallocated IP address for this IPPool.
-Preallocations associate a claim's name to an IP address. It doesn't matter if
-the claim type is (metal3)IPClaim or (capi)IPAddressClaim.
+- [IPPool](#ippool)
 
-The *prefix* and *gateway* can be overridden per pool. The pool definition is
-as follows :
 
-* **start**: the IP range start address. Can be omitted if **subnet** is set.
-* **end**: the IP range end address. Can be omitted.
-* **subnet**: the subnet for the allocation. Can be omitted if **start** is set.
-  It is used to verify that the allocated address belongs to this subnet.
-* **prefix**: override of the default prefix for this pool
-* **gateway**: override of the default gateway for this pool
-* **DNSServers**: override of the default dns servers for this pool
 
-## IPClaim
-
-An IPClaim is an object representing a request for an IP address allocation.
-
-Example IPClaim:
-
-```yaml
-apiVersion: ipam.metal3.io/v1alpha1
-kind: IPClaim
-metadata:
-  name: test1-controlplane-template-0-provisioning-pool
-  namespace: default
-spec:
-  pool:
-    name: pool1
-    namespace: default
-```
-
-The *spec* field contains the following :
-
-* **pool**: a reference to the IPPool this request is for
 
 ## IPAddress
+<sup><sup>[↩ Parent](#ipammetal3iov1alpha1 )</sup></sup>
 
-An IPAddress is an object representing an IP address allocation.
 
-Example IPAddress:
 
-```yaml
-apiVersion: ipam.metal3.io/v1alpha1
-kind: IPAddress
-metadata:
-  name: pool1-192-168-0-13
-  namespace: default
-spec:
-  pool:
-    name: pool1
-    namespace: default
-  claim:
-    name: test1-controlplane-template-0-provisioning-pool
-    namespace: default
-  address: 192.168.0.13
-  prefix: 24
-  gateway: 192.168.0.1
-```
 
-The *spec* field contains the following :
 
-* **pool**: a reference to the IPPool this address is for
-* **claim**: a reference to the IPClaim this address is for
-* **address**: the allocated IP address
-* **prefix**: the prefix for this address
-* **gateway**: the gateway for this address
-* **DNSServers**: a list of dns servers
 
-## Metal3 dev env examples
+IPAddress is the Schema for the ipaddresses API.
 
-You can find CR examples in the
-[Metal3-io dev env project](https://github.com/metal3-io/metal3-dev-env)
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+      <td><b>apiVersion</b></td>
+      <td>string</td>
+      <td>ipam.metal3.io/v1alpha1</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b>kind</b></td>
+      <td>string</td>
+      <td>IPAddress</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta">metadata</a></b></td>
+      <td>object</td>
+      <td>Refer to the Kubernetes API documentation for the fields of the `metadata` field.</td>
+      <td>true</td>
+      </tr><tr>
+        <td><b><a href="#ipaddressspec">spec</a></b></td>
+        <td>object</td>
+        <td>
+          IPAddressSpec defines the desired state of IPAddress.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
 
-## Handling CAPI CRs
 
-This IPAM can be deployed and used as an
-[IPAM provider](https://cluster-api.sigs.k8s.io/developer/providers/contracts/ipam)for
-[CAPI](https://github.com/kubernetes-sigs/cluster-api).
+### IPAddress.spec
+<sup><sup>[↩ Parent](#ipaddress)</sup></sup>
 
-IPPool reconsiles (metal3)ipclaims into (metal3)ipaddresses
-and (capi)ipaddressclaims into (capi)ipaddresses.
 
-### IPAddressClaim
 
-Check out more on [IPAddressClaim docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddressclaim).
+IPAddressSpec defines the desired state of IPAddress.
 
-### IpAddress
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>address</b></td>
+        <td>string</td>
+        <td>
+          Address contains the IP address<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b><a href="#ipaddressspecclaim">claim</a></b></td>
+        <td>object</td>
+        <td>
+          Claim points to the object the IPClaim was created for.<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b><a href="#ipaddressspecpool">pool</a></b></td>
+        <td>object</td>
+        <td>
+          Pool is the IPPool this was generated from.<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>dnsServers</b></td>
+        <td>[]string</td>
+        <td>
+          DNSServers is the list of dns servers<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>gateway</b></td>
+        <td>string</td>
+        <td>
+          Gateway is the gateway ip address<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>prefix</b></td>
+        <td>integer</td>
+        <td>
+          Prefix is the mask of the network as integer (max 128)<br/>
+          <br/>
+            <i>Maximum</i>: 128<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
 
-Check out more on [IPAddress docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddress).
 
-### Set up via clusterctl
+### IPAddress.spec.claim
+<sup><sup>[↩ Parent](#ipaddressspec)</sup></sup>
 
-Metal IPAM is an official IPAMProvider for CAPI. You can install Metal3 IPAM
-on a cluster with:
 
-```bash
-clusterctl init --ipam metal3
-```
 
-Install older version by specifying version number:
+Claim points to the object the IPClaim was created for.
 
-```bash
-clusterctl init --ipam metal3:v1.13.0
-```
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>apiVersion</b></td>
+        <td>string</td>
+        <td>
+          API version of the referent.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>fieldPath</b></td>
+        <td>string</td>
+        <td>
+          If referring to a piece of an object instead of an entire object, this string
+should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+For example, if the object reference is to a container within a pod, this would take on a value like:
+"spec.containers{name}" (where "name" refers to the name of the container that triggered
+the event) or if no container name is specified "spec.containers[2]" (container with
+index 2 in this pod). This syntax is chosen only to have some well-defined way of
+referencing a part of an object.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>kind</b></td>
+        <td>string</td>
+        <td>
+          Kind of the referent.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>resourceVersion</b></td>
+        <td>string</td>
+        <td>
+          Specific resourceVersion to which this reference is made, if any.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>uid</b></td>
+        <td>string</td>
+        <td>
+          UID of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
 
-With infrastructure provider metal3:
 
-```bash
-clusterctl init --infrastructure metal3 --ipam metal3
-```
+### IPAddress.spec.pool
+<sup><sup>[↩ Parent](#ipaddressspec)</sup></sup>
+
+
+
+Pool is the IPPool this was generated from.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>apiVersion</b></td>
+        <td>string</td>
+        <td>
+          API version of the referent.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>fieldPath</b></td>
+        <td>string</td>
+        <td>
+          If referring to a piece of an object instead of an entire object, this string
+should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+For example, if the object reference is to a container within a pod, this would take on a value like:
+"spec.containers{name}" (where "name" refers to the name of the container that triggered
+the event) or if no container name is specified "spec.containers[2]" (container with
+index 2 in this pod). This syntax is chosen only to have some well-defined way of
+referencing a part of an object.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>kind</b></td>
+        <td>string</td>
+        <td>
+          Kind of the referent.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>resourceVersion</b></td>
+        <td>string</td>
+        <td>
+          Specific resourceVersion to which this reference is made, if any.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>uid</b></td>
+        <td>string</td>
+        <td>
+          UID of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+## IPClaim
+<sup><sup>[↩ Parent](#ipammetal3iov1alpha1 )</sup></sup>
+
+
+
+
+
+
+IPClaim is the Schema for the ipclaims API.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+      <td><b>apiVersion</b></td>
+      <td>string</td>
+      <td>ipam.metal3.io/v1alpha1</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b>kind</b></td>
+      <td>string</td>
+      <td>IPClaim</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta">metadata</a></b></td>
+      <td>object</td>
+      <td>Refer to the Kubernetes API documentation for the fields of the `metadata` field.</td>
+      <td>true</td>
+      </tr><tr>
+        <td><b><a href="#ipclaimspec">spec</a></b></td>
+        <td>object</td>
+        <td>
+          IPClaimSpec defines the desired state of IPClaim.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#ipclaimstatus">status</a></b></td>
+        <td>object</td>
+        <td>
+          IPClaimStatus defines the observed state of IPClaim.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPClaim.spec
+<sup><sup>[↩ Parent](#ipclaim)</sup></sup>
+
+
+
+IPClaimSpec defines the desired state of IPClaim.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b><a href="#ipclaimspecpool">pool</a></b></td>
+        <td>object</td>
+        <td>
+          Pool is the IPPool this was generated from.<br/>
+        </td>
+        <td>true</td>
+      </tr></tbody>
+</table>
+
+
+### IPClaim.spec.pool
+<sup><sup>[↩ Parent](#ipclaimspec)</sup></sup>
+
+
+
+Pool is the IPPool this was generated from.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>apiVersion</b></td>
+        <td>string</td>
+        <td>
+          API version of the referent.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>fieldPath</b></td>
+        <td>string</td>
+        <td>
+          If referring to a piece of an object instead of an entire object, this string
+should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+For example, if the object reference is to a container within a pod, this would take on a value like:
+"spec.containers{name}" (where "name" refers to the name of the container that triggered
+the event) or if no container name is specified "spec.containers[2]" (container with
+index 2 in this pod). This syntax is chosen only to have some well-defined way of
+referencing a part of an object.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>kind</b></td>
+        <td>string</td>
+        <td>
+          Kind of the referent.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>resourceVersion</b></td>
+        <td>string</td>
+        <td>
+          Specific resourceVersion to which this reference is made, if any.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>uid</b></td>
+        <td>string</td>
+        <td>
+          UID of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPClaim.status
+<sup><sup>[↩ Parent](#ipclaim)</sup></sup>
+
+
+
+IPClaimStatus defines the observed state of IPClaim.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b><a href="#ipclaimstatusaddress">address</a></b></td>
+        <td>object</td>
+        <td>
+          Address is the IPAddress that was generated for this claim.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>errorMessage</b></td>
+        <td>string</td>
+        <td>
+          ErrorMessage contains the error message<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPClaim.status.address
+<sup><sup>[↩ Parent](#ipclaimstatus)</sup></sup>
+
+
+
+Address is the IPAddress that was generated for this claim.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>apiVersion</b></td>
+        <td>string</td>
+        <td>
+          API version of the referent.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>fieldPath</b></td>
+        <td>string</td>
+        <td>
+          If referring to a piece of an object instead of an entire object, this string
+should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+For example, if the object reference is to a container within a pod, this would take on a value like:
+"spec.containers{name}" (where "name" refers to the name of the container that triggered
+the event) or if no container name is specified "spec.containers[2]" (container with
+index 2 in this pod). This syntax is chosen only to have some well-defined way of
+referencing a part of an object.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>kind</b></td>
+        <td>string</td>
+        <td>
+          Kind of the referent.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>resourceVersion</b></td>
+        <td>string</td>
+        <td>
+          Specific resourceVersion to which this reference is made, if any.
+More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>uid</b></td>
+        <td>string</td>
+        <td>
+          UID of the referent.
+More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+## IPPool
+<sup><sup>[↩ Parent](#ipammetal3iov1alpha1 )</sup></sup>
+
+
+
+
+
+
+IPPool is the Schema for the ippools API.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+      <td><b>apiVersion</b></td>
+      <td>string</td>
+      <td>ipam.metal3.io/v1alpha1</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b>kind</b></td>
+      <td>string</td>
+      <td>IPPool</td>
+      <td>true</td>
+      </tr>
+      <tr>
+      <td><b><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta">metadata</a></b></td>
+      <td>object</td>
+      <td>Refer to the Kubernetes API documentation for the fields of the `metadata` field.</td>
+      <td>true</td>
+      </tr><tr>
+        <td><b><a href="#ippoolspec">spec</a></b></td>
+        <td>object</td>
+        <td>
+          IPPoolSpec defines the desired state of IPPool.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#ippoolstatus">status</a></b></td>
+        <td>object</td>
+        <td>
+          IPPoolStatus defines the observed state of IPPool.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPPool.spec
+<sup><sup>[↩ Parent](#ippool)</sup></sup>
+
+
+
+IPPoolSpec defines the desired state of IPPool.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>namePrefix</b></td>
+        <td>string</td>
+        <td>
+          namePrefix is the prefix used to generate the IPAddress object names<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>allocationStrategy</b></td>
+        <td>enum</td>
+        <td>
+          AllocationStrategy defines how IP addresses are allocated from the pools.
+"sequential" (default) allocates the first available IP.
+"random" allocates a random available IP.
+In both strategies, multiple pools are consumed in declaration order: a
+pool is fully exhausted before the next one is used, and the strategy only
+changes how an address is selected within a single pool.<br/>
+          <br/>
+            <i>Enum</i>: sequential, random<br/>
+            <i>Default</i>: sequential<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>clusterName</b></td>
+        <td>string</td>
+        <td>
+          ClusterName is the name of the Cluster this object belongs to.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>dnsServers</b></td>
+        <td>[]string</td>
+        <td>
+          DNSServers is the list of dns servers<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>gateway</b></td>
+        <td>string</td>
+        <td>
+          Gateway is the gateway ip address<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#ippoolspecpoolsindex">pools</a></b></td>
+        <td>[]object</td>
+        <td>
+          Pools contains the list of IP addresses pools<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>preAllocations</b></td>
+        <td>map[string]string</td>
+        <td>
+          PreAllocations contains the preallocated IP addresses<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>prefix</b></td>
+        <td>integer</td>
+        <td>
+          Prefix is the mask of the network as integer (max 128)<br/>
+          <br/>
+            <i>Maximum</i>: 128<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPPool.spec.pools[index]
+<sup><sup>[↩ Parent](#ippoolspec)</sup></sup>
+
+
+
+MetaDataIPAddress contains the info to render th ip address. It is IP-version
+agnostic.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>dnsServers</b></td>
+        <td>[]string</td>
+        <td>
+          DNSServers is the list of dns servers<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>end</b></td>
+        <td>string</td>
+        <td>
+          End is the last IP address that can be rendered. It is used as a validation
+that the rendered IP is in bound.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>gateway</b></td>
+        <td>string</td>
+        <td>
+          Gateway is the gateway ip address<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>prefix</b></td>
+        <td>integer</td>
+        <td>
+          Prefix is the mask of the network as integer (max 128)<br/>
+          <br/>
+            <i>Maximum</i>: 128<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>start</b></td>
+        <td>string</td>
+        <td>
+          Start is the first ip address that can be rendered<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>subnet</b></td>
+        <td>string</td>
+        <td>
+          Subnet is used to validate that the rendered IP is in bounds. In case the
+Start value is not given, it is derived from the subnet ip incremented by 1
+(`192.168.0.1` for `192.168.0.0/24`)<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### IPPool.status
+<sup><sup>[↩ Parent](#ippool)</sup></sup>
+
+
+
+IPPoolStatus defines the observed state of IPPool.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>indexes</b></td>
+        <td>map[string]string</td>
+        <td>
+          Allocations contains the map of objects and IP addresses they have<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>lastUpdated</b></td>
+        <td>string</td>
+        <td>
+          LastUpdated identifies when this status was last observed.<br/>
+          <br/>
+            <i>Format</i>: date-time<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>

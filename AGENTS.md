@@ -115,7 +115,8 @@ Integration-level E2E also runs through
 
 ## Related Documentation
 
-- [API Documentation](docs/api.md)
+- [Usage Guide](docs/usage.md)
+- [API Reference](docs/api.md)
 - [Testing Guide](docs/testing.md)
 - [Release Process](docs/releasing.md)
 - [Metal3 Book](https://book.metal3.io/ipam/introduction)
