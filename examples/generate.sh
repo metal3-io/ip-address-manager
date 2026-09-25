@@ -31,9 +31,9 @@ IPPOOL_GENERATED_FILE="${OUTPUT_DIR}/ippool.yaml"
 # Overwrite flag.
 OVERWRITE=0
 
-SCRIPT=$(basename "$0")
+SCRIPT=$(basename "${0}")
 while test $# -gt 0; do
-        case "$1" in
+        case "${1}" in
           -h|--help)
             echo "${SCRIPT} - generates input yaml files for Cluster API on metal3"
             echo " "

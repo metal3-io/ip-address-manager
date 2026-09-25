@@ -20,10 +20,9 @@ USR_LOCAL_BIN="/usr/local/bin"
 MINIMUM_KUBECTL_VERSION=v1.36.0
 
 # Ensure the kubectl tool exists and is a viable version, or installs it
-verify_kubectl_version()
-{
+verify_kubectl_version() {
     # If kubectl is not available on the path, get it
-    if ! [ -x "$(command -v kubectl)" ]; then
+    if ! [[ -x "$(command -v kubectl)" ]]; then
         if [[ "${OSTYPE}" == "linux-gnu" ]]; then
             echo "kubectl not found, installing"
             curl -LO "https://dl.k8s.io/release/${MINIMUM_KUBECTL_VERSION}/bin/linux/amd64/kubectl"
