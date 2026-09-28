@@ -991,24 +991,51 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
 	}
+	// Clear the claim's address reference now that the IPAddress is gone.
 	addressClaim.Status.Address = nil
+	m.updateStatusTimestamp()
+
+	// Free the IP back to the pool's in-use set so it can be re-allocated,
+	// unless this claim name is a preallocation. getIndexes re-seeds every
+	// PreAllocations IP into the in-use set on each reconcile to keep it
+	// reserved for its designated name (even when no IPAddress object exists),
+	// so deleting a preallocated entry here would contradict that reservation
+	// and let the IP be handed to a different claim.
+	if _, ok := m.IPPool.Spec.PreAllocations[addressClaim.Name]; !ok {
+		delete(addresses, allocatedAddress)
+	}
+	delete(m.IPPool.Status.Allocations, addressClaim.Name)
+	m.Log.Info("IPClaim removed from IPPool allocations", "IPAddressClaim", addressClaim.Name, "AllocatedAddress", allocatedAddress, "IPPool", m.IPPool.Name)
+
+	// Persist the IPPool allocation removal NOW, before removing the IPClaim
+	// finalizer. Patch the IPPool object so that in-memory changes to its
+	// Status.Allocations are made durable immediately, rather than
+	// only by the IPPool controller's deferred Patch at the end of Reconcile.
+	obj := &ipamv1.IPPool{}
+	key := client.ObjectKey{Name: m.IPPool.Name, Namespace: m.IPPool.Namespace}
+	if err := m.client.Get(ctx, key, obj); err != nil {
+		return addresses, err
+	}
+	helper, err := patch.NewHelper(obj, m.client)
+	if err != nil {
+		return addresses, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
+	}
+	delete(obj.Status.Allocations, addressClaim.Name)
+	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
+	if err = helper.Patch(ctx, obj); err != nil {
+		return addresses, err
+	}
+
+	// The IPPool allocation for this claim is now removed, so it is safe
+	// to remove the finalizer.
 	addressClaim.Finalizers = Filter(addressClaim.Finalizers,
 		ipamv1.IPClaimFinalizer,
 	)
-	err := updateObject(ctx, m.client, addressClaim)
+	err = updateObject(ctx, m.client, addressClaim)
 	if err != nil && !apierrors.IsNotFound(err) {
 		m.Log.Info("Unable to remove finalizer from IPClaim", "IPClaim", addressClaim.Name)
 		return addresses, err
 	}
-
-	if ok {
-		if _, ok := m.IPPool.Spec.PreAllocations[addressClaim.Name]; !ok {
-			delete(addresses, allocatedAddress)
-		}
-		delete(m.IPPool.Status.Allocations, addressClaim.Name)
-		m.Log.Info("IPAddressClaim removed from IPPool allocations", "IPAddressClaim", addressClaim.Name)
-	}
-	m.updateStatusTimestamp()
 	return addresses, nil
 }
 
@@ -1049,24 +1076,51 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
 	}
+	// Clear the claim's address reference now that the IPAddress is gone.
 	addressClaim.Status.AddressRef.Name = ""
+	m.updateStatusTimestamp()
+
+	// Free the IP back to the pool's in-use set so it can be re-allocated,
+	// unless this claim name is a preallocation. getIndexes re-seeds every
+	// PreAllocations IP into the in-use set on each reconcile to keep it
+	// reserved for its designated name (even when no IPAddress object exists),
+	// so deleting a preallocated entry here would contradict that reservation
+	// and let the IP be handed to a different claim.
+	if _, ok := m.IPPool.Spec.PreAllocations[addressClaim.Name]; !ok {
+		delete(addresses, allocatedAddress)
+	}
+	delete(m.IPPool.Status.Allocations, addressClaim.Name)
+	m.Log.Info("IPClaim removed from IPPool allocations", "IPAddressClaim", addressClaim.Name, "AllocatedAddress", allocatedAddress, "IPPool", m.IPPool.Name)
+
+	// Persist the IPPool allocation removal NOW, before removing the IPClaim
+	// finalizer. Patch the IPPool object so that in-memory changes to its
+	// Status.Allocations are made durable immediately, rather than
+	// only by the IPPool controller's deferred Patch at the end of Reconcile.
+	obj := &ipamv1.IPPool{}
+	key := client.ObjectKey{Name: m.IPPool.Name, Namespace: m.IPPool.Namespace}
+	if err := m.client.Get(ctx, key, obj); err != nil {
+		return addresses, err
+	}
+	helper, err := patch.NewHelper(obj, m.client)
+	if err != nil {
+		return addresses, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
+	}
+	delete(obj.Status.Allocations, addressClaim.Name)
+	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
+	if err = helper.Patch(ctx, obj); err != nil {
+		return addresses, err
+	}
+
+	// The IPPool allocation for this claim is now removed, so it is safe
+	// to remove the finalizer.
 	addressClaim.Finalizers = Filter(addressClaim.Finalizers,
 		IPAddressClaimFinalizer,
 	)
-	err := updateObject(ctx, m.client, addressClaim)
+	err = updateObject(ctx, m.client, addressClaim)
 	if err != nil && !apierrors.IsNotFound(err) {
 		m.Log.Info("Unable to remove finalizer from IPAddressClaim", "IPAddressClaim", addressClaim.Name)
 		return addresses, err
 	}
-
-	if ok {
-		if _, ok := m.IPPool.Spec.PreAllocations[addressClaim.Name]; !ok {
-			delete(addresses, allocatedAddress)
-		}
-		delete(m.IPPool.Status.Allocations, addressClaim.Name)
-		m.Log.Info("IPAddressClaim removed from IPPool allocations", "IPAddressClaim", addressClaim.Name)
-	}
-	m.updateStatusTimestamp()
 	return addresses, nil
 }
 
