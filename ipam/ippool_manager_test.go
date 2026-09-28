@@ -19,6 +19,7 @@ package ipam
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -34,6 +35,7 @@ import (
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 var (
@@ -50,8 +52,13 @@ var (
 	capiPoolRef = &capipamv1.IPPoolReference{
 		Name: "abc",
 	}
-	prefix24int32 = ptr.To(int32(24))
+	prefix24int32  = ptr.To(int32(24))
+	testIPPoolName = "test-ippool"
 )
+
+// statusSubResource is the subresource name used for status patches in the
+// write-ordering interceptor tests.
+const statusSubResource = "status"
 
 var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test Finalizers",
@@ -689,6 +696,10 @@ var _ = Describe("IPPool manager", func() {
 			for _, claim := range tc.ipAddressClaims {
 				objects = append(objects, claim)
 			}
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(objects...).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
@@ -3313,11 +3324,17 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test DeleteAddresses",
 		func(tc testCaseDeleteAddresses) {
-			objects := make([]client.Object, 0, len(tc.m3addresses))
+			objects := make([]client.Object, 0, len(tc.m3addresses)+1)
 			for _, address := range tc.m3addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			// persistPoolStatus does a live Get+Patch of the IPPool, so the pool
+			// must exist in the fake client with a name.
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -3374,6 +3391,9 @@ var _ = Describe("IPPool manager", func() {
 			ipClaim: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
+					Finalizers: []string{
+						ipamv1.IPClaimFinalizer,
+					},
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{
@@ -3428,11 +3448,17 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiDeleteAddresses",
 		func(tc testCaseCapiDeleteAddresses) {
-			objects := make([]client.Object, 0, len(tc.capiAddresses))
+			objects := make([]client.Object, 0, len(tc.capiAddresses)+1)
 			for _, address := range tc.capiAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			// persistPoolStatus does a live Get+Patch of the IPPool, so the pool
+			// must exist in the fake client with a name.
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -3489,6 +3515,9 @@ var _ = Describe("IPPool manager", func() {
 			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
+					Finalizers: []string{
+						IPAddressClaimFinalizer,
+					},
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{
@@ -3530,6 +3559,282 @@ var _ = Describe("IPPool manager", func() {
 			},
 		}),
 	)
+
+	Context("deleteAddress write ordering", func() {
+
+		It("persists the IPPool allocation removal before removing the claim finalizer", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			var writeOrder []string
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							writeOrder = append(writeOrder, "ippool-patch")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+					Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+						if claim, ok := obj.(*ipamv1.IPClaim); ok && !Contains(claim.Finalizers, ipamv1.IPClaimFinalizer) {
+							writeOrder = append(writeOrder, "ipclaim-finalizer-removed")
+						}
+						return cl.Update(ctx, obj, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// The pool patch must be recorded before the finalizer removal.
+			Expect(writeOrder).To(Equal([]string{"ippool-patch", "ipclaim-finalizer-removed"}))
+
+			// The persisted pool no longer records the allocation.
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+
+			// The persisted claim no longer has the finalizer.
+			persistedClaim := &ipamv1.IPClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).NotTo(ContainElement(ipamv1.IPClaimFinalizer))
+		})
+
+		It("preserves allocations added concurrently by another reconciler", func() {
+			// The manager's in-memory snapshot only knows about its own claim.
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			// The live pool in the cluster additionally has an allocation added by
+			// a concurrent reconciler ("OtherRef") that the manager's stale
+			// snapshot never saw. deleteAddress fetches the live pool, so its
+			// patch must not clobber this key.
+			livePool := ipPool.DeepCopy()
+			livePool.Status.Allocations["OtherRef"] = ipamv1.IPAddressStr("192.168.0.2")
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(livePool).
+				WithObjects(livePool, ipClaim, ipAddress).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			// Our own allocation was removed.
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+			// The concurrently-added allocation must be preserved (not clobbered
+			// by our patch, which must only touch our own key).
+			Expect(persistedPool.Status.Allocations).To(HaveKeyWithValue("OtherRef", ipamv1.IPAddressStr("192.168.0.2")))
+		})
+
+		It("does not remove the claim finalizer when persisting the IPPool fails", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							return errors.New("simulated IPPool patch failure")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).To(HaveOccurred())
+
+			// Because the pool patch failed, the finalizer must still be on the
+			// persisted claim so cleanup can be retried.
+			persistedClaim := &ipamv1.IPClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).To(ContainElement(ipamv1.IPClaimFinalizer))
+		})
+	})
+
+	Context("capiDeleteAddress write ordering", func() {
+		newPoolAndClaim := func() (*ipamv1.IPPool, *capipamv1.IPAddressClaim) {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{IPAddressClaimFinalizer},
+				},
+				Spec: capipamv1.IPAddressClaimSpec{PoolRef: capipamv1.IPPoolReference{Name: testIPPoolName}},
+			}
+			return ipPool, ipAddressClaim
+		}
+
+		It("persists the IPPool allocation removal before removing the claim finalizer", func() {
+			ipPool, ipAddressClaim := newPoolAndClaim()
+			ipAddress := &capipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			var writeOrder []string
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipAddressClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							writeOrder = append(writeOrder, "ippool-patch")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+					Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+						if claim, ok := obj.(*capipamv1.IPAddressClaim); ok && !Contains(claim.Finalizers, IPAddressClaimFinalizer) {
+							writeOrder = append(writeOrder, "ipaddressclaim-finalizer-removed")
+						}
+						return cl.Update(ctx, obj, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.capiDeleteAddress(context.TODO(), ipAddressClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(writeOrder).To(Equal([]string{"ippool-patch", "ipaddressclaim-finalizer-removed"}))
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+
+			persistedClaim := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipAddressClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).NotTo(ContainElement(IPAddressClaimFinalizer))
+		})
+
+		It("does not remove the claim finalizer when persisting the IPPool fails", func() {
+			ipPool, ipAddressClaim := newPoolAndClaim()
+			ipAddress := &capipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipAddressClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							return errors.New("simulated IPPool patch failure")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.capiDeleteAddress(context.TODO(), ipAddressClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).To(HaveOccurred())
+
+			persistedClaim := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipAddressClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).To(ContainElement(IPAddressClaimFinalizer))
+		})
+	})
 
 	// Helper to check if an IP is within a range.
 	// Uses lexicographic byte comparison so ranges that cross octet
