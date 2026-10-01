@@ -39,12 +39,7 @@ Run these locally before submitting PRs:
 | `./hack/shellcheck.sh` | Shell script linting (shellcheck) |
 | `./hack/markdownlint.sh` | Markdown linting (config: `.markdownlint-cli2.yaml`) |
 | `./hack/manifestlint.sh` | Kubernetes manifest validation (kubeconform) |
-
-**GitHub Actions** (reusable workflows from project-infra):
-
-| Workflow | Purpose |
-|----------|---------|
-| yamllint | YAML linting (config: `.yamllint.yaml`) |
+| `./hack/yamllint.sh` | YAML linting (config: `.yamllint.yaml`) |
 
 ## Code Conventions
 
