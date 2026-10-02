@@ -156,6 +156,16 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPA
 		)
 	}
 
+	if newIPAddress.Annotations["ipAddress"] != oldIPAddress.Annotations["ipAddress"] {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("metadata", "annotations", "ipAddress"),
+				newIPAddress.Annotations["ipAddress"],
+				"cannot be modified",
+			),
+		)
+	}
+
 	if newIPAddress.Spec.Claim.Name != oldIPAddress.Spec.Claim.Name {
 		allErrs = append(allErrs,
 			field.Invalid(
