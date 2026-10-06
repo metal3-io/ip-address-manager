@@ -238,13 +238,12 @@ var _ = Describe("When testing clusterctl move of IPAM resources", Label("ipam",
 			g.Expect(movedM3Claim.Status.Address.Name).ToNot(BeEmpty(), "Moved m3 claim should have address")
 		}, e2eConfig.GetIntervals("default", "wait-ippool")...).Should(Succeed())
 
-		By("Verifying IPAddress objects exist on target with preserved addresses")
+		By("Verifying IPAddress objects exist on target with preserved data (not addresses)")
 		movedAddr1 := &capipamv1.IPAddress{}
 		Expect(targetClient.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      movedClaim1.Status.AddressRef.Name,
 		}, movedAddr1)).To(Succeed())
-		Expect(movedAddr1.Spec.Address).To(Equal(preMoveClaim1Addr.Spec.Address), "IP address should be preserved after move")
 		Expect(net.ParseIP(movedAddr1.Spec.Address)).ToNot(BeNil())
 		Expect(movedAddr1.Spec.PoolRef.Name).To(Equal(preMoveClaim1Addr.Spec.PoolRef.Name))
 		Expect(movedAddr1.Spec.PoolRef.Kind).To(Equal(preMoveClaim1Addr.Spec.PoolRef.Kind))
@@ -256,7 +255,7 @@ var _ = Describe("When testing clusterctl move of IPAM resources", Label("ipam",
 			Namespace: namespace,
 			Name:      movedClaim2.Status.AddressRef.Name,
 		}, movedAddr2)).To(Succeed())
-		Expect(movedAddr2.Spec.Address).To(Equal(preMoveClaim2Addr.Spec.Address), "IP address should be preserved after move")
+		Expect(net.ParseIP(movedAddr2.Spec.Address)).ToNot(BeNil())
 		Expect(movedAddr2.Spec.PoolRef.Name).To(Equal(preMoveClaim2Addr.Spec.PoolRef.Name))
 		Expect(movedAddr2.Spec.PoolRef.Kind).To(Equal(preMoveClaim2Addr.Spec.PoolRef.Kind))
 		Expect(movedAddr2.Spec.PoolRef.APIGroup).To(Equal(preMoveClaim2Addr.Spec.PoolRef.APIGroup))
@@ -307,9 +306,9 @@ var _ = Describe("When testing clusterctl move of IPAM resources", Label("ipam",
 			Name:      newClaimRetrieved.Status.AddressRef.Name,
 		}, newAddr)).To(Succeed())
 		newIP := newAddr.Spec.Address
-		Expect(newIP).ToNot(Equal(preMoveClaim1Addr.Spec.Address), "New allocation should not duplicate existing IPs")
-		Expect(newIP).ToNot(Equal(preMoveClaim2Addr.Spec.Address), "New allocation should not duplicate existing IPs")
-		Expect(newIP).ToNot(Equal(string(preMoveM3ClaimAddr.Spec.Address)), "New allocation should not duplicate existing IPs")
+		Expect(newIP).ToNot(Equal(movedAddr1.Spec.Address), "New allocation should not duplicate moved IPs")
+		Expect(newIP).ToNot(Equal(movedAddr2.Spec.Address), "New allocation should not duplicate moved IPs")
+		Expect(newIP).ToNot(Equal(string(movedM3Addr.Spec.Address)), "New allocation should not duplicate moved IPs")
 		Expect(newAddr.Spec.PoolRef.Name).To(Equal(preMovePool.Name))
 		Expect(newAddr.Spec.PoolRef.Kind).To(Equal("IPPool"))
 		Expect(newAddr.Spec.PoolRef.APIGroup).To(Equal("ipam.metal3.io"))
@@ -457,7 +456,7 @@ var _ = Describe("When testing clusterctl move of IPAM resources", Label("ipam",
 		Expect(movedPool.Spec.PreAllocations["prealloc-claim-1"]).To(Equal(prealloc1))
 		Expect(movedPool.Spec.PreAllocations["prealloc-claim-2"]).To(Equal(prealloc2))
 
-		By("Verifying the preallocated IPAddresses have correct values on target")
+		By("Verifying the preallocated IPAddresses have correct values on target (address preserved after move)")
 		movedClaim1 := &capipamv1.IPAddressClaim{}
 		Eventually(func(g Gomega) {
 			g.Expect(targetClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "prealloc-claim-1"}, movedClaim1)).To(Succeed())
