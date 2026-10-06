@@ -244,7 +244,7 @@ var _ = Describe("IPPool controller", func() {
 
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
-				ManagerFactory: ipam.NewManagerFactory(c),
+				ManagerFactory: ipam.NewManagerFactory(c, c),
 				Log:            logr.Discard(),
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
@@ -296,7 +296,7 @@ var _ = Describe("IPPool controller", func() {
 			c := fake.NewClientBuilder().WithScheme(setupScheme()).Build()
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
-				ManagerFactory: ipam.NewManagerFactory(c),
+				ManagerFactory: ipam.NewManagerFactory(c, c),
 				Log:            logr.Discard(),
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)

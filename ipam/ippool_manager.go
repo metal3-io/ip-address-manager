@@ -63,17 +63,19 @@ type IPPoolManagerInterface interface {
 
 // IPPoolManager is responsible for performing machine reconciliation.
 type IPPoolManager struct {
-	client client.Client
-	IPPool *ipamv1.IPPool
-	Log    logr.Logger
+	client    client.Client
+	apiReader client.Reader
+	IPPool    *ipamv1.IPPool
+	Log       logr.Logger
 }
 
 // NewIPPoolManager returns a new helper for managing a ipPool object.
-func NewIPPoolManager(client client.Client, ipPool *ipamv1.IPPool, ipPoolLog logr.Logger) (*IPPoolManager, error) {
+func NewIPPoolManager(client client.Client, apiReader client.Reader, ipPool *ipamv1.IPPool, ipPoolLog logr.Logger) (*IPPoolManager, error) {
 	return &IPPoolManager{
-		client: client,
-		IPPool: ipPool,
-		Log:    ipPoolLog,
+		client:    client,
+		apiReader: apiReader,
+		IPPool:    ipPool,
+		Log:       ipPoolLog,
 	}, nil
 }
 
@@ -697,10 +699,11 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
 		// Check if allocation map already has an entry for this claim. Before
 		// re-linking the claim to it, verify the referenced IPAddress object
-		// still exists.
+		// still exists. Read directly from the API server (not the client cache) so a
+		// stale cache cannot make us re-link to an already-deleted IPAddress.
 		addressName := m.formatAddressName(allocatedAddress)
 		existingAddress := &ipamv1.IPAddress{}
-		err := m.client.Get(ctx, client.ObjectKey{
+		err := m.apiReader.Get(ctx, client.ObjectKey{
 			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
 		}, existingAddress)
@@ -823,10 +826,11 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	if allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]; ok {
 		// Check if allocation map already has an entry for this claim. Before
 		// re-linking the claim to it, verify the referenced IPAddress object
-		// still exists.
+		// still exists. Read directly from the API server (not the client cache) so a
+		// stale cache cannot make us re-link to an already-deleted IPAddress.
 		addressName := m.formatAddressName(allocatedAddress)
 		existingAddress := &capipamv1.IPAddress{}
-		err := m.client.Get(ctx, client.ObjectKey{
+		err := m.apiReader.Get(ctx, client.ObjectKey{
 			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
 		}, existingAddress)

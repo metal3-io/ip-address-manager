@@ -42,7 +42,7 @@ func FuzzNewIPPoolManager(f *testing.F) {
 		}
 
 		// Attempt to create IPPool manager
-		ipPoolMgr, err := ipam.NewIPPoolManager(nil, ipPool, logr.Discard())
+		ipPoolMgr, err := ipam.NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 		if err != nil {
 			// Some inputs may validly fail manager creation
 			t.Skip("manager creation failed")

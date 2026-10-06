@@ -56,7 +56,7 @@ var (
 var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test Finalizers",
 		func(ipPool *ipamv1.IPPool) {
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool,
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -89,7 +89,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test SetClusterOwnerRef",
 		func(tc testCaseSetClusterOwnerRef) {
-			ipPoolMgr, err := NewIPPoolManager(nil, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -176,7 +176,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, address)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -690,7 +690,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, claim)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(objects...).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -1654,7 +1654,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, address)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -1999,7 +1999,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, address)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -2333,7 +2333,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test AllocateAddress",
 		func(tc testCaseAllocateAddress) {
-			ipPoolMgr, err := NewIPPoolManager(nil, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -2852,7 +2852,7 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiAllocateAddress",
 		func(tc testCapiCaseAllocateAddress) {
-			ipPoolMgr, err := NewIPPoolManager(nil, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -3318,7 +3318,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, address)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -3433,7 +3433,7 @@ var _ = Describe("IPPool manager", func() {
 				objects = append(objects, address)
 			}
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
+			ipPoolMgr, err := NewIPPoolManager(c, c, tc.ipPool,
 				logr.Discard(),
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -3587,7 +3587,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			addresses := map[ipamv1.IPAddressStr]string{}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, prefix, gateway, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3625,7 +3625,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.14"): "e",
 			}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3658,7 +3658,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.12"): "c",
 			}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			_, _, _, _, err = ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3689,7 +3689,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			addresses := map[ipamv1.IPAddressStr]string{}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3721,7 +3721,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			addresses := map[ipamv1.IPAddressStr]string{}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3745,7 +3745,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 
 			addresses := map[ipamv1.IPAddressStr]string{}
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			// Allocate all 11 IPs and verify no duplicates
@@ -3788,7 +3788,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "claim-b"},
 			}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3820,7 +3820,7 @@ var _ = Describe("IPPool manager", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "claim-c"},
 			}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
@@ -3855,7 +3855,7 @@ var _ = Describe("IPPool manager", func() {
 			}
 			addresses := map[ipamv1.IPAddressStr]string{}
 
-			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			ipPoolMgr, err := NewIPPoolManager(nil, nil, ipPool, logr.Discard())
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, prefix, gateway, err := ipPoolMgr.capiAllocateAddress(ipAddressClaim, addresses)

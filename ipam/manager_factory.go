@@ -28,17 +28,18 @@ type ManagerFactoryInterface interface {
 	)
 }
 
-// ManagerFactory only contains a client.
+// ManagerFactory only contains a client and an API reader.
 type ManagerFactory struct {
-	client client.Client
+	client    client.Client
+	apiReader client.Reader
 }
 
 // NewManagerFactory returns a new factory.
-func NewManagerFactory(client client.Client) ManagerFactory {
-	return ManagerFactory{client: client}
+func NewManagerFactory(client client.Client, apiReader client.Reader) ManagerFactory {
+	return ManagerFactory{client: client, apiReader: apiReader}
 }
 
 // NewIPPoolManager creates a new IPPoolManager.
 func (f ManagerFactory) NewIPPoolManager(ipPool *ipamv1.IPPool, metadataLog logr.Logger) (IPPoolManagerInterface, error) {
-	return NewIPPoolManager(f.client, ipPool, metadataLog)
+	return NewIPPoolManager(f.client, f.apiReader, ipPool, metadataLog)
 }
