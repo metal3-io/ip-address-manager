@@ -32,7 +32,7 @@ var _ = Describe("Manager factory testing", func() {
 
 	BeforeEach(func() {
 		managerClient = fakeclient.NewClientBuilder().WithScheme(setupScheme()).Build()
-		managerFactory = NewManagerFactory(managerClient)
+		managerFactory = NewManagerFactory(managerClient, managerClient)
 	})
 
 	It("returns a manager factory", func() {
