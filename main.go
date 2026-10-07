@@ -208,8 +208,10 @@ func setupChecks(mgr ctrl.Manager) {
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&controllers.IPPoolReconciler{
-		Client:           mgr.GetClient(),
-		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
+		Client: mgr.GetClient(),
+		ManagerFactory: ipam.NewManagerFactory(mgr.GetClient(),
+			ipam.WithAPIReader(mgr.GetAPIReader()),
+			ipam.WithEventRecorder(mgr.GetEventRecorder("metal3-ippool-controller"))),
 		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPClaim"),
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManagerForIPClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
@@ -218,8 +220,10 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	}
 
 	if err := (&controllers.IPPoolReconciler{
-		Client:           mgr.GetClient(),
-		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
+		Client: mgr.GetClient(),
+		ManagerFactory: ipam.NewManagerFactory(mgr.GetClient(),
+			ipam.WithAPIReader(mgr.GetAPIReader()),
+			ipam.WithEventRecorder(mgr.GetEventRecorder("metal3-ippool-controller-capi"))),
 		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPAddressClaim"),
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManagerForIPAddressClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
