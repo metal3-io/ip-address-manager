@@ -278,11 +278,13 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if addressClaim.Status.Address != nil && addressClaim.DeletionTimestamp.IsZero() {
+		if addressClaim.Status.Address != nil && addressClaim.Status.ErrorMessage == nil &&
+			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
 
-		if addressClaim.Status.ErrorMessage != nil && addressClaim.DeletionTimestamp.IsZero() {
+		if addressClaim.Status.Address == nil && addressClaim.Status.ErrorMessage != nil &&
+			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
 		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
@@ -319,11 +321,13 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if addressClaim.Status.AddressRef.Name != "" && addressClaim.DeletionTimestamp.IsZero() {
+		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
+			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
 
-		if anyErrorInExistingClaim(addressClaim) && addressClaim.DeletionTimestamp.IsZero() {
+		if addressClaim.Status.AddressRef.Name == "" && anyErrorInExistingClaim(addressClaim) &&
+			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
 		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
@@ -807,6 +811,13 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
 				Name: addressName,
 			}
+			conditions := make([]metav1.Condition, 0, 1)
+			conditions = append(conditions, metav1.Condition{
+				Type:               capipamv1.IPAddressClaimReadyCondition,
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+			})
+			addressClaim.SetConditions(conditions)
 			return addresses, nil
 		}
 		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
