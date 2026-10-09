@@ -96,6 +96,8 @@ unit: $(SETUP_ENVTEST) ## Run tests
 	go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out && \
 	cd $(APIS_DIR) && go test -v ./... -coverprofile ./cover.out && cd .. && \
 	cd $(WEBHOOKS_DIR) && go test -v ./... -coverprofile ./cover.out
+	# Run fuzz tests as part of the unit test
+	$(MAKE) fuzz-run FUZZ_TIME=10s
 
 .PHONY: test  ## Run linter and tests
 test: generate lint unit
@@ -119,11 +121,19 @@ fuzz: ## Run fuzz tests with seed corpus (no fuzzing, regression test only)
 .PHONY: fuzz-run
 fuzz-run: ## Run all fuzz tests sequentially with fuzzing enabled (use FUZZ_TIME=duration)
 	@echo "Discovering fuzz tests..."
-	@cd test/fuzz && go test -list='Fuzz.*' | grep '^Fuzz' | while read -r fuzz_test; do \
+	@cd test/fuzz ; \
+	summary="" fail=0; \
+	for fuzz_test in $$(go test -list='Fuzz.*' ./... | grep '^Fuzz'); do \
 		echo "Running $$fuzz_test for $(FUZZ_TIME)..."; \
-		go test  -fuzz=$$fuzz_test -fuzztime="$(FUZZ_TIME)" || exit 1; \
-	done
-	@echo "All fuzz tests completed successfully!"
+		if go test -run=^$$ -fuzz=$$fuzz_test -fuzztime='$(FUZZ_TIME)' ./...; then \
+			summary="$$summary\n  PASS  $$fuzz_test"; \
+		else \
+			summary="$$summary\n  FAIL  $$fuzz_test"; fail=1; \
+		fi; \
+	done; \
+	printf "\n===== Fuzz Test Summary ($(FUZZ_TIME) each) =====\n"; \
+	printf '%b\n' "$$summary"; \
+	if [ "$$fail" -eq 0 ]; then printf "\nAll fuzz tests passed!\n"; else printf "\nSome fuzz tests failed.\n"; exit 1; fi
 
 ## --------------------------------------
 ## Build
