@@ -663,15 +663,17 @@ var _ = Describe("IPPool manager", func() {
 	}
 
 	type testCaseUpdateAddresses struct {
-		ipPool                *ipamv1.IPPool
-		ipClaims              []*ipamv1.IPClaim
-		ipAddresses           []*ipamv1.IPAddress
-		ipAddressClaims       []*capipamv1.IPAddressClaim
-		capiAddresses         []*capipamv1.IPAddress
-		expectRequeue         bool
-		expectError           bool
-		expectedNbAllocations int
-		expectedAllocations   map[string]ipamv1.IPAddressStr
+		ipPool                       *ipamv1.IPPool
+		ipClaims                     []*ipamv1.IPClaim
+		ipAddresses                  []*ipamv1.IPAddress
+		ipAddressClaims              []*capipamv1.IPAddressClaim
+		capiAddresses                []*capipamv1.IPAddress
+		expectRequeue                bool
+		expectError                  bool
+		expectedNbAllocations        int
+		expectedAllocations          map[string]ipamv1.IPAddressStr
+		expectClearedErrorClaims     []string
+		expectClearedErrorCapiClaims []string
 	}
 
 	DescribeTable("Test UpdateAddresses",
@@ -737,6 +739,26 @@ var _ = Describe("IPPool manager", func() {
 				if claim.DeletionTimestamp.IsZero() && !anyErrorInExistingClaim(claim) {
 					Expect(claim.Status.AddressRef).NotTo(BeNil())
 				}
+			}
+
+			// A claim that already has a valid allocation must not retain a
+			// stale error after reconcile (regression test for the stale
+			// "Exhausted IP Pools" freeze).
+			for _, name := range tc.expectClearedErrorClaims {
+				claim := &ipamv1.IPClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: "myns"}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(claim.Status.ErrorMessage).To(BeNil(),
+					"expected stale ErrorMessage to be cleared on IPClaim %s", name)
+				Expect(claim.Status.Address).NotTo(BeNil())
+			}
+			for _, name := range tc.expectClearedErrorCapiClaims {
+				claim := &capipamv1.IPAddressClaim{}
+				err = c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: "myns"}, claim)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(anyErrorInExistingClaim(*claim)).To(BeFalse(),
+					"expected stale failure condition to be cleared on IPAddressClaim %s", name)
+				Expect(claim.Status.AddressRef.Name).NotTo(BeEmpty())
 			}
 
 		},
@@ -1631,6 +1653,137 @@ var _ = Describe("IPPool manager", func() {
 				},
 			},
 			expectedNbAllocations: 3,
+		}),
+		Entry("Stale error on already-allocated metal3 IPClaim is cleared", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					// The claim is already allocated in the pool ledger.
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"stale-claim": ipamv1.IPAddressStr("192.168.1.11"),
+					},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "stale-claim",
+						Namespace:  "myns",
+						Finalizers: []string{ipamv1.IPClaimFinalizer},
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					Status: ipamv1.IPClaimStatus{
+						// Valid allocation AND a leftover transient error. The
+						// reconcile must clear the error rather than skip the
+						// claim and freeze it.
+						Address: &corev1.ObjectReference{
+							Name:      "abcpref-192-168-1-11",
+							Namespace: "myns",
+						},
+						ErrorMessage: ptr.To("Exhausted IP Pools"),
+					},
+				},
+			},
+			ipAddresses: []*ipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-1-11",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPAddressSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+						Claim: corev1.ObjectReference{
+							Name:      "stale-claim",
+							Namespace: "myns",
+						},
+						Address: ipamv1.IPAddressStr("192.168.1.11"),
+					},
+				},
+			},
+			expectedNbAllocations:    1,
+			expectClearedErrorClaims: []string{"stale-claim"},
+		}),
+		Entry("Stale error condition on already-allocated capi IPAddressClaim is cleared", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"stale-capi-claim": ipamv1.IPAddressStr("192.168.1.11"),
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "stale-capi-claim",
+						Namespace:  "myns",
+						Finalizers: []string{IPAddressClaimFinalizer},
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					Status: capipamv1.IPAddressClaimStatus{
+						AddressRef: capipamv1.IPAddressReference{
+							Name: "abcpref-192-168-1-11",
+						},
+						Conditions: []metav1.Condition{
+							{
+								Type:               capipamv1.IPAddressClaimReadyCondition,
+								Status:             metav1.ConditionFalse,
+								LastTransitionTime: metav1.Now(),
+								Reason:             capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+								Message:            "Exhausted IP Pools",
+							},
+						},
+					},
+				},
+			},
+			capiAddresses: []*capipamv1.IPAddress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abcpref-192-168-1-11",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressSpec{
+						PoolRef: capipamv1.IPPoolReference{
+							Name:     "abc",
+							APIGroup: APIGroup,
+						},
+						ClaimRef: capipamv1.IPAddressClaimReference{
+							Name: "stale-capi-claim",
+						},
+						Address: "192.168.1.11",
+					},
+				},
+			},
+			expectedNbAllocations:        1,
+			expectClearedErrorCapiClaims: []string{"stale-capi-claim"},
 		}),
 	)
 
