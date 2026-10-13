@@ -51,6 +51,9 @@ type IPPoolReconciler struct {
 	ManagerFactory   ipam.ManagerFactoryInterface
 	Log              logr.Logger
 	WatchFilterValue string
+	// ClaimType is the kind of claim this reconciler allocates addresses for.
+	// It is set by SetupWithManagerForIPClaim / SetupWithManagerForIPAddressClaim.
+	ClaimType ipam.ClaimType
 }
 
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools,verbs=get;list;watch;patch;delete
@@ -157,7 +160,7 @@ func (r *IPPoolReconciler) reconcileNormal(ctx context.Context,
 	// If the IPPool doesn't have finalizer, add it.
 	ipPoolMgr.SetFinalizer()
 
-	_, err := ipPoolMgr.UpdateAddresses(ctx)
+	_, err := ipPoolMgr.UpdateAddresses(ctx, r.ClaimType)
 	if err != nil {
 		return checkReconcileError(err, "Failed to create the missing data")
 	}
@@ -168,7 +171,9 @@ func (r *IPPoolReconciler) reconcileNormal(ctx context.Context,
 func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 	ipPoolMgr ipam.IPPoolManagerInterface,
 ) (ctrl.Result, error) {
-	allocationsNb, err := ipPoolMgr.UpdateAddresses(ctx)
+	// allocationsNb counts the allocations of both claim types, so the finalizer is
+	// only removed once neither controller has addresses left in the pool.
+	allocationsNb, err := ipPoolMgr.UpdateAddresses(ctx, r.ClaimType)
 	if err != nil {
 		return checkReconcileError(err, "Failed to delete the old addresses")
 	}
@@ -184,6 +189,7 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 
 // SetupWithManager will add watches for this controller.
 func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+	r.ClaimType = ipam.IPClaimType
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("IPPoolReconciler").
 		For(&ipamv1.IPPool{}).
@@ -198,6 +204,7 @@ func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr c
 
 // SetupWithManager will add watches for this controller.
 func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+	r.ClaimType = ipam.IPAddressClaimType
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("IPPoolReconcilerForCAPI").
 		For(&ipamv1.IPPool{}).

@@ -53,12 +53,22 @@ const (
 	requeueAfterIPAddressDeletion = 5 * time.Second
 )
 
+// ClaimType identifies the kind of claim an UpdateAddresses call processes.
+type ClaimType string
+
+const (
+	// IPClaimType selects Metal3 IPClaims (ipam.metal3.io) and their IPAddresses.
+	IPClaimType ClaimType = "IPClaim"
+	// IPAddressClaimType selects CAPI IPAddressClaims (ipam.cluster.x-k8s.io) and their IPAddresses.
+	IPAddressClaimType ClaimType = "IPAddressClaim"
+)
+
 // IPPoolManagerInterface is an interface for a IPPoolManager.
 type IPPoolManagerInterface interface {
 	SetFinalizer()
 	UnsetFinalizer()
 	SetClusterOwnerRef(*clusterv1.Cluster) error
-	UpdateAddresses(context.Context) (int, error)
+	UpdateAddresses(context.Context, ClaimType) (int, error)
 }
 
 // IPPoolManager is responsible for performing machine reconciliation.
@@ -233,22 +243,24 @@ func (m *IPPoolManager) updateStatusTimestamp() {
 	m.IPPool.Status.LastUpdated = &now
 }
 
-// UpdateAddresses manages the claims and creates or deletes IPAddress accordingly.
+// UpdateAddresses manages the claims of the given type and creates or deletes
+// the matching IPAddress objects accordingly. Only claims of claimType are
+// processed, so that the IPClaim and the IPAddressClaim controllers each handle
+// their own claims and never allocate for the same claim concurrently.
 // It returns the number of current allocations. Current allocation include
-// both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
+// both capi and metal3 type ipaddress objects, regardless of claimType.
+func (m *IPPoolManager) UpdateAddresses(ctx context.Context, claimType ClaimType) (int, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
-	_, err := m.m3UpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
+	switch claimType {
+	case IPClaimType:
+		return m.m3UpdateAddresses(ctx)
+	case IPAddressClaimType:
+		return m.capiUpdateAddresses(ctx)
+	default:
+		return 0, fmt.Errorf("unsupported claim type %q", claimType)
 	}
-	count, err := m.capiUpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
 }
 
 // UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.

@@ -683,6 +683,133 @@ var _ = Describe("IPPool manager", func() {
 		expectClearedErrorCapiClaims []string
 	}
 
+	Describe("UpdateAddresses claim type selection", func() {
+		var (
+			c      client.Client
+			ipPool *ipamv1.IPPool
+		)
+
+		BeforeEach(func() {
+			ipPool = &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					AllocationStrategy: ipamv1.AllocationStrategyRandom,
+					Prefix:             24,
+					Gateway:            (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix:         "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "m3-claim", Namespace: "myns"},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "capi-claim", Namespace: "myns"},
+				Spec:       capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+			}
+			objects := []client.Object{ipPool, ipClaim, ipAddressClaim}
+			c = fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(objects...).WithObjects(objects...).Build()
+		})
+
+		listAddresses := func() ([]ipamv1.IPAddress, []capipamv1.IPAddress) {
+			m3 := ipamv1.IPAddressList{}
+			Expect(c.List(context.TODO(), &m3)).To(Succeed())
+			capi := capipamv1.IPAddressList{}
+			Expect(c.List(context.TODO(), &capi)).To(Succeed())
+			return m3.Items, capi.Items
+		}
+
+		It("only allocates for IPClaims with IPClaimType", func() {
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			nb, err := ipPoolMgr.UpdateAddresses(context.TODO(), IPClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nb).To(Equal(1))
+
+			m3Addrs, capiAddrs := listAddresses()
+			Expect(m3Addrs).To(HaveLen(1))
+			Expect(m3Addrs[0].Spec.Claim.Name).To(Equal("m3-claim"))
+			Expect(capiAddrs).To(BeEmpty(), "IPAddressClaims must not be processed with IPClaimType")
+			Expect(ipPool.Status.Allocations).To(HaveLen(1))
+			Expect(ipPool.Status.Allocations).To(HaveKey("m3-claim"))
+
+			capiClaim := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKey{Name: "capi-claim", Namespace: "myns"}, capiClaim)).To(Succeed())
+			Expect(capiClaim.Status.AddressRef.Name).To(BeEmpty())
+			Expect(capiClaim.Finalizers).To(BeEmpty())
+		})
+
+		It("only allocates for IPAddressClaims with IPAddressClaimType", func() {
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			nb, err := ipPoolMgr.UpdateAddresses(context.TODO(), IPAddressClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nb).To(Equal(1))
+
+			m3Addrs, capiAddrs := listAddresses()
+			Expect(m3Addrs).To(BeEmpty(), "IPClaims must not be processed with IPAddressClaimType")
+			Expect(capiAddrs).To(HaveLen(1))
+			Expect(capiAddrs[0].Spec.ClaimRef.Name).To(Equal("capi-claim"))
+			Expect(ipPool.Status.Allocations).To(HaveLen(1))
+			Expect(ipPool.Status.Allocations).To(HaveKey("capi-claim"))
+
+			m3Claim := &ipamv1.IPClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKey{Name: "m3-claim", Namespace: "myns"}, m3Claim)).To(Succeed())
+			Expect(m3Claim.Status.Address).To(BeNil())
+			Expect(m3Claim.Finalizers).To(BeEmpty())
+		})
+
+		It("counts allocations of both claim types and allocates each claim once", func() {
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.UpdateAddresses(context.TODO(), IPClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			nb, err := ipPoolMgr.UpdateAddresses(context.TODO(), IPAddressClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nb).To(Equal(2))
+
+			// A second pass for each type must not allocate again.
+			_, err = ipPoolMgr.UpdateAddresses(context.TODO(), IPClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			nb, err = ipPoolMgr.UpdateAddresses(context.TODO(), IPAddressClaimType)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nb).To(Equal(2))
+
+			m3Addrs, capiAddrs := listAddresses()
+			Expect(m3Addrs).To(HaveLen(1))
+			Expect(capiAddrs).To(HaveLen(1))
+			Expect(m3Addrs[0].Spec.Address).NotTo(Equal(ipamv1.IPAddressStr(capiAddrs[0].Spec.Address)))
+		})
+
+		It("returns an error for an unsupported claim type", func() {
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			nb, err := ipPoolMgr.UpdateAddresses(context.TODO(), ClaimType("Unknown"))
+			Expect(err).To(HaveOccurred())
+			Expect(nb).To(Equal(0))
+
+			m3Addrs, capiAddrs := listAddresses()
+			Expect(m3Addrs).To(BeEmpty())
+			Expect(capiAddrs).To(BeEmpty())
+		})
+	})
+
 	DescribeTable("Test UpdateAddresses",
 		func(tc testCaseUpdateAddresses) {
 			objects := make([]client.Object, 0, len(tc.ipAddresses)+len(tc.ipClaims)+len(tc.capiAddresses)+len(tc.ipAddressClaims))
@@ -708,7 +835,12 @@ var _ = Describe("IPPool manager", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			nbAllocations, err := ipPoolMgr.UpdateAddresses(context.TODO())
+			// Process both claim types, as the IPClaim and IPAddressClaim
+			// controllers together do.
+			nbAllocations, err := ipPoolMgr.UpdateAddresses(context.TODO(), IPClaimType)
+			if err == nil {
+				nbAllocations, err = ipPoolMgr.UpdateAddresses(context.TODO(), IPAddressClaimType)
+			}
 			if tc.expectRequeue || tc.expectError {
 				Expect(err).To(HaveOccurred())
 				if tc.expectRequeue {
