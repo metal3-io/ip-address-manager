@@ -30,6 +30,7 @@ package ipam_mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 	v1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -98,12 +99,13 @@ func (mr *MockIPPoolManagerInterfaceMockRecorder) UnsetFinalizer() *gomock.Call 
 }
 
 // UpdateAddresses mocks base method.
-func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context) (int, error) {
+func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context) (int, time.Duration, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAddresses", arg0)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(time.Duration)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // UpdateAddresses indicates an expected call of UpdateAddresses.

@@ -210,20 +210,10 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&controllers.IPPoolReconciler{
 		Client:           mgr.GetClient(),
 		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
-		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPClaim"),
+		Log:              ctrl.Log.WithName("controllers").WithName("IPPool"),
 		WatchFilterValue: watchFilterValue,
-	}).SetupWithManagerForIPClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
+	}).SetupWithManager(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.IPPoolReconciler{
-		Client:           mgr.GetClient(),
-		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
-		Log:              ctrl.Log.WithName("controllers").WithName("IPPoolForIPAddressClaim"),
-		WatchFilterValue: watchFilterValue,
-	}).SetupWithManagerForIPAddressClaim(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IPPoolReconcilerForCAPI")
 		os.Exit(1)
 	}
 }

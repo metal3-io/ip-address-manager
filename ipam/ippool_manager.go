@@ -61,12 +61,24 @@ const (
 	dbgLvl = 4
 )
 
+// minRequeue returns the smaller of two requeue durations. A zero duration
+// means "no requeue", so it is ignored if the other duration is not zero.
+func minRequeue(a, b time.Duration) time.Duration {
+	if a == 0 {
+		return b
+	}
+	if b == 0 {
+		return a
+	}
+	return min(a, b)
+}
+
 // IPPoolManagerInterface is an interface for a IPPoolManager.
 type IPPoolManagerInterface interface {
 	SetFinalizer()
 	UnsetFinalizer()
 	SetClusterOwnerRef(*clusterv1.Cluster) error
-	UpdateAddresses(context.Context) (int, error)
+	UpdateAddresses(context.Context) (int, time.Duration, error)
 }
 
 // IPPoolManager is responsible for performing machine reconciliation.
@@ -244,16 +256,34 @@ func (m *IPPoolManager) updateStatusTimestamp() {
 // UpdateAddresses manages the claims and creates or deletes IPAddress accordingly.
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
+//
+// The used addresses are read one time and the same map goes to the Metal3 and
+// the CAPI pass. Thus the CAPI pass sees the addresses that the Metal3 pass
+// allocated in this reconcile, also when the cache does not show the new
+// IPAddress objects yet.
+//
+// The returned duration is not zero when a claim waits for an expected state
+// change, for example a terminating IPAddress. This is not an error. The caller
+// must requeue the IPPool after this duration. The duration is set only when
+// the error is nil. If there is an error, the error decides the requeue.
+func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, time.Duration, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
+	addresses, err := m.getIndexes(ctx)
+	if err != nil {
+		m.Log.Error(err, "Failed to update addresses: can't get pool indexes")
+		return 0, 0, err
+	}
+
 	var errorsFound []error
 	var re ReconcileError
 	transient := false
 	requeue := time.Duration(math.MaxInt64)
 
-	_, m3Err := m.m3UpdateAddresses(ctx)
+	// An error in one pass does not stop the other pass. The map keeps the IPs
+	// that are in use, also the IP of a terminating IPAddress.
+	addresses, m3Requeue, m3Err := m.m3UpdateAddresses(ctx, addresses)
 	if m3Err != nil {
 		if errors.As(m3Err, &re) && re.IsTransient() {
 			transient, requeue = true, min(requeue, re.GetRequeueAfter())
@@ -261,7 +291,7 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 		errorsFound = append(errorsFound, m3Err)
 	}
 
-	count, capiErr := m.capiUpdateAddresses(ctx)
+	addresses, capiRequeue, capiErr := m.capiUpdateAddresses(ctx, addresses)
 	if capiErr != nil {
 		if errors.As(capiErr, &re) && re.IsTransient() {
 			transient, requeue = true, min(requeue, re.GetRequeueAfter())
@@ -269,30 +299,37 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 		errorsFound = append(errorsFound, capiErr)
 	}
 
+	count := len(addresses)
+	requeueAfter := minRequeue(m3Requeue, capiRequeue)
 	if len(errorsFound) > 0 {
-		// A transient error wins: the pool is requeued after the smallest delay.
-		// Plain errors in the same pass are already logged where they happen.
+		// When there is an error, the error alone decides the requeue, and the
+		// returned duration is 0. Plain errors in the same pass are already
+		// logged where they happen.
 		if transient {
-			return count, WithTransientError(errors.Join(errorsFound...), requeue)
+			// A transient error wins: the pool is requeued after the smallest
+			// delay. Also use the wait for a terminating IPAddress if it is
+			// shorter. Do not use minRequeue here: a transient delay of 0 means
+			// "requeue now", and it must win.
+			if requeueAfter > 0 {
+				requeue = min(requeue, requeueAfter)
+			}
+			return count, 0, WithTransientError(errors.Join(errorsFound...), requeue)
 		}
 		// Flatten to a plain string error (not %w) so errors.As cannot find an
 		// inner ReconcileError and controller-runtime treats this as a plain
-		// error and backs off.
-		return count, errors.New(errors.Join(errorsFound...).Error())
+		// error and backs off. The pool is retried with that backoff, so a
+		// terminating IPAddress is also checked again then.
+		return count, 0, errors.New(errors.Join(errorsFound...).Error())
 	}
-	return count, nil
+	return count, requeueAfter, nil
 }
 
-// UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
-// It returns the number of current allocations. Current allocation include
-// both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		m.Log.Error(err, "Failed to update addresses for IPClaims: can't get pool indexes")
-		return 0, err
-	}
-
+// m3UpdateAddresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
+// addresses holds the addresses in use (capi and metal3). It returns the updated
+// map and the smallest requeue duration that a claim asked for (0 if none).
+func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context,
+	addresses map[ipamv1.IPAddressStr]string,
+) (map[ipamv1.IPAddressStr]string, time.Duration, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := ipamv1.IPClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -300,16 +337,17 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
 		m.Log.Error(err, "Failed to update addresses for IPClaims: can't list IPClaims")
-		return 0, err
+		return addresses, 0, err
 	}
 
 	var errorsFound []error
 	var re ReconcileError
 	requeue := time.Duration(math.MaxInt64)
 	transient := false
+	var requeueAfter time.Duration
 	// Iterate over the IPClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
 		// If IPPool does not point to this object, discard
@@ -322,7 +360,9 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
+		var claimRequeue time.Duration
+		addresses, claimRequeue, err = m.updateAddress(ctx, &addressClaim, addresses)
+		requeueAfter = minRequeue(requeueAfter, claimRequeue)
 		if err != nil {
 			errorsFound = append(errorsFound, err)
 			if errors.As(err, &re) && re.IsTransient() {
@@ -337,22 +377,20 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		if transient {
 			m.Log.Info("Failed to update some IPClaims, requeuing. Enable debug log level for details",
 				"failures", len(errorsFound), "requeueAfter", requeue)
-			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+			return addresses, requeueAfter, WithTransientError(errors.Join(errorsFound...), requeue)
 		}
 		// Flattened to a plain error, see UpdateAddresses.
-		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
+		return addresses, requeueAfter, errors.New(errors.Join(errorsFound...).Error())
 	}
-	return len(addresses), nil
+	return addresses, requeueAfter, nil
 }
 
-// UpdateCAPIAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
-// It returns the number of current allocations.
-func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't get pool indexes")
-		return 0, err
-	}
+// capiUpdateAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
+// addresses holds the addresses in use (capi and metal3). It returns the updated
+// map and the smallest requeue duration that a claim asked for (0 if none).
+func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context,
+	addresses map[ipamv1.IPAddressStr]string,
+) (map[ipamv1.IPAddressStr]string, time.Duration, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := capipamv1.IPAddressClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -360,16 +398,17 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
 		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't list IPAddressClaims")
-		return 0, err
+		return addresses, 0, err
 	}
 
 	var errorsFound []error
 	var re ReconcileError
 	requeue := time.Duration(math.MaxInt64)
 	transient := false
+	var requeueAfter time.Duration
 	// Iterate over the IPAddressClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
 		// If IPPool does not point to this object, discard
@@ -382,7 +421,9 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
+		var claimRequeue time.Duration
+		addresses, claimRequeue, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
+		requeueAfter = minRequeue(requeueAfter, claimRequeue)
 		if err != nil {
 			errorsFound = append(errorsFound, err)
 			if errors.As(err, &re) && re.IsTransient() {
@@ -397,25 +438,26 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		if transient {
 			m.Log.Info("Failed to update some IPAddressClaims, requeuing. Enable debug log level for details",
 				"failures", len(errorsFound), "requeueAfter", requeue)
-			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+			return addresses, requeueAfter, WithTransientError(errors.Join(errorsFound...), requeue)
 		}
 		// Flattened to a plain error, see UpdateAddresses.
-		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
+		return addresses, requeueAfter, errors.New(errors.Join(errorsFound...).Error())
 	}
-	return len(addresses), nil
+	return addresses, requeueAfter, nil
 }
 
 // UpdateAddress creates metal3 ipaddress or deletes it. Address can be deleted if it
 // doesn't have finalizers or only has the ipamv1.IPClaimFinalizer
 // Return a map where IP addresses is key and value is the associated (metal3 and/or capi) claim's name.
+// The returned duration is not zero when the claim must be processed again later.
 func (m *IPPoolManager) updateAddress(ctx context.Context,
 	addressClaim *ipamv1.IPClaim, addresses map[ipamv1.IPAddressStr]string,
-) (_ map[ipamv1.IPAddressStr]string, rerr error) {
+) (_ map[ipamv1.IPAddressStr]string, _ time.Duration, rerr error) {
 	var err error
 	var helper *patch.Helper
 	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
-		return addresses, fmt.Errorf("failed to init patch helper: %w", err)
+		return addresses, 0, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	deleted := false
 	// Always patch addressClaim exiting this function so we can persist any changes.
@@ -435,7 +477,7 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	if addressClaim.DeletionTimestamp.IsZero() {
 		addresses, err = m.createAddress(ctx, addressClaim, addresses)
 		if err != nil {
-			return addresses, err
+			return addresses, 0, err
 		}
 	} else {
 		// Check if this claim is in use. Does it have any other finalizers than our own?
@@ -444,29 +486,36 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 			(len(addressClaim.Finalizers) == 1 && !Contains(addressClaim.Finalizers, ipamv1.IPClaimFinalizer)) {
 			m.Log.Info("IPClaim is still in use (has other finalizers). Cannot delete IPAddress.",
 				"IPClaim", addressClaim.Name, "Finalizers", addressClaim.Finalizers)
-			return addresses, nil
+			return addresses, 0, nil
 		}
 
-		addresses, err = m.deleteAddress(ctx, addressClaim, addresses)
+		var requeueAfter time.Duration
+		addresses, requeueAfter, err = m.deleteAddress(ctx, addressClaim, addresses)
 		if err != nil {
-			return addresses, err
+			return addresses, 0, err
+		}
+		if requeueAfter > 0 {
+			// The IPAddress still exists. The claim keeps its finalizer, so
+			// patch the claim as usual.
+			return addresses, requeueAfter, nil
 		}
 		deleted = true
 	}
-	return addresses, nil
+	return addresses, 0, nil
 }
 
 // capiUpdateAddress creates capi ipaddress or deletes it. Address can be deleted if it
 // doesn't have finalizers or only has the ipamv1.IPClaimFinalizer
 // Return a map where IP addresses is key and value is the associated (metal3 and/or capi) claim's name.
+// The returned duration is not zero when the claim must be processed again later.
 func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
-) (_ map[ipamv1.IPAddressStr]string, rerr error) {
+) (_ map[ipamv1.IPAddressStr]string, _ time.Duration, rerr error) {
 	var err error
 	var helper *patch.Helper
 	helper, err = patch.NewHelper(addressClaim, m.client)
 	if err != nil {
-		return addresses, fmt.Errorf("failed to init patch helper: %w", err)
+		return addresses, 0, fmt.Errorf("failed to init patch helper: %w", err)
 	}
 	deleted := false
 	// Always patch addressClaim exiting this function so we can persist any changes.
@@ -484,7 +533,7 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	if addressClaim.DeletionTimestamp.IsZero() {
 		addresses, err = m.capiCreateAddress(ctx, addressClaim, addresses)
 		if err != nil {
-			return addresses, err
+			return addresses, 0, err
 		}
 	} else {
 		// Check if this claim is in use. Does it have any other finalizers than our own?
@@ -493,16 +542,22 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 			(len(addressClaim.Finalizers) == 1 && !Contains(addressClaim.Finalizers, IPAddressClaimFinalizer)) {
 			m.Log.Info("IPAddressClaim is still in use (has other finalizers). Cannot delete IPAddress.",
 				"IPAddressClaim", addressClaim.Name, "Finalizers", addressClaim.Finalizers)
-			return addresses, nil
+			return addresses, 0, nil
 		}
 
-		addresses, err = m.capiDeleteAddress(ctx, addressClaim, addresses)
+		var requeueAfter time.Duration
+		addresses, requeueAfter, err = m.capiDeleteAddress(ctx, addressClaim, addresses)
 		if err != nil {
-			return addresses, err
+			return addresses, 0, err
+		}
+		if requeueAfter > 0 {
+			// The IPAddress still exists. The claim keeps its finalizer, so
+			// patch the claim as usual.
+			return addresses, requeueAfter, nil
 		}
 		deleted = true
 	}
-	return addresses, nil
+	return addresses, 0, nil
 }
 
 // allocateAddress gets an (metal3)IpAddress for a (metal3)IPClaim.
@@ -845,7 +900,13 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
+			return addresses, err
 		}
+		// createObject returns a ReconcileError only for AlreadyExists. An
+		// IPAddress for this IP exists, but the cached list did not show it.
+		// Reserve the IP, so that the next claims in this reconcile (also the
+		// CAPI pass) do not get it. The owner is not known, so use an empty name.
+		addresses[allocatedAddress] = ""
 		return addresses, err
 	}
 
@@ -985,7 +1046,10 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
 				Message: "Failed to create associated IPAddress object",
 			})
+			return addresses, err
 		}
+		// AlreadyExists: reserve the IP for the rest of this reconcile, see createAddress.
+		addresses[allocatedAddress] = ""
 		return addresses, err
 	}
 
@@ -1007,7 +1071,7 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 // deleteAddress removes the finalizer from the IPClaim and deletes the associated IPAddress.
 func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	addressClaim *ipamv1.IPClaim, addresses map[ipamv1.IPAddressStr]string,
-) (map[ipamv1.IPAddressStr]string, error) {
+) (map[ipamv1.IPAddressStr]string, time.Duration, error) {
 	m.Log.Info("Deleting IPAddress associated with IPClaim", "IPClaim", addressClaim.Name)
 
 	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
@@ -1021,7 +1085,7 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 		err := m.client.Get(ctx, key, ipAddress)
 		if err != nil && !apierrors.IsNotFound(err) {
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to get associated IPAddress object")
-			return addresses, err
+			return addresses, 0, err
 		} else if err == nil {
 			// Remove the finalizer
 			ipAddress.Finalizers = Filter(ipAddress.Finalizers,
@@ -1030,13 +1094,21 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 			err = updateObject(ctx, m.client, ipAddress)
 			if err != nil && !apierrors.IsNotFound(err) {
 				m.Log.Info("Unable to remove finalizer from IPAddress", "IPAddress", ipAddress.Name)
-				return addresses, err
+				return addresses, 0, err
 			}
 			// Delete the IPAddress
 			err = deleteObject(ctx, m.client, ipAddress)
 			if err != nil {
 				addressClaim.Status.ErrorMessage = ptr.To("Failed to delete associated IPAddress object")
-				return addresses, err
+				return addresses, 0, err
+			}
+			// Other finalizers keep the IPAddress terminating. Keep its IP
+			// reserved, the pool allocation and the claim finalizer until
+			// the IPAddress is gone, so that no other claim gets the IP.
+			if len(ipAddress.Finalizers) > 0 {
+				addresses[allocatedAddress] = addressClaim.Name
+				m.Log.Info("IPAddress has other finalizers, keeping its IP reserved", "IPAddress", ipAddress.Name, "Finalizers", ipAddress.Finalizers)
+				return addresses, requeueAfterIPAddressDeletion, nil
 			}
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
@@ -1064,16 +1136,16 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	obj := &ipamv1.IPPool{}
 	key := client.ObjectKey{Name: m.IPPool.Name, Namespace: m.IPPool.Namespace}
 	if err := m.client.Get(ctx, key, obj); err != nil {
-		return addresses, err
+		return addresses, 0, err
 	}
 	helper, err := patch.NewHelper(obj, m.client)
 	if err != nil {
-		return addresses, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
+		return addresses, 0, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
 	}
 	delete(obj.Status.Allocations, addressClaim.Name)
 	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
 	if err = helper.Patch(ctx, obj); err != nil {
-		return addresses, err
+		return addresses, 0, err
 	}
 
 	// The IPPool allocation for this claim is now removed, so it is safe
@@ -1084,15 +1156,15 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 	err = updateObject(ctx, m.client, addressClaim)
 	if err != nil && !apierrors.IsNotFound(err) {
 		m.Log.Info("Unable to remove finalizer from IPClaim", "IPClaim", addressClaim.Name)
-		return addresses, err
+		return addresses, 0, err
 	}
-	return addresses, nil
+	return addresses, 0, nil
 }
 
 // capideleteAddress removes the finalizer from the IPClaim and deletes the associated IPAddress.
 func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 	addressClaim *capipamv1.IPAddressClaim, addresses map[ipamv1.IPAddressStr]string,
-) (map[ipamv1.IPAddressStr]string, error) {
+) (map[ipamv1.IPAddressStr]string, time.Duration, error) {
 	m.Log.Info("Deleting IPAddress associated with IPAddressClaim", "IPAddressClaim", addressClaim.Name)
 
 	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
@@ -1106,7 +1178,7 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 		err := m.client.Get(ctx, key, ipAddress)
 		if err != nil && !apierrors.IsNotFound(err) {
 			m.Log.Error(err, "Failed to get associated IPAddress object", "IPAddress", ipAddress.Name)
-			return addresses, err
+			return addresses, 0, err
 		} else if err == nil {
 			// Remove the finalizer
 			ipAddress.Finalizers = Filter(ipAddress.Finalizers,
@@ -1115,13 +1187,21 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 			err = updateObject(ctx, m.client, ipAddress)
 			if err != nil && !apierrors.IsNotFound(err) {
 				m.Log.Error(err, "Unable to remove finalizer from IPAddress", "IPAddress", ipAddress.Name)
-				return addresses, err
+				return addresses, 0, err
 			}
 			// Delete the IPAddress
 			err = deleteObject(ctx, m.client, ipAddress)
 			if err != nil {
 				m.Log.Error(err, "Failed to delete associated IPAddress object", "IPAddress", ipAddress.Name)
-				return addresses, err
+				return addresses, 0, err
+			}
+			// Other finalizers keep the IPAddress terminating. Keep its IP
+			// reserved, the pool allocation and the claim finalizer until
+			// the IPAddress is gone, so that no other claim gets the IP.
+			if len(ipAddress.Finalizers) > 0 {
+				addresses[allocatedAddress] = addressClaim.Name
+				m.Log.Info("IPAddress has other finalizers, keeping its IP reserved", "IPAddress", ipAddress.Name, "Finalizers", ipAddress.Finalizers)
+				return addresses, requeueAfterIPAddressDeletion, nil
 			}
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
@@ -1149,16 +1229,16 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 	obj := &ipamv1.IPPool{}
 	key := client.ObjectKey{Name: m.IPPool.Name, Namespace: m.IPPool.Namespace}
 	if err := m.client.Get(ctx, key, obj); err != nil {
-		return addresses, err
+		return addresses, 0, err
 	}
 	helper, err := patch.NewHelper(obj, m.client)
 	if err != nil {
-		return addresses, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
+		return addresses, 0, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
 	}
 	delete(obj.Status.Allocations, addressClaim.Name)
 	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
 	if err = helper.Patch(ctx, obj); err != nil {
-		return addresses, err
+		return addresses, 0, err
 	}
 
 	// The IPPool allocation for this claim is now removed, so it is safe
@@ -1169,9 +1249,9 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 	err = updateObject(ctx, m.client, addressClaim)
 	if err != nil && !apierrors.IsNotFound(err) {
 		m.Log.Info("Unable to remove finalizer from IPAddressClaim", "IPAddressClaim", addressClaim.Name)
-		return addresses, err
+		return addresses, 0, err
 	}
-	return addresses, nil
+	return addresses, 0, nil
 }
 
 // selectIPFromPool picks an available IP from the given pool based on the allocation strategy.
