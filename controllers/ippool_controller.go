@@ -182,8 +182,12 @@ func (r *IPPoolReconciler) reconcileDelete(ctx context.Context,
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager will add watches for this controller.
-func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
+// SetupWithManager registers a single IPPool controller that watches both
+// Metal3 IPClaims and CAPI IPAddressClaims. Using one controller, and therefore
+// one work queue, guarantees that a given IPPool is never reconciled by two
+// workers at the same time, so allocations for Metal3 and CAPI claims of the
+// same pool are always computed from a consistent view of the used addresses.
+func (r *IPPoolReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("IPPoolReconciler").
 		For(&ipamv1.IPPool{}).
@@ -192,16 +196,6 @@ func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr c
 			&ipamv1.IPClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
 		).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
-		Complete(r)
-}
-
-// SetupWithManager will add watches for this controller.
-func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context, mgr ctrl.Manager, options controller.Options) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		Named("IPPoolReconcilerForCAPI").
-		For(&ipamv1.IPPool{}).
-		WithOptions(options).
 		Watches(
 			&capipamv1.IPAddressClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPAddressClaimToIPPool),
