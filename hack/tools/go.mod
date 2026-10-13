@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/jteeuwen/go-bindata v3.0.7+incompatible
-	k8s.io/code-generator v0.35.8
+	k8s.io/code-generator v0.36.4
 	sigs.k8s.io/controller-tools v0.18.0
 	sigs.k8s.io/testing_frameworks v0.1.2
 )
@@ -21,7 +21,6 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
@@ -72,9 +71,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.35.8 // indirect
-	k8s.io/apiextensions-apiserver v0.35.8 // indirect
-	k8s.io/apimachinery v0.35.8 // indirect
+	k8s.io/api v0.36.4 // indirect
+	k8s.io/apiextensions-apiserver v0.36.4 // indirect
+	k8s.io/apimachinery v0.36.4 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
