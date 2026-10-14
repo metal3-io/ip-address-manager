@@ -17,7 +17,11 @@ limitations under the License.
 package ipam
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -31,6 +35,7 @@ import (
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 var (
@@ -47,8 +52,13 @@ var (
 	capiPoolRef = &capipamv1.IPPoolReference{
 		Name: "abc",
 	}
-	prefix24int32 = ptr.To(int32(24))
+	prefix24int32  = ptr.To(int32(24))
+	testIPPoolName = "test-ippool"
 )
+
+// statusSubResource is the subresource name used for status patches in the
+// write-ordering interceptor tests.
+const statusSubResource = "status"
 
 var _ = Describe("IPPool manager", func() {
 	DescribeTable("Test Finalizers",
@@ -688,6 +698,10 @@ var _ = Describe("IPPool manager", func() {
 			for _, claim := range tc.ipAddressClaims {
 				objects = append(objects, claim)
 			}
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
 			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(objects...).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
@@ -707,7 +721,11 @@ var _ = Describe("IPPool manager", func() {
 			}
 			Expect(nbAllocations).To(Equal(tc.expectedNbAllocations))
 			Expect(tc.ipPool.Status.LastUpdated).ToNot(BeNil())
-			Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
+			if tc.expectedAllocations != nil {
+				Expect(tc.ipPool.Status.Allocations).To(Equal(tc.expectedAllocations))
+			} else {
+				Expect(tc.ipPool.Status.Allocations).To(HaveLen(tc.expectedNbAllocations))
+			}
 
 			// get list of IPAddress objects
 			addressObjects := ipamv1.IPClaimList{}
@@ -1659,6 +1677,128 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectClearedErrorCapiClaims: []string{"stale-capi-claim"},
 		}),
+		Entry("Random strategy: new IPClaim gets IP within pool range", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "abc",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
+		Entry("Random strategy: new CAPI IPAddressClaim gets IP within pool range", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cabc",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
+		Entry("Random strategy: multiple claims get unique IPs", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:     24,
+					Gateway:    (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{},
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "claim1",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "claim2",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "caclaim1",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+				},
+			},
+			expectedNbAllocations: 3,
+		}),
 	)
 
 	type testCaseCreateAddresses struct {
@@ -2347,14 +2487,15 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCaseAllocateAddress struct {
-		ipPool             *ipamv1.IPPool
-		ipClaim            *ipamv1.IPClaim
-		addresses          map[ipamv1.IPAddressStr]string
-		expectedAddress    ipamv1.IPAddressStr
-		expectedPrefix     int
-		expectedGateway    *ipamv1.IPAddressStr
-		expectedDNSServers []ipamv1.IPAddressStr
-		expectError        bool
+		ipPool               *ipamv1.IPPool
+		ipClaim              *ipamv1.IPClaim
+		addresses            map[ipamv1.IPAddressStr]string
+		expectedAddress      ipamv1.IPAddressStr
+		expectedPrefix       int
+		expectedGateway      *ipamv1.IPAddressStr
+		expectedDNSServers   []ipamv1.IPAddressStr
+		expectError          bool
+		expectedErrorMessage *string
 	}
 
 	DescribeTable("Test AllocateAddress",
@@ -2368,6 +2509,10 @@ var _ = Describe("IPPool manager", func() {
 			)
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
+				if tc.expectedErrorMessage != nil {
+					Expect(tc.ipClaim.Status.ErrorMessage).NotTo(BeNil())
+					Expect(*tc.ipClaim.Status.ErrorMessage).To(Equal(*tc.expectedErrorMessage))
+				}
 				return
 			}
 			Expect(err).NotTo(HaveOccurred())
@@ -2837,13 +2982,14 @@ var _ = Describe("IPPool manager", func() {
 	)
 
 	type testCapiCaseAllocateAddress struct {
-		ipPool          *ipamv1.IPPool
-		addresses       map[ipamv1.IPAddressStr]string
-		ipAddressClaim  *capipamv1.IPAddressClaim
-		expectedAddress ipamv1.IPAddressStr
-		expectedPrefix  int32
-		expectedGateway *ipamv1.IPAddressStr
-		expectError     bool
+		ipPool                   *ipamv1.IPPool
+		addresses                map[ipamv1.IPAddressStr]string
+		ipAddressClaim           *capipamv1.IPAddressClaim
+		expectedAddress          ipamv1.IPAddressStr
+		expectedPrefix           int32
+		expectedGateway          *ipamv1.IPAddressStr
+		expectError              bool
+		expectedConditionMessage string
 	}
 
 	DescribeTable("Test capiAllocateAddress",
@@ -2857,6 +3003,12 @@ var _ = Describe("IPPool manager", func() {
 			)
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
+				if tc.expectedConditionMessage != "" {
+					conditions := tc.ipAddressClaim.GetConditions()
+					Expect(conditions).NotTo(BeEmpty())
+					Expect(conditions[0].Message).To(Equal(tc.expectedConditionMessage))
+					Expect(conditions[0].Status).To(Equal(metav1.ConditionFalse))
+				}
 				return
 			}
 			Expect(err).NotTo(HaveOccurred())
@@ -3282,7 +3434,13 @@ var _ = Describe("IPPool manager", func() {
 			for _, address := range tc.m3addresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			// persistPoolStatus does a live Get+Patch of the IPPool, so the pool
+			// must exist in the fake client with a name.
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -3339,6 +3497,9 @@ var _ = Describe("IPPool manager", func() {
 			ipClaim: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
+					Finalizers: []string{
+						ipamv1.IPClaimFinalizer,
+					},
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{
@@ -3393,11 +3554,17 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiDeleteAddresses",
 		func(tc testCaseCapiDeleteAddresses) {
-			objects := make([]client.Object, 0, len(tc.capiAddresses))
+			objects := make([]client.Object, 0, len(tc.capiAddresses)+1)
 			for _, address := range tc.capiAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			// persistPoolStatus does a live Get+Patch of the IPPool, so the pool
+			// must exist in the fake client with a name.
+			if tc.ipPool.Name == "" {
+				tc.ipPool.Name = testIPPoolName
+			}
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -3454,6 +3621,9 @@ var _ = Describe("IPPool manager", func() {
 			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "TestRef",
+					Finalizers: []string{
+						IPAddressClaimFinalizer,
+					},
 				},
 			},
 			addresses: map[ipamv1.IPAddressStr]string{
@@ -3495,5 +3665,608 @@ var _ = Describe("IPPool manager", func() {
 			},
 		}),
 	)
+
+	Context("deleteAddress write ordering", func() {
+
+		It("persists the IPPool allocation removal before removing the claim finalizer", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			var writeOrder []string
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							writeOrder = append(writeOrder, "ippool-patch")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+					Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+						if claim, ok := obj.(*ipamv1.IPClaim); ok && !Contains(claim.Finalizers, ipamv1.IPClaimFinalizer) {
+							writeOrder = append(writeOrder, "ipclaim-finalizer-removed")
+						}
+						return cl.Update(ctx, obj, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// The pool patch must be recorded before the finalizer removal.
+			Expect(writeOrder).To(Equal([]string{"ippool-patch", "ipclaim-finalizer-removed"}))
+
+			// The persisted pool no longer records the allocation.
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+
+			// The persisted claim no longer has the finalizer.
+			persistedClaim := &ipamv1.IPClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).NotTo(ContainElement(ipamv1.IPClaimFinalizer))
+		})
+
+		It("preserves allocations added concurrently by another reconciler", func() {
+			// The manager's in-memory snapshot only knows about its own claim.
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			// The live pool in the cluster additionally has an allocation added by
+			// a concurrent reconciler ("OtherRef") that the manager's stale
+			// snapshot never saw. deleteAddress fetches the live pool, so its
+			// patch must not clobber this key.
+			livePool := ipPool.DeepCopy()
+			livePool.Status.Allocations["OtherRef"] = ipamv1.IPAddressStr("192.168.0.2")
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(livePool).
+				WithObjects(livePool, ipClaim, ipAddress).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			// Our own allocation was removed.
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+			// The concurrently-added allocation must be preserved (not clobbered
+			// by our patch, which must only touch our own key).
+			Expect(persistedPool.Status.Allocations).To(HaveKeyWithValue("OtherRef", ipamv1.IPAddressStr("192.168.0.2")))
+		})
+
+		It("does not remove the claim finalizer when persisting the IPPool fails", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: testIPPoolName}},
+			}
+			ipAddress := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							return errors.New("simulated IPPool patch failure")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).To(HaveOccurred())
+
+			// Because the pool patch failed, the finalizer must still be on the
+			// persisted claim so cleanup can be retried.
+			persistedClaim := &ipamv1.IPClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).To(ContainElement(ipamv1.IPClaimFinalizer))
+		})
+	})
+
+	Context("capiDeleteAddress write ordering", func() {
+		newPoolAndClaim := func() (*ipamv1.IPPool, *capipamv1.IPAddressClaim) {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testIPPoolName,
+					Namespace: "myns",
+				},
+				Spec: ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.1"),
+					},
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "TestRef",
+					Namespace:  "myns",
+					Finalizers: []string{IPAddressClaimFinalizer},
+				},
+				Spec: capipamv1.IPAddressClaimSpec{PoolRef: capipamv1.IPPoolReference{Name: testIPPoolName}},
+			}
+			return ipPool, ipAddressClaim
+		}
+
+		It("persists the IPPool allocation removal before removing the claim finalizer", func() {
+			ipPool, ipAddressClaim := newPoolAndClaim()
+			ipAddress := &capipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			var writeOrder []string
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipAddressClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							writeOrder = append(writeOrder, "ippool-patch")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+					Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+						if claim, ok := obj.(*capipamv1.IPAddressClaim); ok && !Contains(claim.Finalizers, IPAddressClaimFinalizer) {
+							writeOrder = append(writeOrder, "ipaddressclaim-finalizer-removed")
+						}
+						return cl.Update(ctx, obj, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.capiDeleteAddress(context.TODO(), ipAddressClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(writeOrder).To(Equal([]string{"ippool-patch", "ipaddressclaim-finalizer-removed"}))
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("TestRef"))
+
+			persistedClaim := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipAddressClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).NotTo(ContainElement(IPAddressClaimFinalizer))
+		})
+
+		It("does not remove the claim finalizer when persisting the IPPool fails", func() {
+			ipPool, ipAddressClaim := newPoolAndClaim()
+			ipAddress := &capipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: "abc-192-168-0-1", Namespace: "myns"},
+			}
+
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).
+				WithObjects(ipPool, ipAddressClaim, ipAddress).
+				WithInterceptorFuncs(interceptor.Funcs{
+					SubResourcePatch: func(ctx context.Context, cl client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+						if _, ok := obj.(*ipamv1.IPPool); ok && subResourceName == statusSubResource {
+							return errors.New("simulated IPPool patch failure")
+						}
+						return cl.Status().Patch(ctx, obj, patch, opts...)
+					},
+				}).Build()
+
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.capiDeleteAddress(context.TODO(), ipAddressClaim, map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.1"): "TestRef",
+			})
+			Expect(err).To(HaveOccurred())
+
+			persistedClaim := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipAddressClaim), persistedClaim)).To(Succeed())
+			Expect(persistedClaim.Finalizers).To(ContainElement(IPAddressClaimFinalizer))
+		})
+	})
+
+	// Helper to check if an IP is within a range.
+	// Uses lexicographic byte comparison so ranges that cross octet
+	// boundaries (e.g., 192.168.0.10 - 192.168.2.20) are handled correctly.
+	isIPInRange := func(ipStr ipamv1.IPAddressStr, startStr, endStr string) bool {
+		ip := net.ParseIP(string(ipStr))
+		start := net.ParseIP(startStr)
+		end := net.ParseIP(endStr)
+		if ip == nil || start == nil || end == nil {
+			return false
+		}
+		ip = ip.To16()
+		start = start.To16()
+		end = end.To16()
+		return bytes.Compare(ip, start) >= 0 && bytes.Compare(ip, end) <= 0
+	}
+
+	Context("isIPInRange helper", func() {
+		It("should handle ranges that cross byte boundaries", func() {
+			// 192.168.1.5 is inside [192.168.0.10, 192.168.2.20] but a naive
+			// per-byte comparison would reject it because byte 3 (5) is less
+			// than the start byte 3 (10).
+			Expect(isIPInRange("192.168.1.5", "192.168.0.10", "192.168.2.20")).To(BeTrue(),
+				"192.168.1.5 should be within 192.168.0.10-192.168.2.20")
+		})
+		It("should include the boundary IPs", func() {
+			Expect(isIPInRange("192.168.0.10", "192.168.0.10", "192.168.0.20")).To(BeTrue())
+			Expect(isIPInRange("192.168.0.20", "192.168.0.10", "192.168.0.20")).To(BeTrue())
+		})
+		It("should reject IPs outside the range", func() {
+			Expect(isIPInRange("192.168.0.9", "192.168.0.10", "192.168.0.20")).To(BeFalse())
+			Expect(isIPInRange("192.168.0.21", "192.168.0.10", "192.168.0.20")).To(BeFalse())
+		})
+	})
+
+	Context("Random allocation strategy", func() {
+		It("should allocate an IP within pool range", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, prefix, gateway, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(isIPInRange(allocatedAddress, "192.168.0.10", "192.168.0.20")).To(BeTrue(),
+				fmt.Sprintf("allocated IP %s should be in range 192.168.0.10-192.168.0.20", allocatedAddress))
+			Expect(prefix).To(Equal(24))
+			Expect(*gateway).To(Equal(ipamv1.IPAddressStr("192.168.0.1")))
+		})
+
+		It("should allocate the last remaining IP in a nearly full pool", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.14")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			// All IPs except .12 are taken
+			addresses := map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.10"): "a",
+				ipamv1.IPAddressStr("192.168.0.11"): "b",
+				ipamv1.IPAddressStr("192.168.0.13"): "d",
+				ipamv1.IPAddressStr("192.168.0.14"): "e",
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.12")))
+		})
+
+		It("should return error when pool is exhausted", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.12")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{
+				ipamv1.IPAddressStr("192.168.0.10"): "a",
+				ipamv1.IPAddressStr("192.168.0.11"): "b",
+				ipamv1.IPAddressStr("192.168.0.12"): "c",
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, _, _, err = ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should respect PreAllocations even with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					PreAllocations: map[string]ipamv1.IPAddressStr{
+						"TestRef": ipamv1.IPAddressStr("192.168.0.15"),
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.15")))
+		})
+
+		It("should respect requestedIP annotation even with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+					Annotations: map[string]string{
+						IPAddressAnnotation: "192.168.0.16",
+					},
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.16")))
+		})
+
+		It("should not allocate duplicate IPs with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+
+			addresses := map[ipamv1.IPAddressStr]string{}
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			// Allocate all 11 IPs and verify no duplicates
+			for i := range 11 {
+				ipClaim := &ipamv1.IPClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fmt.Sprintf("TestRef-%d", i),
+					},
+				}
+				allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(addresses).NotTo(HaveKey(allocatedAddress), fmt.Sprintf("duplicate IP allocated: %s", allocatedAddress))
+				addresses[allocatedAddress] = ipClaim.Name
+			}
+			Expect(addresses).To(HaveLen(11))
+		})
+
+		It("should select the only available IP when others are already allocated", func() {
+			// Pool of 3 IPs (.10, .11, .12) with .10 and .12 already allocated.
+			// Random selection must deterministically return the only remaining IP (.11),
+			// which proves the available-set computation works regardless of randomness.
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.12")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{
+				"192.168.0.10": "claim-a",
+				"192.168.0.12": "claim-c",
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "claim-b"},
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("192.168.0.11")))
+		})
+
+		It("should error with exhausted IP pools when no IP is available", func() {
+			// All IPs in the pool are already allocated; the random branch must
+			// surface "exhausted IP pools" rather than returning a duplicate.
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{
+				"192.168.0.10": "claim-a",
+				"192.168.0.11": "claim-b",
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "claim-c"},
+			}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
+			Expect(err).To(MatchError("exhausted IP pools"))
+			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("")))
+			Expect(ipClaim.Status.ErrorMessage).To(Equal(ptr.To("Exhausted IP Pools")))
+		})
+
+		It("capi: should allocate an IP within pool range with random strategy", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+						},
+					},
+					Prefix:  24,
+					Gateway: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.1")),
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "TestRef",
+				},
+				Spec: capipamv1.IPAddressClaimSpec{
+					PoolRef: capipamv1.IPPoolReference{
+						Name: "abc",
+					},
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			allocatedAddress, prefix, gateway, err := ipPoolMgr.capiAllocateAddress(ipAddressClaim, addresses)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(isIPInRange(allocatedAddress, "192.168.0.10", "192.168.0.20")).To(BeTrue(),
+				fmt.Sprintf("allocated IP %s should be in range 192.168.0.10-192.168.0.20", allocatedAddress))
+			Expect(prefix).To(Equal(int32(24)))
+			Expect(*gateway).To(Equal(ipamv1.IPAddressStr("192.168.0.1")))
+		})
+	})
 
 })
