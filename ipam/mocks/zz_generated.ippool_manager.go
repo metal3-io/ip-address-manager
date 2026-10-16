@@ -31,6 +31,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	ipam "github.com/metal3-io/ip-address-manager/ipam"
 	gomock "go.uber.org/mock/gomock"
 	v1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
@@ -98,16 +99,16 @@ func (mr *MockIPPoolManagerInterfaceMockRecorder) UnsetFinalizer() *gomock.Call 
 }
 
 // UpdateAddresses mocks base method.
-func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context) (int, error) {
+func (m *MockIPPoolManagerInterface) UpdateAddresses(arg0 context.Context, arg1 ipam.ClaimType) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAddresses", arg0)
+	ret := m.ctrl.Call(m, "UpdateAddresses", arg0, arg1)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateAddresses indicates an expected call of UpdateAddresses.
-func (mr *MockIPPoolManagerInterfaceMockRecorder) UpdateAddresses(arg0 any) *gomock.Call {
+func (mr *MockIPPoolManagerInterfaceMockRecorder) UpdateAddresses(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAddresses", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).UpdateAddresses), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAddresses", reflect.TypeOf((*MockIPPoolManagerInterface)(nil).UpdateAddresses), arg0, arg1)
 }

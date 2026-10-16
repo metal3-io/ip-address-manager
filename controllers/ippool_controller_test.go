@@ -93,9 +93,9 @@ var _ = Describe("IPPool controller", func() {
 			}
 
 			if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() && tc.reconcileDeleteError {
-				m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.Background(), ipam.IPClaimType).Return(0, errors.New(""))
 			} else if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() {
-				m.EXPECT().UpdateAddresses(context.Background()).Return(0, nil)
+				m.EXPECT().UpdateAddresses(context.Background(), ipam.IPClaimType).Return(0, nil)
 				m.EXPECT().UnsetFinalizer()
 			}
 
@@ -103,9 +103,9 @@ var _ = Describe("IPPool controller", func() {
 				tc.reconcileNormal {
 				m.EXPECT().SetFinalizer()
 				if tc.reconcileNormalError {
-					m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
+					m.EXPECT().UpdateAddresses(context.Background(), ipam.IPClaimType).Return(0, errors.New(""))
 				} else {
-					m.EXPECT().UpdateAddresses(context.Background()).Return(1, nil)
+					m.EXPECT().UpdateAddresses(context.Background(), ipam.IPClaimType).Return(1, nil)
 				}
 			}
 
@@ -113,6 +113,7 @@ var _ = Describe("IPPool controller", func() {
 				Client:         c,
 				ManagerFactory: f,
 				Log:            logr.Discard(),
+				ClaimType:      ipam.IPClaimType,
 			}
 
 			req := reconcile.Request{
@@ -234,6 +235,8 @@ var _ = Describe("IPPool controller", func() {
 		ExpectError   bool
 		ExpectRequeue bool
 		UpdateError   bool
+		// ClaimType of the reconciler; defaults to ipam.IPClaimType.
+		ClaimType ipam.ClaimType
 	}
 
 	DescribeTable("ReconcileNormal tests",
@@ -242,19 +245,25 @@ var _ = Describe("IPPool controller", func() {
 
 			c := fake.NewClientBuilder().WithScheme(setupScheme()).Build()
 
+			claimType := tc.ClaimType
+			if claimType == "" {
+				claimType = ipam.IPClaimType
+			}
 			ipPoolReconcile := &IPPoolReconciler{
 				Client:         c,
 				ManagerFactory: ipam.NewManagerFactory(c),
 				Log:            logr.Discard(),
+				ClaimType:      claimType,
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
 			m.EXPECT().SetFinalizer()
 
+			// The reconciler must only ask the manager to process its own claim type.
 			if !tc.UpdateError {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, nil)
+				m.EXPECT().UpdateAddresses(context.TODO(), claimType).Return(1, nil)
 			} else {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.TODO(), claimType).Return(0, errors.New(""))
 			}
 
 			result, err := ipPoolReconcile.reconcileNormal(context.TODO(), m)
@@ -280,6 +289,9 @@ var _ = Describe("IPPool controller", func() {
 			ExpectError:   true,
 			ExpectRequeue: false,
 		}),
+		Entry("IPAddressClaim reconciler only processes IPAddressClaims", reconcileNormalTestCase{
+			ClaimType: ipam.IPAddressClaimType,
+		}),
 	)
 
 	type reconcileDeleteTestCase struct {
@@ -298,16 +310,17 @@ var _ = Describe("IPPool controller", func() {
 				Client:         c,
 				ManagerFactory: ipam.NewManagerFactory(c),
 				Log:            logr.Discard(),
+				ClaimType:      ipam.IPClaimType,
 			}
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
 			if !tc.DeleteError && tc.DeleteReady {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, nil)
+				m.EXPECT().UpdateAddresses(context.TODO(), ipam.IPClaimType).Return(0, nil)
 				m.EXPECT().UnsetFinalizer()
 			} else if !tc.DeleteError {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, nil)
+				m.EXPECT().UpdateAddresses(context.TODO(), ipam.IPClaimType).Return(1, nil)
 			} else {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.TODO(), ipam.IPClaimType).Return(0, errors.New(""))
 			}
 
 			result, err := ipPoolReconcile.reconcileDelete(context.TODO(), m)
