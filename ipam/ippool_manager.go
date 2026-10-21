@@ -285,6 +285,7 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.Address == nil && addressClaim.Status.ErrorMessage != nil &&
+			*addressClaim.Status.ErrorMessage != "Exhausted IP Pools" &&
 			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
@@ -328,6 +329,7 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 
 		if addressClaim.Status.AddressRef.Name == "" && anyErrorInExistingClaim(addressClaim) &&
+			addressClaim.Status.Conditions[0].Reason != capipamv1.IPAddressClaimReadyPoolExhaustedReason &&
 			addressClaim.DeletionTimestamp.IsZero() {
 			continue
 		}
