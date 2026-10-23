@@ -25,6 +25,19 @@ rules:
   - list
   - watch
 - apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters/status
+  verbs:
+  - get
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
   - ipam.cluster.x-k8s.io
   resources:
   - ipaddressclaims
