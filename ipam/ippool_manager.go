@@ -47,6 +47,19 @@ const (
 	IPAddressFinalizer      = "ipam.metal3.io/ipaddress"
 	IPAddressAnnotation     = "ipAddress"
 
+	// clusterctlMoveLabel and clusterctlMoveHierarchyLabel are the labels
+	// clusterctl applies to objects selected for a `clusterctl move`. They
+	// mirror the constants in sigs.k8s.io/cluster-api/cmd/clusterctl/api; we
+	// redefine them locally to avoid importing a clusterctl cmd package into
+	// the controller. An object carrying either label is part of an in-flight
+	// move: the controller must not allocate a new IPAddress for its claims,
+	// because clusterctl recreates the IPAddress objects itself (preserving the
+	// source pairing) and the IPAddress spec is immutable. Allocating a fresh
+	// address here would both change the preserved IP and conflict with
+	// clusterctl's recreate.
+	clusterctlMoveLabel          = "clusterctl.cluster.x-k8s.io/move"
+	clusterctlMoveHierarchyLabel = "clusterctl.cluster.x-k8s.io/move-hierarchy"
+
 	// requeueAfterIPAddressDeletion is how long to wait before requeuing a claim
 	// whose allocated IPAddress is being deleted. The claim cannot be re-linked to
 	// a terminating IPAddress, so we wait for the deletion to complete and retry.
@@ -251,6 +264,28 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// isBeingMoved reports whether the object is part of an in-flight
+// `clusterctl move`, i.e. it carries the clusterctl move or move-hierarchy
+// label. During a move, clusterctl recreates the IPAddress objects on the
+// target cluster (preserving the source claim/address pairing), and the
+// IPAddress spec is immutable. The controller must therefore not allocate a
+// new IPAddress for a claim that is being moved: doing so would race
+// clusterctl's recreate (handing out a different IP and triggering an
+// immutable-spec webhook rejection). Once the move completes clusterctl removes
+// these labels, after which the claim reconciles normally and is re-linked to
+// its moved IPAddress via the rebuilt allocation ledger.
+func isBeingMoved(o metav1.Object) bool {
+	labels := o.GetLabels()
+	if labels == nil {
+		return false
+	}
+	if _, ok := labels[clusterctlMoveLabel]; ok {
+		return true
+	}
+	_, ok := labels[clusterctlMoveHierarchyLabel]
+	return ok
+}
+
 // UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
@@ -279,6 +314,32 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
+		// A claim that clusterctl is moving always had an allocation on the
+		// source cluster; its IPAddress is moved too (clusterctl recreates it
+		// on the target). Until that IPAddress has arrived and been recorded in
+		// the pool's allocation ledger, we must NOT allocate a fresh IP for the
+		// claim: doing so would hand out a different address than the preserved
+		// one and create a duplicate IPAddress. Skip this pass and wait; the
+		// IPAddress watch re-enqueues the pool when the moved IPAddress lands,
+		// at which point the ledger entry exists and the claim is re-linked to
+		// its original address below. (A genuinely new claim carries no move
+		// label and is unaffected.)
+		if isBeingMoved(&addressClaim) {
+			if _, allocated := m.IPPool.Status.Allocations[addressClaim.Name]; !allocated {
+				continue
+			}
+		}
+
+		// A claim that already records an allocated address and carries no
+		// error is considered satisfied and is skipped. We deliberately do NOT
+		// re-allocate merely because the referenced IPAddress object is not
+		// found right now: during a clusterctl move the claim is recreated on
+		// the target before its IPAddress object (and before the IPPool's
+		// Status.Allocations is rebuilt), so a transient absence must not be
+		// treated as a dangling reference. Recovery from a genuine runtime
+		// deletion is driven by the IPAddress delete watch, which re-enqueues
+		// the pool; the deleted IPAddress is then recreated from the preserved
+		// allocation ledger rather than re-allocated to a different IP.
 		if addressClaim.Status.Address != nil && addressClaim.Status.ErrorMessage == nil &&
 			addressClaim.DeletionTimestamp.IsZero() {
 			continue
@@ -322,6 +383,24 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
+		// A claim that clusterctl is moving always had an allocation on the
+		// source cluster; its IPAddress is moved too. Until that IPAddress has
+		// arrived and been recorded in the pool's allocation ledger, do NOT
+		// allocate a fresh IP (it would differ from the preserved one and
+		// duplicate the IPAddress). Skip and wait; the IPAddress watch
+		// re-enqueues the pool when the moved IPAddress lands, after which the
+		// ledger entry exists and the claim is re-linked below. A genuinely new
+		// claim carries no move label and is unaffected.
+		if isBeingMoved(&addressClaim) {
+			if _, allocated := m.IPPool.Status.Allocations[addressClaim.Name]; !allocated {
+				continue
+			}
+		}
+
+		// A claim that already records an allocated address and carries no
+		// error is considered satisfied and is skipped. See the metal3 path
+		// above: a transient absence of the referenced IPAddress (e.g. during a
+		// clusterctl move) must not trigger re-allocation.
 		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
 			addressClaim.DeletionTimestamp.IsZero() {
 			continue
@@ -367,6 +446,11 @@ func (m *IPPoolManager) updateAddress(ctx context.Context,
 	addressClaim.Status.ErrorMessage = nil
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear any address reference before re-allocating. The patch helper
+		// above tracks this, so a dangling reference (an IPAddress that no
+		// longer exists) is removed even if createAddress fails. On success,
+		// createAddress sets the reference to the freshly allocated address.
+		addressClaim.Status.Address = nil
 		addresses, err = m.createAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -416,6 +500,12 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 	}()
 
 	if addressClaim.DeletionTimestamp.IsZero() {
+		// Clear any address reference before re-allocating. The patch helper
+		// above tracks this, so a dangling reference (an IPAddress that no
+		// longer exists) is removed even if capiCreateAddress fails. On
+		// success, capiCreateAddress sets the reference to the freshly
+		// allocated address.
+		addressClaim.Status.AddressRef = capipamv1.IPAddressReference{}
 		addresses, err = m.capiCreateAddress(ctx, addressClaim, addresses)
 		if err != nil {
 			return addresses, err
@@ -842,8 +932,13 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			}
 			conditions := make([]metav1.Condition, 0, 1)
 			conditions = append(conditions, metav1.Condition{
-				Type:               capipamv1.IPAddressClaimReadyCondition,
-				Status:             metav1.ConditionTrue,
+				Type:   capipamv1.IPAddressClaimReadyCondition,
+				Status: metav1.ConditionTrue,
+				// Reason is required by the CAPI IPAddressClaim schema (it must
+				// be a non-empty, CamelCase string). Omitting it makes the
+				// status patch fail with
+				// "conditions[0].reason in body should be at least 1 chars long".
+				Reason:             "Allocated",
 				LastTransitionTime: metav1.Now(),
 			})
 			addressClaim.SetConditions(conditions)
