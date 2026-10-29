@@ -1665,6 +1665,75 @@ var _ = Describe("IPPool manager", func() {
 			},
 			expectedNbAllocations: 3,
 		}),
+		Entry("Exhausted metal3 IPClaim retries when an IP becomes available", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "exhausted-claim",
+						Namespace: "myns",
+					},
+					Spec: ipamv1.IPClaimSpec{
+						Pool: corev1.ObjectReference{
+							Name:      "abc",
+							Namespace: "myns",
+						},
+					},
+					Status: ipamv1.IPClaimStatus{
+						ErrorMessage: ptr.To("Exhausted IP Pools"),
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
+		Entry("Exhausted capi IPAddressClaim retries when an IP becomes available", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.1.11")),
+						},
+					},
+					NamePrefix: "abcpref",
+				},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "exhausted-capi-claim",
+						Namespace: "myns",
+					},
+					Spec: capipamv1.IPAddressClaimSpec{
+						PoolRef: *capiPoolRef,
+					},
+					Status: capipamv1.IPAddressClaimStatus{
+						Conditions: []metav1.Condition{
+							{
+								Type:               capipamv1.IPAddressClaimReadyCondition,
+								Status:             metav1.ConditionFalse,
+								LastTransitionTime: metav1.Now(),
+								Reason:             capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+								Message:            "Exhausted IP Pools",
+							},
+						},
+					},
+				},
+			},
+			expectedNbAllocations: 1,
+		}),
 		Entry("Stale error on already-allocated metal3 IPClaim is cleared", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
 				ObjectMeta: ipPoolMeta,
