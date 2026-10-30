@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"time"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -1388,6 +1389,136 @@ var _ = Describe("IPPool manager", func() {
 				"cabce": "192.168.0.12",
 			},
 			expectedNbAllocations: 2,
+			expectRequeue:         true,
+		}),
+		Entry("Exhausted IPClaim without address is retried and allocated once an IP is free", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: "abcd", Namespace: "myns"},
+				Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				Status:     ipamv1.IPClaimStatus{ErrorMessage: ptr.To("Exhausted IP Pools")},
+			}},
+			expectedAllocations:      map[string]ipamv1.IPAddressStr{"abcd": "192.168.0.11"},
+			expectedNbAllocations:    1,
+			expectClearedErrorClaims: []string{"abcd"},
+		}),
+		Entry("Exhausted IPAddressClaim without address is retried and allocated once an IP is free", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipAddressClaims: []*capipamv1.IPAddressClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: "cabcd", Namespace: "myns"},
+				Spec:       capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+				Status: capipamv1.IPAddressClaimStatus{Conditions: []metav1.Condition{{
+					Type:               capipamv1.IPAddressClaimReadyCondition,
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: metav1.Now(),
+					Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
+					Message:            "Exhausted IP Pools",
+				}}},
+			}},
+			expectedAllocations:          map[string]ipamv1.IPAddressStr{"cabcd": "192.168.0.11"},
+			expectedNbAllocations:        1,
+			expectClearedErrorCapiClaims: []string{"cabcd"},
+		}),
+		Entry("Exhausted pool returns a transient error but still allocates the other claim", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "abcd", Namespace: "myns"},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "abce", Namespace: "myns"},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+			},
+			expectedNbAllocations: 1,
+			expectRequeue:         true,
+		}),
+		Entry("Plain error alongside a transient error still returns a transient error", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "abcd",
+						Namespace:   "myns",
+						Annotations: map[string]string{IPAddressAnnotation: "not-an-ip"},
+					},
+					Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "abce", Namespace: "myns"},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "abcf", Namespace: "myns"},
+					Spec:       ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+				},
+			},
+			expectedNbAllocations: 1,
+			expectRequeue:         true,
+		}),
+		Entry("Only a plain error returns a non-ReconcileError", testCaseUpdateAddresses{
+			ipPool: &ipamv1.IPPool{
+				ObjectMeta: ipPoolMeta,
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.20")),
+					}},
+					NamePrefix: "abcpref",
+				},
+				Status: ipamv1.IPPoolStatus{Allocations: map[string]ipamv1.IPAddressStr{}},
+			},
+			ipClaims: []*ipamv1.IPClaim{{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "abcd",
+					Namespace:   "myns",
+					Annotations: map[string]string{IPAddressAnnotation: "not-an-ip"},
+				},
+				Spec: ipamv1.IPClaimSpec{Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"}},
+			}},
+			expectedNbAllocations: 0,
+			expectError:           true,
 		}),
 		Entry("Both IPClaim and IPAddressClaim present with error in existing claims and deletion timestamp", testCaseUpdateAddresses{
 			ipPool: &ipamv1.IPPool{
@@ -2142,7 +2273,7 @@ var _ = Describe("IPPool manager", func() {
 				ipamv1.IPAddressStr("192.168.0.11"): "bcd",
 			},
 			expectedIPAddresses: []string{},
-			expectError:         true,
+			expectRequeue:       true,
 		}),
 	)
 
@@ -2482,7 +2613,7 @@ var _ = Describe("IPPool manager", func() {
 				"192.168.0.11": "bcd",
 			},
 			expectedIPAddresses: []string{},
-			expectError:         true,
+			expectRequeue:       true,
 		}),
 	)
 
@@ -4227,11 +4358,83 @@ var _ = Describe("IPPool manager", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			allocatedAddress, _, _, _, err := ipPoolMgr.allocateAddress(ipClaim, addresses)
-			Expect(err).To(MatchError("exhausted IP pools"))
+			Expect(err).To(MatchError(ContainSubstring("exhausted IP pools")))
+			var re ReconcileError
+			Expect(errors.As(err, &re)).To(BeTrue())
+			Expect(re.IsTransient()).To(BeTrue())
 			Expect(allocatedAddress).To(Equal(ipamv1.IPAddressStr("")))
 			Expect(ipClaim.Status.ErrorMessage).To(Equal(ptr.To("Exhausted IP Pools")))
 		})
 
+		It("capi: repeated exhaustion must not touch LastTransitionTime of the Ready condition", func() {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools: []ipamv1.Pool{
+						{
+							Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+							End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.10")),
+						},
+					},
+				},
+			}
+			oldTransitionTime := metav1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "claim-b"},
+				Status: capipamv1.IPAddressClaimStatus{
+					Conditions: []metav1.Condition{{
+						Type:               capipamv1.IPAddressClaimReadyCondition,
+						Status:             metav1.ConditionFalse,
+						LastTransitionTime: oldTransitionTime,
+						Reason:             capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+						Message:            "Exhausted IP Pools",
+					}},
+				},
+			}
+			addresses := map[ipamv1.IPAddressStr]string{"192.168.0.10": "claim-a"}
+
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			before := ipAddressClaim.DeepCopy()
+			_, _, _, err = ipPoolMgr.capiAllocateAddress(ipAddressClaim, addresses)
+			Expect(err).To(HaveOccurred())
+			Expect(ipAddressClaim.Status.Conditions).To(HaveLen(1))
+			Expect(ipAddressClaim.Status.Conditions[0].LastTransitionTime).To(Equal(oldTransitionTime))
+			// No status diff means the deferred patch writes nothing and the
+			// IPAddressClaim watch does not re-enqueue the pool.
+			Expect(ipAddressClaim.Status).To(Equal(before.Status))
+		})
+
+		It("anyErrorInExistingClaim finds the Ready condition at any index", func() {
+			claim := capipamv1.IPAddressClaim{
+				Status: capipamv1.IPAddressClaimStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   "Other",
+							Status: metav1.ConditionTrue,
+							Reason: "Whatever",
+						},
+						{
+							Type:   capipamv1.IPAddressClaimReadyCondition,
+							Status: metav1.ConditionFalse,
+							Reason: capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+						},
+					},
+				},
+			}
+			Expect(anyErrorInExistingClaim(claim)).To(BeTrue())
+
+			claim.Status.Conditions[1].Reason = capipamv1.IPAddressClaimReadyAllocationFailedReason
+			Expect(anyErrorInExistingClaim(claim)).To(BeTrue())
+
+			// A failure-looking reason on a non-Ready condition is ignored.
+			claim.Status.Conditions[0].Reason = capipamv1.IPAddressClaimReadyAllocationFailedReason
+			claim.Status.Conditions[1].Status = metav1.ConditionTrue
+			claim.Status.Conditions[1].Reason = ""
+			Expect(anyErrorInExistingClaim(claim)).To(BeFalse())
+
+			Expect(anyErrorInExistingClaim(capipamv1.IPAddressClaim{})).To(BeFalse())
+		})
 		It("capi: should allocate an IP within pool range with random strategy", func() {
 			ipPool := &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
