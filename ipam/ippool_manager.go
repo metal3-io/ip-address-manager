@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"net"
 	"reflect"
@@ -30,6 +31,7 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -51,6 +53,12 @@ const (
 	// whose allocated IPAddress is being deleted. The claim cannot be re-linked to
 	// a terminating IPAddress, so we wait for the deletion to complete and retry.
 	requeueAfterIPAddressDeletion = 5 * time.Second
+	requeueAfterPoolExhausted     = 15 * time.Second
+	requeueAfterNoFreeIP          = 15 * time.Second
+
+	// in the log framework level 4 is the debug level, logs with this
+	// logging level are only visible if the debug output is enabled.
+	dbgLvl = 4
 )
 
 // IPPoolManagerInterface is an interface for a IPPoolManager.
@@ -240,13 +248,37 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
-	_, err := m.m3UpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
+	var errorsFound []error
+	var re ReconcileError
+	transient := false
+	requeue := time.Duration(math.MaxInt64)
+
+	_, m3Err := m.m3UpdateAddresses(ctx)
+	if m3Err != nil {
+		if errors.As(m3Err, &re) && re.IsTransient() {
+			transient, requeue = true, min(requeue, re.GetRequeueAfter())
+		}
+		errorsFound = append(errorsFound, m3Err)
 	}
-	count, err := m.capiUpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
+
+	count, capiErr := m.capiUpdateAddresses(ctx)
+	if capiErr != nil {
+		if errors.As(capiErr, &re) && re.IsTransient() {
+			transient, requeue = true, min(requeue, re.GetRequeueAfter())
+		}
+		errorsFound = append(errorsFound, capiErr)
+	}
+
+	if len(errorsFound) > 0 {
+		// A transient error wins: the pool is requeued after the smallest delay.
+		// Plain errors in the same pass are already logged where they happen.
+		if transient {
+			return count, WithTransientError(errors.Join(errorsFound...), requeue)
+		}
+		// Flatten to a plain string error (not %w) so errors.As cannot find an
+		// inner ReconcileError and controller-runtime treats this as a plain
+		// error and backs off.
+		return count, errors.New(errors.Join(errorsFound...).Error())
 	}
 	return count, nil
 }
@@ -257,6 +289,7 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 	addresses, err := m.getIndexes(ctx)
 	if err != nil {
+		m.Log.Error(err, "Failed to update addresses for IPClaims: can't get pool indexes")
 		return 0, err
 	}
 
@@ -269,9 +302,14 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 
 	err = m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
+		m.Log.Error(err, "Failed to update addresses for IPClaims: can't list IPClaims")
 		return 0, err
 	}
 
+	var errorsFound []error
+	var re ReconcileError
+	requeue := time.Duration(math.MaxInt64)
+	transient := false
 	// Iterate over the IPClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
 		// If IPPool does not point to this object, discard
@@ -284,14 +322,25 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if addressClaim.Status.Address == nil && addressClaim.Status.ErrorMessage != nil &&
-			addressClaim.DeletionTimestamp.IsZero() {
-			continue
-		}
 		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			errorsFound = append(errorsFound, err)
+			if errors.As(err, &re) && re.IsTransient() {
+				transient, requeue = true, min(requeue, re.GetRequeueAfter())
+				m.Log.V(dbgLvl).Info("Failed to update address for IPClaim, will requeue", "IPClaim", addressClaim.Name, "error", err.Error())
+			} else {
+				m.Log.Error(err, "Failed to update address for IPClaim, will retry with backoff", "IPClaim", addressClaim.Name)
+			}
 		}
+	}
+	if len(errorsFound) > 0 {
+		if transient {
+			m.Log.Info("Failed to update some IPClaims, requeuing. Enable debug log level for details",
+				"failures", len(errorsFound), "requeueAfter", requeue)
+			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+		}
+		// Flattened to a plain error, see UpdateAddresses.
+		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
 	}
 	return len(addresses), nil
 }
@@ -301,6 +350,7 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 	addresses, err := m.getIndexes(ctx)
 	if err != nil {
+		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't get pool indexes")
 		return 0, err
 	}
 	// get list of IPClaim objects
@@ -312,9 +362,14 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 
 	err = m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
+		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't list IPAddressClaims")
 		return 0, err
 	}
 
+	var errorsFound []error
+	var re ReconcileError
+	requeue := time.Duration(math.MaxInt64)
+	transient := false
 	// Iterate over the IPAddressClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
 		// If IPPool does not point to this object, discard
@@ -327,14 +382,25 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if addressClaim.Status.AddressRef.Name == "" && anyErrorInExistingClaim(addressClaim) &&
-			addressClaim.DeletionTimestamp.IsZero() {
-			continue
-		}
 		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			errorsFound = append(errorsFound, err)
+			if errors.As(err, &re) && re.IsTransient() {
+				transient, requeue = true, min(requeue, re.GetRequeueAfter())
+				m.Log.V(dbgLvl).Info("Failed to update address for IPAddressClaim, will requeue", "IPAddressClaim", addressClaim.Name, "error", err.Error())
+			} else {
+				m.Log.Error(err, "Failed to update address for IPAddressClaim, will retry with backoff", "IPAddressClaim", addressClaim.Name)
+			}
 		}
+	}
+	if len(errorsFound) > 0 {
+		if transient {
+			m.Log.Info("Failed to update some IPAddressClaims, requeuing. Enable debug log level for details",
+				"failures", len(errorsFound), "requeueAfter", requeue)
+			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+		}
+		// Flattened to a plain error, see UpdateAddresses.
+		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
 	}
 	return len(addresses), nil
 }
@@ -523,7 +589,7 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Requested IP not available")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("requested IP not available")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, WithTransientError(errors.New("requested IP not available"), requeueAfterNoFreeIP)
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
@@ -533,7 +599,7 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	}
 	if !ipAllocated {
 		addressClaim.Status.ErrorMessage = ptr.To("Exhausted IP Pools")
-		return "", 0, nil, []ipamv1.IPAddressStr{}, errors.New("exhausted IP pools")
+		return "", 0, nil, []ipamv1.IPAddressStr{}, WithTransientError(errors.New("exhausted IP pools"), requeueAfterPoolExhausted)
 	}
 	return allocatedAddress, prefix, gateway, dnsServers, nil
 }
@@ -561,30 +627,24 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	if requestedIP != "" {
 		if net.ParseIP(string(requestedIP)) == nil {
 			msg := fmt.Sprintf("Invalid ipAddress annotation %q: not a valid IP address", requestedIP)
-			conditions := make([]metav1.Condition, 0, 1)
-			conditions = append(conditions, metav1.Condition{
-				Type:               capipamv1.IPAddressClaimReadyCondition,
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-				Message:            msg,
+			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+				Type:    capipamv1.IPAddressClaimReadyCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+				Message: msg,
 			})
-			addressClaim.SetConditions(conditions)
 			return "", 0, nil, errors.New(msg)
 		}
 	}
 
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
-		conditions := make([]metav1.Condition, 0, 1)
-		conditions = append(conditions, metav1.Condition{
-			Type:               capipamv1.IPAddressClaimReadyCondition,
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message:            "PreAllocation and requested ip address are conflicting",
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: "PreAllocation and requested ip address are conflicting",
 		})
-		addressClaim.SetConditions(conditions)
 		return "", 0, nil, errors.New("PreAllocation and requested ip address are conflicting")
 	}
 
@@ -633,53 +693,41 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	}
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
-		conditions := make([]metav1.Condition, 0, 1)
-		conditions = append(conditions, metav1.Condition{
-			Type:               capipamv1.IPAddressClaimReadyCondition,
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message:            "Requested IP not available",
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: "Requested IP not available",
 		})
-		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("requested IP not available")
+		return "", 0, nil, WithTransientError(errors.New("requested IP not available"), requeueAfterNoFreeIP)
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		conditions := make([]metav1.Condition, 0, 1)
-		conditions = append(conditions, metav1.Condition{
-			Type:               capipamv1.IPAddressClaimReadyCondition,
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message:            "Pre-allocated IP out of bounds",
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: "Pre-allocated IP out of bounds",
 		})
-		addressClaim.SetConditions(conditions)
 		return "", 0, nil, errors.New("pre-allocated IP out of bounds")
 	}
 	if !ipAllocated {
-		conditions := make([]metav1.Condition, 0, 1)
-		conditions = append(conditions, metav1.Condition{
-			Type:               capipamv1.IPAddressClaimReadyCondition,
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             capipamv1.IPAddressClaimReadyPoolExhaustedReason,
-			Message:            "Exhausted IP Pools",
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+			Message: "Exhausted IP Pools",
 		})
-		addressClaim.SetConditions(conditions)
-		return "", 0, nil, errors.New("exhausted IP pools")
+		return "", 0, nil, WithTransientError(errors.New("exhausted IP pools"), requeueAfterPoolExhausted)
 	}
 	if prefix < 0 || prefix > 128 {
-		conditions := make([]metav1.Condition, 0, 1)
-		conditions = append(conditions, metav1.Condition{
-			Type:               capipamv1.IPAddressClaimReadyCondition,
-			Status:             metav1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message:            "Invalid prefix value, it must be between 0 and 128",
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: "Invalid prefix value, it must be between 0 and 128",
 		})
-		addressClaim.SetConditions(conditions)
 		return "", 0, nil, errors.New("invalid prefix value, it must be between 0 and 128")
 	}
 	prefixInt32 := int32(prefix)
@@ -840,13 +888,10 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
 				Name: addressName,
 			}
-			conditions := make([]metav1.Condition, 0, 1)
-			conditions = append(conditions, metav1.Condition{
-				Type:               capipamv1.IPAddressClaimReadyCondition,
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
+			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+				Type:   capipamv1.IPAddressClaimReadyCondition,
+				Status: metav1.ConditionTrue,
 			})
-			addressClaim.SetConditions(conditions)
 			return addresses, nil
 		}
 		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
@@ -934,15 +979,12 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
-			conditions := make([]metav1.Condition, 0, 1)
-			conditions = append(conditions, metav1.Condition{
-				Type:               capipamv1.IPAddressClaimReadyCondition,
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             capipamv1.IPAddressClaimReadyAllocationFailedReason,
-				Message:            "Failed to create associated IPAddress object",
+			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+				Type:    capipamv1.IPAddressClaimReadyCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+				Message: "Failed to create associated IPAddress object",
 			})
-			addressClaim.SetConditions(conditions)
 		}
 		return addresses, err
 	}
@@ -954,13 +996,10 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 		Name: addressName,
 	}
 
-	conditions := make([]metav1.Condition, 0, 1)
-	conditions = append(conditions, metav1.Condition{
-		Type:               capipamv1.IPAddressClaimReadyCondition,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
+	meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+		Type:   capipamv1.IPAddressClaimReadyCondition,
+		Status: metav1.ConditionTrue,
 	})
-	addressClaim.SetConditions(conditions)
 
 	return addresses, nil
 }
@@ -1184,10 +1223,9 @@ func (m *IPPoolManager) formatAddressName(address ipamv1.IPAddressStr) string {
 }
 
 // check if IPAddressClaim is stamped with an error.
-// Only Conditions[0] is checked because SetConditions
-// is always called with a single-element slice.
+// Only the Ready condition is checked, wherever it sits in the conditions slice.
 func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
-	return len(addressClaim.Status.Conditions) > 0 &&
-		(addressClaim.Status.Conditions[0].Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
-			addressClaim.Status.Conditions[0].Reason == capipamv1.IPAddressClaimReadyPoolExhaustedReason)
+	condition := meta.FindStatusCondition(addressClaim.Status.Conditions, capipamv1.IPAddressClaimReadyCondition)
+	return condition != nil && (condition.Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
+		condition.Reason == capipamv1.IPAddressClaimReadyPoolExhaustedReason)
 }
