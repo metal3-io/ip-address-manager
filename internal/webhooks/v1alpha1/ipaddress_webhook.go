@@ -120,18 +120,31 @@ func (webhook *IPAddress) ValidateUpdate(_ context.Context, oldIPAddress, newIPA
 		return nil, apierrors.NewBadRequest("expected an IPAddress but got nil")
 	}
 
+	allErrs := field.ErrorList{}
 	if !equality.Semantic.DeepEqual(oldIPAddress.Spec, newIPAddress.Spec) {
-		allErrs := field.ErrorList{
+		allErrs = append(allErrs,
 			field.Invalid(
 				field.NewPath("spec"),
 				newIPAddress.Spec,
 				"cannot be modified",
 			),
-		}
-		return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
+		)
 	}
 
-	return nil, nil
+	if newIPAddress.Annotations["ipAddress"] != oldIPAddress.Annotations["ipAddress"] {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("metadata", "annotations", "ipAddress"),
+				newIPAddress.Annotations["ipAddress"],
+				"cannot be modified",
+			),
+		)
+	}
+
+	if len(allErrs) == 0 {
+		return nil, nil
+	}
+	return nil, apierrors.NewInvalid(ipamv1.GroupVersion.WithKind("IPAddress").GroupKind(), newIPAddress.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
