@@ -29,7 +29,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
@@ -4325,4 +4327,195 @@ var _ = Describe("IPPool manager", func() {
 		})
 	})
 
+})
+
+var _ = Describe("IPAddress name collision (duplicate namePrefix)", func() {
+	const (
+		ns          = "myns"
+		collidingIP = "192.168.1.10"
+		// namePrefix "a-prefix" + IP -> "a-prefix-192-168-1-10"
+		collidingName = "a-prefix-192-168-1-10"
+	)
+
+	// newPool builds an IPPool named poolName whose namePrefix is "a-prefix"
+	// and whose single-address pool only contains collidingIP, so the name of
+	// the IPAddress it allocates is always collidingName.
+	newPool := func(poolName string) *ipamv1.IPPool {
+		start := ipamv1.IPAddressStr(collidingIP)
+		return &ipamv1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      poolName,
+				Namespace: ns,
+			},
+			Spec: ipamv1.IPPoolSpec{
+				NamePrefix: "a-prefix",
+				Pools: []ipamv1.Pool{
+					{
+						Start:  &start,
+						End:    &start,
+						Prefix: 24,
+					},
+				},
+			},
+			Status: ipamv1.IPPoolStatus{
+				Allocations: map[string]ipamv1.IPAddressStr{},
+			},
+		}
+	}
+
+	Context("metal3 IPClaim path", func() {
+		It("reports the collision on the claim and the pool, and stays retryable", func() {
+			// An IPAddress of that name already exists, so Create fails with
+			// AlreadyExists. The owner is not inspected: the claim is marked,
+			// an event is emitted, and the error stays transient so the claim
+			// is retried with backoff and recovers once the other pool is
+			// fixed.
+			existing := &ipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: collidingName, Namespace: ns},
+				Spec: ipamv1.IPAddressSpec{
+					Address: ipamv1.IPAddressStr(collidingIP),
+					Pool:    corev1.ObjectReference{Name: "ippool-a"},
+					Claim:   corev1.ObjectReference{Name: "a-claim"},
+				},
+			}
+			claim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-claim", Namespace: ns},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{Name: "ippool-b", Namespace: ns},
+				},
+			}
+
+			fakeClient := fakeclient.NewClientBuilder().
+				WithScheme(setupScheme()).
+				WithObjects(existing).
+				Build()
+
+			// Build through the factory so the EventRecorder is wired.
+			recorder := events.NewFakeRecorder(10)
+			mgrIface, err := NewManagerFactory(fakeClient, WithEventRecorder(recorder)).
+				NewIPPoolManager(newPool("ippool-b"), logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			ipPoolMgr, ok := mgrIface.(*IPPoolManager)
+			Expect(ok).To(BeTrue())
+
+			_, err = ipPoolMgr.createAddress(context.Background(), claim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).To(HaveOccurred())
+
+			var reconcileError ReconcileError
+			Expect(errors.As(err, &reconcileError)).To(BeTrue())
+			Expect(reconcileError.IsTransient()).To(BeTrue())
+
+			Expect(claim.Status.ErrorMessage).NotTo(BeNil())
+			Expect(*claim.Status.ErrorMessage).To(ContainSubstring(collidingName))
+			Expect(*claim.Status.ErrorMessage).To(ContainSubstring("namePrefix"))
+
+			Eventually(recorder.Events).Should(Receive(ContainSubstring("IPAddressNameCollision")))
+		})
+
+		It("surfaces a non-AlreadyExists create error without the collision message", func() {
+			claim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-claim", Namespace: ns},
+				Spec: ipamv1.IPClaimSpec{
+					Pool: corev1.ObjectReference{Name: "ippool-b", Namespace: ns},
+				},
+			}
+
+			fakeClient := fakeclient.NewClientBuilder().
+				WithScheme(setupScheme()).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Create: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.CreateOption) error {
+						return apierrors.NewBadRequest("boom")
+					},
+				}).
+				Build()
+
+			ipPoolMgr, err := NewIPPoolManager(fakeClient, newPool("ippool-b"), logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.createAddress(context.Background(), claim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).To(HaveOccurred())
+
+			var reconcileError ReconcileError
+			Expect(errors.As(err, &reconcileError)).To(BeFalse())
+
+			Expect(claim.Status.ErrorMessage).To(Equal(ptr.To("Failed to create associated IPAddress object")))
+		})
+	})
+
+	Context("CAPI IPAddressClaim path", func() {
+		It("reports the collision on the claim and the pool, and stays retryable", func() {
+			existing := &capipamv1.IPAddress{
+				ObjectMeta: metav1.ObjectMeta{Name: collidingName, Namespace: ns},
+				Spec: capipamv1.IPAddressSpec{
+					Address:  collidingIP,
+					PoolRef:  capipamv1.IPPoolReference{Name: "ippool-a"},
+					ClaimRef: capipamv1.IPAddressClaimReference{Name: "a-claim"},
+				},
+			}
+			claim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-claim", Namespace: ns},
+				Spec: capipamv1.IPAddressClaimSpec{
+					PoolRef: capipamv1.IPPoolReference{Name: "ippool-b"},
+				},
+			}
+
+			fakeClient := fakeclient.NewClientBuilder().
+				WithScheme(setupScheme()).
+				WithObjects(existing).
+				Build()
+
+			recorder := events.NewFakeRecorder(10)
+			mgrIface, err := NewManagerFactory(fakeClient, WithEventRecorder(recorder)).
+				NewIPPoolManager(newPool("ippool-b"), logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			ipPoolMgr, ok := mgrIface.(*IPPoolManager)
+			Expect(ok).To(BeTrue())
+
+			_, err = ipPoolMgr.capiCreateAddress(context.Background(), claim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).To(HaveOccurred())
+
+			var reconcileError ReconcileError
+			Expect(errors.As(err, &reconcileError)).To(BeTrue())
+			Expect(reconcileError.IsTransient()).To(BeTrue())
+
+			Expect(claim.Status.Conditions).NotTo(BeEmpty())
+			Expect(claim.Status.Conditions[0].Reason).To(Equal(capipamv1.IPAddressClaimReadyAllocationFailedReason))
+			Expect(claim.Status.Conditions[0].Message).To(ContainSubstring(collidingName))
+			Expect(claim.Status.Conditions[0].Message).To(ContainSubstring("namePrefix"))
+
+			Eventually(recorder.Events).Should(Receive(ContainSubstring("IPAddressNameCollision")))
+		})
+
+		It("surfaces a non-AlreadyExists create error without the collision message", func() {
+			claim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-claim", Namespace: ns},
+				Spec: capipamv1.IPAddressClaimSpec{
+					PoolRef: capipamv1.IPPoolReference{Name: "ippool-b"},
+				},
+			}
+
+			fakeClient := fakeclient.NewClientBuilder().
+				WithScheme(setupScheme()).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Create: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.CreateOption) error {
+						return apierrors.NewBadRequest("boom")
+					},
+				}).
+				Build()
+
+			ipPoolMgr, err := NewIPPoolManager(fakeClient, newPool("ippool-b"), logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = ipPoolMgr.capiCreateAddress(context.Background(), claim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).To(HaveOccurred())
+
+			var reconcileError ReconcileError
+			Expect(errors.As(err, &reconcileError)).To(BeFalse())
+
+			Expect(claim.Status.Conditions).NotTo(BeEmpty())
+			Expect(claim.Status.Conditions[0].Message).To(Equal("Failed to create associated IPAddress object"))
+		})
+	})
 })
