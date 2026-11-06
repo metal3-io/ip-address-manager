@@ -53,6 +53,25 @@ const (
 	requeueAfterIPAddressDeletion = 5 * time.Second
 )
 
+// errIPAddressTerminating marks an IPAddress that was deleted but still exists,
+// because other finalizers hold it. Its IP stays reserved until it is gone.
+var errIPAddressTerminating = errors.New("allocated IPAddress is still terminating")
+
+// ipAddressTerminatingError returns a transient error that requeues the IPPool
+// until the IPAddress with the given name is removed.
+func ipAddressTerminatingError(name string) error {
+	return WithTransientError(
+		fmt.Errorf("%w: %s has other finalizers, waiting for deletion to complete", errIPAddressTerminating, name),
+		requeueAfterIPAddressDeletion,
+	)
+}
+
+// isIPAddressTerminating returns true if err is an ipAddressTerminatingError.
+func isIPAddressTerminating(err error) bool {
+	var reconcileError ReconcileError
+	return errors.As(err, &reconcileError) && errors.Is(reconcileError.error, errIPAddressTerminating)
+}
+
 // IPPoolManagerInterface is an interface for a IPPoolManager.
 type IPPoolManagerInterface interface {
 	SetFinalizer()
@@ -236,30 +255,43 @@ func (m *IPPoolManager) updateStatusTimestamp() {
 // UpdateAddresses manages the claims and creates or deletes IPAddress accordingly.
 // It returns the number of current allocations. Current allocation include
 // both capi and metal3 type ipaddress objects.
+//
+// The used addresses are read one time and the same map goes to the Metal3 and
+// the CAPI pass. Thus the CAPI pass sees the addresses that the Metal3 pass
+// allocated in this reconcile, also when the cache does not show the new
+// IPAddress objects yet.
 func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
-	_, err := m.m3UpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
-	}
-	count, err := m.capiUpdateAddresses(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
-// It returns the number of current allocations. Current allocation include
-// both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 	addresses, err := m.getIndexes(ctx)
 	if err != nil {
 		return 0, err
 	}
+	// A terminating IPAddress does not stop the passes: its IP stays reserved in
+	// the map, the other claims are processed, and the error requeues the pool.
+	addresses, m3Err := m.m3UpdateAddresses(ctx, addresses)
+	if m3Err != nil && !isIPAddressTerminating(m3Err) {
+		return 0, m3Err
+	}
+	addresses, capiErr := m.capiUpdateAddresses(ctx, addresses)
+	if capiErr != nil && !isIPAddressTerminating(capiErr) {
+		return 0, capiErr
+	}
+	if m3Err != nil {
+		return len(addresses), m3Err
+	}
+	if capiErr != nil {
+		return len(addresses), capiErr
+	}
+	return len(addresses), nil
+}
 
+// m3UpdateAddresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
+// addresses holds the addresses in use (capi and metal3). It returns the updated map.
+func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context,
+	addresses map[ipamv1.IPAddressStr]string,
+) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := ipamv1.IPClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -267,10 +299,12 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
-		return 0, err
+		return addresses, err
 	}
+	// pendingErr records a claim whose IPAddress is still terminating.
+	var pendingErr error
 
 	// Iterate over the IPClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
@@ -290,19 +324,21 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		}
 		addresses, err = m.updateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			if isIPAddressTerminating(err) {
+				pendingErr = err
+				continue
+			}
+			return addresses, err
 		}
 	}
-	return len(addresses), nil
+	return addresses, pendingErr
 }
 
-// UpdateCAPIAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
-// It returns the number of current allocations.
-func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		return 0, err
-	}
+// capiUpdateAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
+// addresses holds the addresses in use (capi and metal3). It returns the updated map.
+func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context,
+	addresses map[ipamv1.IPAddressStr]string,
+) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := capipamv1.IPAddressClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -310,10 +346,12 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
-		return 0, err
+		return addresses, err
 	}
+	// pendingErr records a claim whose IPAddress is still terminating.
+	var pendingErr error
 
 	// Iterate over the IPAddressClaim objects to find all addresses and objects
 	for _, addressClaim := range addressClaimObjects.Items {
@@ -333,10 +371,14 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		}
 		addresses, err = m.capiUpdateAddress(ctx, &addressClaim, addresses)
 		if err != nil {
-			return 0, err
+			if isIPAddressTerminating(err) {
+				pendingErr = err
+				continue
+			}
+			return addresses, err
 		}
 	}
-	return len(addresses), nil
+	return addresses, pendingErr
 }
 
 // UpdateAddress creates metal3 ipaddress or deletes it. Address can be deleted if it
@@ -999,6 +1041,14 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 				addressClaim.Status.ErrorMessage = ptr.To("Failed to delete associated IPAddress object")
 				return addresses, err
 			}
+			// Other finalizers keep the IPAddress terminating. Keep its IP
+			// reserved, the pool allocation and the claim finalizer until
+			// the IPAddress is gone, so that no other claim gets the IP.
+			if len(ipAddress.Finalizers) > 0 {
+				addresses[allocatedAddress] = addressClaim.Name
+				m.Log.Info("IPAddress has other finalizers, keeping its IP reserved", "IPAddress", ipAddress.Name, "Finalizers", ipAddress.Finalizers)
+				return addresses, ipAddressTerminatingError(ipAddress.Name)
+			}
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
 	}
@@ -1083,6 +1133,14 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 			if err != nil {
 				m.Log.Error(err, "Failed to delete associated IPAddress object", "IPAddress", ipAddress.Name)
 				return addresses, err
+			}
+			// Other finalizers keep the IPAddress terminating. Keep its IP
+			// reserved, the pool allocation and the claim finalizer until
+			// the IPAddress is gone, so that no other claim gets the IP.
+			if len(ipAddress.Finalizers) > 0 {
+				addresses[allocatedAddress] = addressClaim.Name
+				m.Log.Info("IPAddress has other finalizers, keeping its IP reserved", "IPAddress", ipAddress.Name, "Finalizers", ipAddress.Finalizers)
+				return addresses, ipAddressTerminatingError(ipAddress.Name)
 			}
 			m.Log.Info("Deleted IPAddress", "IPAddress", ipAddress.Name)
 		}
