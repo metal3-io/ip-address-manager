@@ -12,7 +12,7 @@ require (
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/onsi/ginkgo/v2 v2.33.1
+	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/saschagrunert/go-modiff v1.4.1
 	go.uber.org/mock v0.6.0
 	golang.org/x/oauth2 v0.37.0
