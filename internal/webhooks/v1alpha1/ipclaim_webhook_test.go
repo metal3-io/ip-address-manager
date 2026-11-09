@@ -204,33 +204,78 @@ func TestIPClaimAnnotationUpdateValidation(t *testing.T) {
 	tests := []struct {
 		name           string
 		expectErr      bool
+		oldAnnotations map[string]string
 		newAnnotations map[string]string
+		allocated      bool
 	}{
 		{
-			name:      "should succeed updating to valid IP in annotation",
+			name:      "should succeed when the ipAddress annotation is unchanged",
 			expectErr: false,
+			oldAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+			newAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+		},
+		{
+			name:           "should succeed when there is no ipAddress annotation on either side",
+			expectErr:      false,
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{},
+		},
+		{
+			name:           "should succeed when the ipAddress annotation is added before an IP is allocated",
+			expectErr:      false,
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+		},
+		{
+			name:      "should succeed when the ipAddress annotation is removed",
+			expectErr: false,
+			oldAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+			newAnnotations: map[string]string{},
+			allocated:      true,
+		},
+		{
+			name:           "should fail when the ipAddress annotation is added after an IP is allocated",
+			expectErr:      true,
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
+			allocated: true,
+		},
+		{
+			name:      "should fail when the ipAddress annotation changes to another IP after an IP is allocated",
+			expectErr: true,
+			oldAnnotations: map[string]string{
+				"ipAddress": "192.168.1.50",
+			},
 			newAnnotations: map[string]string{
 				"ipAddress": "192.168.1.75",
 			},
+			allocated: true,
 		},
 		{
-			name:      "should fail updating to malformed IP in annotation",
-			expectErr: true,
-			newAnnotations: map[string]string{
-				"ipAddress": "invalid-ip-addr",
-			},
-		},
-		{
-			name:      "should fail updating to invalid IP format in annotation",
-			expectErr: true,
+			name:           "should fail updating to invalid IP format in annotation",
+			expectErr:      true,
+			oldAnnotations: map[string]string{},
 			newAnnotations: map[string]string{
 				"ipAddress": "300.300.300.300",
 			},
 		},
 		{
-			name:           "should succeed when removing IP annotation",
-			expectErr:      false,
-			newAnnotations: map[string]string{},
+			name:           "should fail updating to malformed IP in annotation",
+			expectErr:      true,
+			oldAnnotations: map[string]string{},
+			newAnnotations: map[string]string{
+				"ipAddress": "invalid-ip-addr",
+			},
 		},
 	}
 
@@ -241,17 +286,21 @@ func TestIPClaimAnnotationUpdateValidation(t *testing.T) {
 
 			oldObj := &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
-					Name:      "test-claim",
-					Annotations: map[string]string{
-						"ipAddress": "192.168.1.50",
-					},
+					Namespace:   "foo",
+					Name:        "test-claim",
+					Annotations: tt.oldAnnotations,
 				},
 				Spec: ipamv1.IPClaimSpec{
 					Pool: corev1.ObjectReference{
 						Name: "test-pool",
 					},
 				},
+			}
+
+			if tt.allocated {
+				oldObj.Status.Address = &corev1.ObjectReference{
+					Name: "test-address",
+				}
 			}
 
 			newObj := &ipamv1.IPClaim{
