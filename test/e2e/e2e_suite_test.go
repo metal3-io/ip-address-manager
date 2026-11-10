@@ -61,6 +61,7 @@ func init() {
 }
 
 func TestE2e(t *testing.T) {
+	ctrl.SetLogger(klog.Background())
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "E2e Suite")
 }
@@ -76,7 +77,6 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 
 	By("Initializing a runtime.Scheme with all the GVK relevant for this test")
 	scheme := initScheme()
-	ctrl.SetLogger(klog.Background())
 
 	By(fmt.Sprintf("Loading the e2e test configuration from %q", configPath))
 	e2eConfig = loadE2EConfig(configPath)
