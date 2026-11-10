@@ -128,6 +128,105 @@ and (capi)ipaddressclaims into (capi)ipaddresses.
 
 Check out more on [IPAddressClaim docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddressclaim).
 
+#### IPAddressClaim conditions
+
+The controller reports the state of a (capi)IPAddressClaim in
+`status.conditions`. The (metal3)IPClaim does not use these conditions.
+
+The *Ready* condition is the one defined by the Cluster API IPAddressClaim
+contract. The controller does not set it directly: it is computed from two
+sub-conditions, *IPAddressAllocated* and *IPAddressCreated*, which show where a
+claim is stuck. For example, a claim that cannot get an address because the pool
+is full has:
+
+```yaml
+status:
+  conditions:
+  - type: Ready
+    status: "False"
+    reason: PoolExhausted
+    message: '* IPAddressAllocated: Exhausted IP Pools'
+  - type: IPAddressAllocated
+    status: "False"
+    reason: PoolExhausted
+    message: Exhausted IP Pools
+```
+
+Fields such as *lastTransitionTime* are left out of the example.
+
+##### IPAddressAllocated
+
+This condition tells whether an address has been picked from the pool for the
+claim. The *ipAddress* annotation on a claim requests a specific address, and
+*preAllocations* is a field of the [IPPool](#ippool).
+
+| Status | Reason | Set when |
+|--------|--------|----------|
+| True | Allocated | An address has been picked for the claim. |
+| False | InvalidRequestedIP | The *ipAddress* annotation is not a valid IP address. |
+| False | PreAllocationConflict | The *ipAddress* annotation differs from the address that *preAllocations* has for the claim. |
+| False | RequestedIPNotAvailable | The address requested with the *ipAddress* annotation is in a pool but already in use. It is retried after 15 seconds. |
+| False | PreAllocationOutOfBounds | The address that *preAllocations* has for the claim is not in any of the pools. |
+| False | PoolExhausted | No address could be allocated. It is retried after 15 seconds. This is also the reason when the *ipAddress* annotation names an address that is in none of the pools. |
+| False | InvalidPrefix | The prefix of the pool, or the default prefix of the IPPool, is not between 0 and 128. |
+
+The other failures are retried too, with the controller's backoff, so a claim
+recovers once the pool or the annotation is fixed.
+
+##### IPAddressCreated
+
+This condition tells whether the IPAddress object for the claim exists and is
+referenced in `status.addressRef`. It is only set once an address has been
+allocated: when allocation fails, the condition is removed from the claim.
+
+| Status | Reason | Set when |
+|--------|--------|----------|
+| True | Created | The IPAddress object exists and `status.addressRef` points to it. |
+| Unknown | CreatePending | Creating the IPAddress object hit a transient error (the object already exists). The creation is retried. |
+| False | CreateFailed | Creating the IPAddress object failed with any other error. It is retried with backoff. |
+
+CreatePending is not reported as a failure: *Ready* stays Unknown, not False,
+until the retry succeeds or fails with another error.
+
+##### Ready
+
+*Ready* is recomputed from the sub-conditions each time the controller
+reconciles a claim, just before the claim status is patched. It is not
+recomputed while the claim is being deleted.
+
+| Sub-conditions | Ready status | Ready reason |
+|----------------|--------------|--------------|
+| All True | True | Ready |
+| Any False with reason PoolExhausted | False | PoolExhausted |
+| Any other False | False | AllocationFailed |
+| None False, any Unknown | Unknown | ReadyUnknown |
+
+*IPAddressCreated* is ignored when it is not set. *IPAddressAllocated* is
+required: when it is not set, it counts as Unknown. This happens, for example,
+when a claim is created while the IPAddress of an earlier claim with the same
+name is still being deleted. The controller leaves the sub-conditions unchanged
+and requeues the claim after 5 seconds.
+
+PoolExhausted and AllocationFailed are the failure reasons that the Cluster API
+IPAddressClaim types define. The third one, PoolNotReady, is not used by this
+controller. Ready and ReadyUnknown are the generic Cluster API reasons.
+
+When *Ready* is False or Unknown, its message lists the sub-conditions that
+report the problem, one per line, as `* <condition type>: <message>`. When
+*Ready* is True, it has no message.
+
+##### Claims written by an older version
+
+Older versions set *Ready* directly and did not have the sub-conditions. A
+claim that has a *Ready* condition but no *IPAddressAllocated* condition keeps
+that *Ready* condition unchanged until the controller sets *IPAddressAllocated*
+on it. After that, *Ready* is computed as described above.
+
+A claim that already has `status.addressRef` is only reconciled again when its
+*Ready* reason is AllocationFailed or PoolExhausted, or when it is deleted. Any
+other claim written by an older version is skipped, so it does not get the
+sub-conditions.
+
 ### IpAddress
 
 Check out more on [IPAddress docs](https://cluster-api.sigs.k8s.io/reference/api/crd-api-reference#ipaddress).
