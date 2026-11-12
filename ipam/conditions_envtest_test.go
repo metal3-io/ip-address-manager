@@ -108,6 +108,7 @@ var _ = Describe("IPAddressClaim conditions validated by the CRD", func() {
 		InvalidRequestedIPReason,
 		PreAllocationConflictReason,
 		RequestedIPNotAvailableReason,
+		RequestedIPOutOfBoundsReason,
 		PreAllocationOutOfBoundsReason,
 		InvalidPrefixReason,
 	}

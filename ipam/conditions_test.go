@@ -19,6 +19,7 @@ package ipam
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -75,6 +76,17 @@ var _ = Describe("IPAddressClaim conditions", func() {
 			expectedStatus:  metav1.ConditionFalse,
 			expectedReason:  capipamv1.IPAddressClaimReadyPoolExhaustedReason,
 			expectedMessage: "* IPAddressAllocated: Exhausted IP Pools",
+		}),
+		Entry("requested IP out of bounds is not a pool exhaustion", testCaseReady{
+			subConditions: []metav1.Condition{
+				{
+					Type: IPAddressAllocatedCondition, Status: metav1.ConditionFalse,
+					Reason: RequestedIPOutOfBoundsReason, Message: "Requested IP 192.168.2.11 is not in any pool",
+				},
+			},
+			expectedStatus:  metav1.ConditionFalse,
+			expectedReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedMessage: "* IPAddressAllocated: Requested IP 192.168.2.11 is not in any pool",
 		}),
 		Entry("other allocation failure", testCaseReady{
 			subConditions: []metav1.Condition{
@@ -418,5 +430,234 @@ var _ = Describe("IPAddressClaim conditions", func() {
 		Expect(c.Get(context.TODO(), client.ObjectKey{Name: "claim-a", Namespace: "myns"}, got)).To(Succeed())
 		Expect(got.Status.AddressRef.Name).NotTo(BeEmpty())
 		Expect(conditions.IsTrue(got, capipamv1.IPAddressClaimReadyCondition)).To(BeTrue())
+	})
+
+	type testCaseRequestedIP struct {
+		pools          []ipamv1.Pool
+		preAllocations map[string]ipamv1.IPAddressStr
+		annotation     string
+		addresses      map[ipamv1.IPAddressStr]string
+		// expectedAddress is set when the allocation succeeds. Otherwise the
+		// expected* fields below describe the failure.
+		expectedAddress      ipamv1.IPAddressStr
+		expectedReason       string
+		expectedMessage      string
+		expectedReadyReason  string
+		expectedRequeueAfter time.Duration
+	}
+
+	rangePool := func(start, end string) ipamv1.Pool {
+		return ipamv1.Pool{
+			Start: (*ipamv1.IPAddressStr)(&start),
+			End:   (*ipamv1.IPAddressStr)(&end),
+		}
+	}
+	subnetPool := func(subnet string) ipamv1.Pool {
+		return ipamv1.Pool{Subnet: (*ipamv1.IPSubnetStr)(&subnet)}
+	}
+
+	DescribeTable("Test the IPAddressAllocated reason of a requested IP",
+		func(tc testCaseRequestedIP) {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools:          tc.pools,
+					PreAllocations: tc.preAllocations,
+					Prefix:         24,
+				},
+			}
+			claim := &capipamv1.IPAddressClaim{ObjectMeta: metav1.ObjectMeta{Name: "claim-x"}}
+			if tc.annotation != "" {
+				claim.Annotations = map[string]string{IPAddressAnnotation: tc.annotation}
+			}
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			address, _, _, err := ipPoolMgr.capiAllocateAddress(claim, tc.addresses)
+			if tc.expectedReason == "" {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(address).To(Equal(tc.expectedAddress))
+				return
+			}
+			Expect(err).To(HaveOccurred())
+
+			var re ReconcileError
+			Expect(errors.As(err, &re)).To(Equal(tc.expectedRequeueAfter != 0), "transient error expected: %v", err)
+			if tc.expectedRequeueAfter != 0 {
+				Expect(re.IsTransient()).To(BeTrue())
+				Expect(re.GetRequeueAfter()).To(Equal(tc.expectedRequeueAfter))
+			}
+
+			allocated := conditions.Get(claim, IPAddressAllocatedCondition)
+			Expect(allocated).NotTo(BeNil())
+			Expect(allocated.Status).To(Equal(metav1.ConditionFalse))
+			Expect(allocated.Reason).To(Equal(tc.expectedReason))
+			Expect(allocated.Message).To(Equal(tc.expectedMessage))
+			Expect(conditions.Has(claim, IPAddressCreatedCondition)).To(BeFalse())
+
+			Expect(setIPAddressClaimReadyCondition(claim)).To(Succeed())
+			ready := conditions.Get(claim, capipamv1.IPAddressClaimReadyCondition)
+			Expect(ready).NotTo(BeNil())
+			Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+			Expect(ready.Reason).To(Equal(tc.expectedReadyReason))
+			Expect(ready.Message).To(Equal("* IPAddressAllocated: " + tc.expectedMessage))
+			// Every failure keeps the claim in the retry set of capiUpdateAddresses.
+			Expect(anyErrorInExistingClaim(*claim)).To(BeTrue())
+		},
+		Entry("requested IP outside the only pool", testCaseRequestedIP{
+			pools:                []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.20")},
+			annotation:           "192.168.2.11",
+			expectedReason:       RequestedIPOutOfBoundsReason,
+			expectedMessage:      "Requested IP 192.168.2.11 is not in any pool",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("requested IP between two pools", testCaseRequestedIP{
+			pools:                []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.20"), rangePool("192.168.0.30", "192.168.0.40")},
+			annotation:           "192.168.0.25",
+			expectedReason:       RequestedIPOutOfBoundsReason,
+			expectedMessage:      "Requested IP 192.168.0.25 is not in any pool",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("requested IP outside a subnet pool", testCaseRequestedIP{
+			pools:                []ipamv1.Pool{subnetPool("192.168.0.0/24")},
+			annotation:           "192.168.1.5",
+			expectedReason:       RequestedIPOutOfBoundsReason,
+			expectedMessage:      "Requested IP 192.168.1.5 is not in any pool",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("requested IPv6 outside the pool", testCaseRequestedIP{
+			pools:                []ipamv1.Pool{rangePool("2001:db8::10", "2001:db8::20")},
+			annotation:           "2001:db8::30",
+			expectedReason:       RequestedIPOutOfBoundsReason,
+			expectedMessage:      "Requested IP 2001:db8::30 is not in any pool",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("requested IP outside the pool, and the pool is also full", testCaseRequestedIP{
+			pools:      []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.12")},
+			annotation: "192.168.2.11",
+			addresses: map[ipamv1.IPAddressStr]string{
+				"192.168.0.11": "claim-a",
+				"192.168.0.12": "claim-b",
+			},
+			expectedReason:       RequestedIPOutOfBoundsReason,
+			expectedMessage:      "Requested IP 192.168.2.11 is not in any pool",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("requested IP in the pool but already allocated", testCaseRequestedIP{
+			pools:                []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.20")},
+			annotation:           "192.168.0.12",
+			addresses:            map[ipamv1.IPAddressStr]string{"192.168.0.12": "claim-a"},
+			expectedReason:       RequestedIPNotAvailableReason,
+			expectedMessage:      "Requested IP not available",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			expectedRequeueAfter: requeueAfterNoFreeIP,
+		}),
+		Entry("no requested IP and the pool is full", testCaseRequestedIP{
+			pools: []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.12")},
+			addresses: map[ipamv1.IPAddressStr]string{
+				"192.168.0.11": "claim-a",
+				"192.168.0.12": "claim-b",
+			},
+			expectedReason:       capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+			expectedMessage:      "Exhausted IP Pools",
+			expectedReadyReason:  capipamv1.IPAddressClaimReadyPoolExhaustedReason,
+			expectedRequeueAfter: requeueAfterPoolExhausted,
+		}),
+		Entry("requested IP in the second pool", testCaseRequestedIP{
+			pools:           []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.20"), rangePool("192.168.0.30", "192.168.0.40")},
+			annotation:      "192.168.0.35",
+			expectedAddress: "192.168.0.35",
+		}),
+		Entry("requested IPv6 written in another form than the pool address", testCaseRequestedIP{
+			pools:           []ipamv1.Pool{rangePool("2001:db8::10", "2001:db8::20")},
+			annotation:      "2001:DB8:0:0:0:0:0:15",
+			expectedAddress: "2001:db8::15",
+		}),
+		Entry("requested IP is the pre-allocated IP and outside the pool", testCaseRequestedIP{
+			pools:               []ipamv1.Pool{rangePool("192.168.0.11", "192.168.0.20")},
+			preAllocations:      map[string]ipamv1.IPAddressStr{"claim-x": "192.168.2.11"},
+			annotation:          "192.168.2.11",
+			expectedReason:      PreAllocationOutOfBoundsReason,
+			expectedMessage:     "Pre-allocated IP out of bounds",
+			expectedReadyReason: capipamv1.IPAddressClaimReadyAllocationFailedReason,
+		}),
+	)
+
+	It("recovers a claim whose requested IP is outside the pools once the pool includes it", func() {
+		first, second := ipamv1.IPAddressStr("192.168.0.11"), ipamv1.IPAddressStr("192.168.2.11")
+		ipPool := &ipamv1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{Name: testIPPoolName, Namespace: "myns"},
+			Spec: ipamv1.IPPoolSpec{
+				NamePrefix: "test-prefix",
+				Prefix:     24,
+				Pools:      []ipamv1.Pool{{Start: &first, End: &first}},
+			},
+		}
+		poolRef := capipamv1.IPPoolReference{Name: testIPPoolName, Kind: "IPPool", APIGroup: APIGroup}
+		claim := &capipamv1.IPAddressClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "claim-a", Namespace: "myns",
+				Annotations: map[string]string{IPAddressAnnotation: string(second)},
+			},
+			Spec: capipamv1.IPAddressClaimSpec{PoolRef: poolRef},
+		}
+		// An older version reported this case as PoolExhausted, and set no
+		// sub-condition. The claim has no status.addressRef, so it is retried.
+		oldClaim := claim.DeepCopy()
+		oldClaim.Name = "claim-old"
+		oldClaim.Annotations = map[string]string{IPAddressAnnotation: "192.168.9.9"}
+		oldClaim.Status.Conditions = []metav1.Condition{{
+			Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionFalse,
+			Reason: capipamv1.IPAddressClaimReadyPoolExhaustedReason, Message: "Exhausted IP Pools",
+			LastTransitionTime: metav1.Now(),
+		}}
+		objects := []client.Object{ipPool, claim, oldClaim}
+		c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+			WithStatusSubresource(objects...).WithObjects(objects...).Build()
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ipPoolMgr.capiUpdateAddresses(context.TODO())
+		var re ReconcileError
+		Expect(errors.As(err, &re)).To(BeTrue())
+		Expect(re.IsTransient()).To(BeTrue())
+		Expect(re.GetRequeueAfter()).To(Equal(requeueAfterNoFreeIP))
+
+		for _, name := range []string{"claim-a", "claim-old"} {
+			got := &capipamv1.IPAddressClaim{}
+			Expect(c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: "myns"}, got)).To(Succeed())
+			Expect(got.Status.AddressRef.Name).To(BeEmpty(), name)
+			Expect(conditions.GetReason(got, IPAddressAllocatedCondition)).To(Equal(RequestedIPOutOfBoundsReason), name)
+			ready := conditions.Get(got, capipamv1.IPAddressClaimReadyCondition)
+			Expect(ready).NotTo(BeNil(), name)
+			Expect(ready.Status).To(Equal(metav1.ConditionFalse), name)
+			Expect(ready.Reason).To(Equal(capipamv1.IPAddressClaimReadyAllocationFailedReason), name)
+			Expect(anyErrorInExistingClaim(*got)).To(BeTrue(), name)
+		}
+
+		// The pool is edited to include the requested address. The next
+		// reconcile of the pool allocates it, without any change to the claim.
+		livePool := &ipamv1.IPPool{}
+		Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), livePool)).To(Succeed())
+		livePool.Spec.Pools = append(livePool.Spec.Pools, ipamv1.Pool{Start: &second, End: &second})
+		Expect(c.Update(context.TODO(), livePool)).To(Succeed())
+		ipPoolMgr, err = NewIPPoolManager(c, livePool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ipPoolMgr.capiUpdateAddresses(context.TODO())
+		// claim-old still asks for an address that is in no pool.
+		Expect(errors.As(err, &re)).To(BeTrue())
+
+		got := &capipamv1.IPAddressClaim{}
+		Expect(c.Get(context.TODO(), client.ObjectKey{Name: "claim-a", Namespace: "myns"}, got)).To(Succeed())
+		Expect(got.Status.AddressRef.Name).To(Equal("test-prefix-192-168-2-11"))
+		Expect(conditions.IsTrue(got, IPAddressAllocatedCondition)).To(BeTrue())
+		Expect(conditions.IsTrue(got, IPAddressCreatedCondition)).To(BeTrue())
+		Expect(conditions.IsTrue(got, capipamv1.IPAddressClaimReadyCondition)).To(BeTrue())
+		Expect(anyErrorInExistingClaim(*got)).To(BeFalse())
 	})
 })

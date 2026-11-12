@@ -633,6 +633,7 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	ipAllocated := false
 
 	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
+	// Set when the requested IP is found in a pool, whether it is free or not.
 	isRequestedIPAllocated := false
 
 	if requestedIP != "" {
@@ -702,6 +703,15 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	if !ipAllocated && ipPreAllocated {
 		setIPAddressAllocationFailed(addressClaim, PreAllocationOutOfBoundsReason, "Pre-allocated IP out of bounds")
 		return "", 0, nil, errors.New("pre-allocated IP out of bounds")
+	}
+	// The requested IP is in none of the pools. A claim with a requested IP is
+	// never given another address, so the pool is not exhausted. Retried at the
+	// same pace as RequestedIPNotAvailable, and straight away when the IPPool
+	// or the claim changes, as both are watched.
+	if requestedIP != "" && !isRequestedIPAllocated {
+		setIPAddressAllocationFailed(addressClaim, RequestedIPOutOfBoundsReason,
+			fmt.Sprintf("Requested IP %s is not in any pool", requestedIP))
+		return "", 0, nil, WithTransientError(fmt.Errorf("requested IP %s is not in any pool", requestedIP), requeueAfterNoFreeIP)
 	}
 	if !ipAllocated {
 		setIPAddressAllocationFailed(addressClaim, capipamv1.IPAddressClaimReadyPoolExhaustedReason, "Exhausted IP Pools")

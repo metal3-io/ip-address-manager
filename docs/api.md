@@ -166,8 +166,9 @@ claim. The *ipAddress* annotation on a claim requests a specific address, and
 | False | InvalidRequestedIP | The *ipAddress* annotation is not a valid IP address. |
 | False | PreAllocationConflict | The *ipAddress* annotation differs from the address that *preAllocations* has for the claim. |
 | False | RequestedIPNotAvailable | The address requested with the *ipAddress* annotation is in a pool but already in use. It is retried after 15 seconds. |
+| False | RequestedIPOutOfBounds | The address requested with the *ipAddress* annotation is in none of the pools. It is retried after 15 seconds, and as soon as the IPPool or the claim changes. |
 | False | PreAllocationOutOfBounds | The address that *preAllocations* has for the claim is not in any of the pools. |
-| False | PoolExhausted | No address could be allocated. It is retried after 15 seconds. This is also the reason when the *ipAddress* annotation names an address that is in none of the pools. |
+| False | PoolExhausted | No address is free in the pools. It is retried after 15 seconds. |
 | False | InvalidPrefix | The prefix of the pool, or the default prefix of the IPPool, is not between 0 and 128. |
 
 The other failures are retried too, with the controller's backoff, so a claim
@@ -210,6 +211,13 @@ and requeues the claim after 5 seconds.
 PoolExhausted and AllocationFailed are the failure reasons that the Cluster API
 IPAddressClaim types define. The third one, PoolNotReady, is not used by this
 controller. Ready and ReadyUnknown are the generic Cluster API reasons.
+
+Cluster API uses PoolExhausted for a pool that is full. A claim whose requested
+address is in none of the pools is not waiting for a free address, so its
+*Ready* reason is AllocationFailed and its *IPAddressAllocated* reason is
+RequestedIPOutOfBounds, even when the pools are also full. Older versions
+reported this case as PoolExhausted. Such a claim has no `status.addressRef`,
+so it is reconciled again and gets the new reason without any other action.
 
 When *Ready* is False or Unknown, its message lists the sub-conditions that
 report the problem, one per line, as `* <condition type>: <message>`. When
