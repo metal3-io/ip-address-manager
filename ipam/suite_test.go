@@ -18,7 +18,10 @@ package ipam
 
 import (
 	"context"
+	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/go-logr/logr"
@@ -60,11 +63,15 @@ var _ = BeforeSuite(func() {
 		ctrl.SetLogger(klog.Background())
 
 		By("bootstrapping test environment")
+		capiCRDPaths, err := capiIPAMCRDPaths(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
 		testEnv = &envtest.Environment{
-			CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
+			CRDDirectoryPaths: append([]string{filepath.Join("..", "config", "crd", "bases")}, capiCRDPaths...),
+			// Fail instead of starting without a CRD.
+			ErrorIfCRDPathMissing: true,
 		}
 
-		var err error
 		cfg, err = testEnv.Start()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cfg).ToNot(BeNil())
@@ -105,6 +112,22 @@ var _ = AfterSuite(func() {
 // -----------------------------------
 // ------ Helper functions -----------
 // -----------------------------------.
+
+// capiIPAMCRDPaths returns the paths of the Cluster API IPAddressClaim and
+// IPAddress CRDs, taken from the sigs.k8s.io/cluster-api version pinned in
+// go.mod. The module is in the module cache already, as the tests import it.
+func capiIPAMCRDPaths(ctx context.Context) ([]string, error) {
+	out, err := exec.CommandContext(ctx, "go", "list", "-m", "-f", "{{.Dir}}", "sigs.k8s.io/cluster-api").Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find the sigs.k8s.io/cluster-api module: %w", err)
+	}
+	crdDir := filepath.Join(strings.TrimSpace(string(out)), "core", "config", "crd", "bases")
+	return []string{
+		filepath.Join(crdDir, "ipam.cluster.x-k8s.io_ipaddressclaims.yaml"),
+		filepath.Join(crdDir, "ipam.cluster.x-k8s.io_ipaddresses.yaml"),
+	}, nil
+}
+
 func setupScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	if err := ipamv1.AddToScheme(s); err != nil {
