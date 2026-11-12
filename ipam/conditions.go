@@ -48,6 +48,8 @@ const (
 	PreAllocationConflictReason = "PreAllocationConflict"
 	// RequestedIPNotAvailableReason is used when the requested IP is already in use.
 	RequestedIPNotAvailableReason = "RequestedIPNotAvailable"
+	// RequestedIPOutOfBoundsReason is used when the requested IP is not in any pool.
+	RequestedIPOutOfBoundsReason = "RequestedIPOutOfBounds"
 	// PreAllocationOutOfBoundsReason is used when the pre-allocated IP is not in any pool.
 	PreAllocationOutOfBoundsReason = "PreAllocationOutOfBounds"
 	// InvalidPrefixReason is used when the resolved prefix is out of range.
