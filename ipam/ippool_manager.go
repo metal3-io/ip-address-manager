@@ -416,9 +416,18 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context,
 			continue
 		}
 
+		// A bound claim without an error is skipped, unless it still needs the
+		// sub-conditions of a version that did not set them.
 		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
 			addressClaim.DeletionTimestamp.IsZero() {
-			continue
+			backfill, backfillErr := m.needsConditionBackfill(ctx, &addressClaim)
+			if backfillErr != nil {
+				errorsFound = append(errorsFound, backfillErr)
+				m.Log.Error(backfillErr, "Failed to check the IPAddress of a bound IPAddressClaim, will retry with backoff", "IPAddressClaim", addressClaim.Name)
+			}
+			if !backfill {
+				continue
+			}
 		}
 
 		var claimRequeue time.Duration

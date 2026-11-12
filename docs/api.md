@@ -236,9 +236,23 @@ that *Ready* condition unchanged until the controller sets *IPAddressAllocated*
 on it. After that, *Ready* is computed as described above.
 
 A claim that already has `status.addressRef` is only reconciled again when its
-*Ready* reason is AllocationFailed or PoolExhausted, or when it is deleted. Any
-other claim written by an older version is skipped, so it does not get the
-sub-conditions.
+*Ready* reason is AllocationFailed or PoolExhausted, when it is deleted, or once
+after an upgrade, when it has no *IPAddressAllocated* condition and can be
+backfilled as described below. That one reconcile backfills the conditions: it
+sets *IPAddressAllocated* and *IPAddressCreated* to True, recomputes *Ready*
+and patches the status of the claim. It does not allocate an address, create
+or delete an IPAddress or change `status.addressRef`. The claim is skipped
+again afterwards, like any other bound claim.
+
+The backfill only applies when the pool has an allocation for the claim,
+`status.addressRef` is the IPAddress name that the pool computes for it, and
+that IPAddress is not being deleted and has an owner reference with the UID of
+the claim. A bound claim without a failed *Ready* that does not meet these
+conditions is left as it was, with the conditions it had. Examples are a claim
+whose IPAddress is gone, was created under another *namePrefix*, is being
+deleted or is not owned by the claim, such as the IPAddress of an earlier claim
+with the same name. If the IPAddress can't be read, the error is reported and
+the IPPool is reconciled again with backoff.
 
 ### IpAddress
 

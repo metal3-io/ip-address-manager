@@ -17,10 +17,15 @@ limitations under the License.
 package ipam
 
 import (
+	"context"
+	"fmt"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Sub-conditions set on a (capi)IPAddressClaim. The Ready condition
@@ -141,4 +146,42 @@ func ipAddressClaimReadyReason(issueConditions, unknownConditions, _ []condition
 func setIPAddressAllocationFailed(addressClaim *capipamv1.IPAddressClaim, reason, message string) {
 	setIPAddressClaimSubCondition(addressClaim, IPAddressAllocatedCondition, metav1.ConditionFalse, reason, message)
 	conditions.Delete(addressClaim, IPAddressCreatedCondition)
+}
+
+// needsConditionBackfill reports whether a bound claim written by a version
+// without the sub-conditions must be reconciled once to get them.
+// capiUpdateAddresses skips a bound claim that has no error in Ready, so such
+// a claim would never get them otherwise.
+//
+// The claim goes through the re-link path of capiCreateAddress, so it is only
+// picked when that path just re-links it: the pool has an allocation for it,
+// status.addressRef is the IPAddress name computed from the allocation, and
+// that IPAddress is not being deleted and is owned by the claim. For any other
+// IPAddress the re-link would wait for it, or delete it so that the claim gets
+// a new address, which a backfill must not do. The re-link reads the
+// IPAddress again and handles a change in between as for any other claim.
+//
+// An error other than NotFound from reading the IPAddress is returned.
+func (m *IPPoolManager) needsConditionBackfill(ctx context.Context, addressClaim *capipamv1.IPAddressClaim) (bool, error) {
+	if conditions.Has(addressClaim, IPAddressAllocatedCondition) {
+		return false, nil
+	}
+	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
+	if !ok {
+		return false, nil
+	}
+	addressName := m.formatAddressName(allocatedAddress)
+	if addressClaim.Status.AddressRef.Name != addressName {
+		return false, nil
+	}
+	address := &capipamv1.IPAddress{}
+	err := m.client.Get(ctx, client.ObjectKey{Name: addressName, Namespace: m.IPPool.Namespace}, address)
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get IPAddress %s of IPAddressClaim %s: %w", addressName, addressClaim.Name, err)
+	}
+	return address.DeletionTimestamp.IsZero() &&
+		hasOwnerRefWithUID(address.OwnerReferences, addressClaim.UID), nil
 }
