@@ -377,8 +377,11 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
+		// A bound claim without an error is skipped, unless it still needs the
+		// sub-conditions of a version that did not set them.
 		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
-			addressClaim.DeletionTimestamp.IsZero() {
+			addressClaim.DeletionTimestamp.IsZero() &&
+			!m.needsConditionBackfill(&addressClaim) {
 			continue
 		}
 

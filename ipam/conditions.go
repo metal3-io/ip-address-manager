@@ -142,3 +142,26 @@ func setIPAddressAllocationFailed(addressClaim *capipamv1.IPAddressClaim, reason
 	setIPAddressClaimSubCondition(addressClaim, IPAddressAllocatedCondition, metav1.ConditionFalse, reason, message)
 	conditions.Delete(addressClaim, IPAddressCreatedCondition)
 }
+
+// needsConditionBackfill reports whether a bound claim was written by a
+// version that did not set the sub-conditions.
+//
+// capiUpdateAddresses skips a claim that has a status.addressRef and no error
+// in Ready, so such a claim would never get the sub-conditions. It is
+// reconciled once instead, through the re-link path of capiCreateAddress,
+// which sets IPAddressAllocated and IPAddressCreated, and capiUpdateAddress
+// then derives Ready. From then on the claim is skipped like any other bound
+// claim.
+//
+// Only a claim that the re-link path can serve unchanged is picked: the pool
+// has an allocation for it and status.addressRef is the IPAddress name that
+// the re-link computes from that allocation. The pass can therefore only
+// re-link: it does not allocate an address, create an IPAddress or change
+// status.addressRef. A claim whose IPAddress is gone, or was created under
+// another name prefix, is left as before.
+func (m *IPPoolManager) needsConditionBackfill(addressClaim *capipamv1.IPAddressClaim) bool {
+	allocatedAddress, ok := m.IPPool.Status.Allocations[addressClaim.Name]
+	return ok &&
+		addressClaim.Status.AddressRef.Name == m.formatAddressName(allocatedAddress) &&
+		!conditions.Has(addressClaim, IPAddressAllocatedCondition)
+}

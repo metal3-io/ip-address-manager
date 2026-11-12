@@ -19,6 +19,8 @@ package ipam
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -659,5 +661,316 @@ var _ = Describe("IPAddressClaim conditions", func() {
 		Expect(conditions.IsTrue(got, IPAddressCreatedCondition)).To(BeTrue())
 		Expect(conditions.IsTrue(got, capipamv1.IPAddressClaimReadyCondition)).To(BeTrue())
 		Expect(anyErrorInExistingClaim(*got)).To(BeFalse())
+	})
+})
+
+var _ = Describe("IPAddressClaim condition backfill", func() {
+	ctx := context.TODO()
+	poolRef := capipamv1.IPPoolReference{Name: testIPPoolName, Kind: "IPPool", APIGroup: APIGroup}
+
+	// newPool returns a pool with free addresses before and after the bound
+	// ones, so that an unexpected new allocation would be visible.
+	newPool := func() *ipamv1.IPPool {
+		start, end := ipamv1.IPAddressStr("192.168.0.11"), ipamv1.IPAddressStr("192.168.0.20")
+		return &ipamv1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{Name: testIPPoolName, Namespace: "myns"},
+			Spec: ipamv1.IPPoolSpec{
+				NamePrefix: "test-prefix",
+				Prefix:     24,
+				Pools:      []ipamv1.Pool{{Start: &start, End: &end}},
+			},
+		}
+	}
+
+	// newBoundClaim returns a claim as a version without sub-conditions left
+	// it: bound to its IPAddress, with only the given conditions.
+	newBoundClaim := func(name, addressName string, stored []metav1.Condition) *capipamv1.IPAddressClaim {
+		return &capipamv1.IPAddressClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name, Namespace: "myns", Finalizers: []string{IPAddressClaimFinalizer},
+			},
+			Spec: capipamv1.IPAddressClaimSpec{PoolRef: poolRef},
+			Status: capipamv1.IPAddressClaimStatus{
+				AddressRef: capipamv1.IPAddressReference{Name: addressName},
+				Conditions: stored,
+			},
+		}
+	}
+
+	newAddress := func(name, address, claimName string) *capipamv1.IPAddress {
+		return &capipamv1.IPAddress{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "myns", Finalizers: []string{IPAddressFinalizer}},
+			Spec: capipamv1.IPAddressSpec{
+				Address:  address,
+				PoolRef:  poolRef,
+				ClaimRef: capipamv1.IPAddressClaimReference{Name: claimName},
+			},
+		}
+	}
+
+	// newRecordingClient returns a fake client that records every IPAddress
+	// and IPAddressClaim call as "<verb> <Kind>/<name>".
+	newRecordingClient := func(calls *[]string, objects ...client.Object) client.Client {
+		record := func(verb string, obj client.Object, name string) {
+			kind := reflect.TypeOf(obj).Elem().Name()
+			if kind == "IPAddress" || kind == "IPAddressClaim" {
+				*calls = append(*calls, fmt.Sprintf("%s %s/%s", verb, kind, name))
+			}
+		}
+		return fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+			WithStatusSubresource(objects...).WithObjects(objects...).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					record("get", obj, key.Name)
+					return cl.Get(ctx, key, obj, opts...)
+				},
+				Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+					record("create", obj, obj.GetName())
+					return cl.Create(ctx, obj, opts...)
+				},
+				Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+					record("update", obj, obj.GetName())
+					return cl.Update(ctx, obj, opts...)
+				},
+				Patch: func(ctx context.Context, cl client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					record("patch", obj, obj.GetName())
+					return cl.Patch(ctx, obj, patch, opts...)
+				},
+				Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					record("delete", obj, obj.GetName())
+					return cl.Delete(ctx, obj, opts...)
+				},
+				SubResourcePatch: func(ctx context.Context, cl client.Client, sub string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+					record("patch/"+sub, obj, obj.GetName())
+					return cl.SubResource(sub).Patch(ctx, obj, patch, opts...)
+				},
+				SubResourceUpdate: func(ctx context.Context, cl client.Client, sub string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+					record("update/"+sub, obj, obj.GetName())
+					return cl.SubResource(sub).Update(ctx, obj, opts...)
+				},
+			}).Build()
+	}
+
+	getClaim := func(c client.Client, name string) *capipamv1.IPAddressClaim {
+		claim := &capipamv1.IPAddressClaim{}
+		ExpectWithOffset(1, c.Get(ctx, client.ObjectKey{Name: name, Namespace: "myns"}, claim)).To(Succeed())
+		return claim
+	}
+
+	// expectOnlyAddress checks that the namespace still holds exactly the
+	// IPAddress it started with, untouched.
+	expectOnlyAddress := func(c client.Client, before *capipamv1.IPAddress) {
+		list := &capipamv1.IPAddressList{}
+		ExpectWithOffset(1, c.List(ctx, list, client.InNamespace("myns"))).To(Succeed())
+		ExpectWithOffset(1, list.Items).To(HaveLen(1))
+		ExpectWithOffset(1, list.Items[0].Name).To(Equal(before.Name))
+		ExpectWithOffset(1, list.Items[0].ResourceVersion).To(Equal(before.ResourceVersion))
+		ExpectWithOffset(1, list.Items[0].Spec).To(Equal(before.Spec))
+	}
+
+	expectReadyWithSubConditions := func(claim *capipamv1.IPAddressClaim) {
+		ExpectWithOffset(1, conditions.IsTrue(claim, IPAddressAllocatedCondition)).To(BeTrue())
+		ExpectWithOffset(1, conditions.GetReason(claim, IPAddressAllocatedCondition)).To(Equal(IPAddressAllocatedReason))
+		ExpectWithOffset(1, conditions.IsTrue(claim, IPAddressCreatedCondition)).To(BeTrue())
+		ExpectWithOffset(1, conditions.GetReason(claim, IPAddressCreatedCondition)).To(Equal(IPAddressCreatedReason))
+		ready := conditions.Get(claim, capipamv1.IPAddressClaimReadyCondition)
+		ExpectWithOffset(1, ready).NotTo(BeNil())
+		ExpectWithOffset(1, ready.Status).To(Equal(metav1.ConditionTrue))
+		ExpectWithOffset(1, ready.Reason).To(Equal(clusterv1.ReadyReason))
+		ExpectWithOffset(1, anyErrorInExistingClaim(*claim)).To(BeFalse())
+	}
+
+	paused := metav1.Condition{
+		Type: clusterv1.PausedCondition, Status: metav1.ConditionFalse, Reason: clusterv1.NotPausedReason,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	DescribeTable("Test backfill of a claim bound by an older version",
+		func(stored []metav1.Condition) {
+			ipPool := newPool()
+			address := newAddress("test-prefix-192-168-0-12", "192.168.0.12", "claim-old")
+			claim := newBoundClaim("claim-old", address.Name, stored)
+			var calls []string
+			c := newRecordingClient(&calls, ipPool, claim, address)
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+			addressBefore := &capipamv1.IPAddress{}
+			Expect(c.Get(ctx, client.ObjectKeyFromObject(address), addressBefore)).To(Succeed())
+
+			// First pass: the claim gets the sub-conditions and Ready.
+			calls = nil
+			_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			firstPass := append([]string(nil), calls...)
+
+			got := getClaim(c, "claim-old")
+			Expect(got.Status.AddressRef.Name).To(Equal(address.Name))
+			Expect(got.Finalizers).To(Equal([]string{IPAddressClaimFinalizer}))
+			expectReadyWithSubConditions(got)
+			if conditions.Has(claim, clusterv1.PausedCondition) {
+				// A condition owned by another controller is kept.
+				Expect(conditions.Has(got, clusterv1.PausedCondition)).To(BeTrue())
+			}
+			// Nothing new is allocated or created: the pool still holds only
+			// the address of the claim, and so does the namespace.
+			Expect(ipPool.Status.Allocations).To(Equal(map[string]ipamv1.IPAddressStr{"claim-old": "192.168.0.12"}))
+			expectOnlyAddress(c, addressBefore)
+			// The cost is one read of the IPAddress and one status patch of the claim.
+			// The patch helper reads the claim again before it patches the conditions.
+			Expect(firstPass).To(Equal([]string{
+				"get IPAddress/test-prefix-192-168-0-12",
+				"get IPAddressClaim/claim-old",
+				"patch/status IPAddressClaim/claim-old",
+			}))
+
+			// Second pass: the claim is skipped like any other bound claim.
+			calls = nil
+			_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(calls).To(BeEmpty())
+			again := getClaim(c, "claim-old")
+			Expect(again.ResourceVersion).To(Equal(got.ResourceVersion))
+			Expect(again.Status).To(Equal(got.Status))
+		},
+		Entry("without conditions", []metav1.Condition(nil)),
+		Entry("with Ready True and no reason", []metav1.Condition{{
+			Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+		}}),
+		Entry("with Ready True and no reason next to a condition of another controller", []metav1.Condition{{
+			Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionTrue,
+			LastTransitionTime: metav1.Now(),
+		}, paused}),
+		// The two stale Ready entries are retried without the backfill too,
+		// because anyErrorInExistingClaim matches their reason.
+		Entry("with a stale Ready False PoolExhausted", []metav1.Condition{{
+			Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionFalse,
+			Reason: capipamv1.IPAddressClaimReadyPoolExhaustedReason, Message: "Exhausted IP Pools",
+			LastTransitionTime: metav1.Now(),
+		}}),
+		Entry("with a stale Ready False AllocationFailed", []metav1.Condition{{
+			Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionFalse,
+			Reason: capipamv1.IPAddressClaimReadyAllocationFailedReason, Message: "Failed to create associated IPAddress object",
+			LastTransitionTime: metav1.Now(),
+		}}),
+	)
+
+	It("backfills every bound claim of the pool in one pass and writes each claim once", func() {
+		ipPool := newPool()
+		objects := make([]client.Object, 0, 10)
+		objects = append(objects, ipPool)
+		for i, name := range []string{"claim-1", "claim-2", "claim-3"} {
+			ip := fmt.Sprintf("192.168.0.%d", 12+i)
+			address := newAddress(fmt.Sprintf("test-prefix-192-168-0-%d", 12+i), ip, name)
+			objects = append(objects, address, newBoundClaim(name, address.Name, nil))
+		}
+		// A claim of another pool is not touched.
+		other := newBoundClaim("claim-other-pool", "other-192-168-1-1", nil)
+		other.Spec.PoolRef.Name = "other-pool"
+		// A claim that already has the sub-conditions is skipped.
+		done := newBoundClaim("claim-done", "test-prefix-192-168-0-15", nil)
+		doneAddress := newAddress("test-prefix-192-168-0-15", "192.168.0.15", "claim-done")
+		conditions.Set(done, metav1.Condition{Type: IPAddressAllocatedCondition, Status: metav1.ConditionTrue, Reason: IPAddressAllocatedReason})
+		conditions.Set(done, metav1.Condition{Type: IPAddressCreatedCondition, Status: metav1.ConditionTrue, Reason: IPAddressCreatedReason})
+		conditions.Set(done, metav1.Condition{Type: capipamv1.IPAddressClaimReadyCondition, Status: metav1.ConditionTrue, Reason: clusterv1.ReadyReason})
+		objects = append(objects, other, done, doneAddress)
+
+		var calls []string
+		c := newRecordingClient(&calls, objects...)
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		calls = nil
+		_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calls).To(ConsistOf(
+			"get IPAddress/test-prefix-192-168-0-12", "get IPAddressClaim/claim-1", "patch/status IPAddressClaim/claim-1",
+			"get IPAddress/test-prefix-192-168-0-13", "get IPAddressClaim/claim-2", "patch/status IPAddressClaim/claim-2",
+			"get IPAddress/test-prefix-192-168-0-14", "get IPAddressClaim/claim-3", "patch/status IPAddressClaim/claim-3",
+		))
+		for _, name := range []string{"claim-1", "claim-2", "claim-3"} {
+			expectReadyWithSubConditions(getClaim(c, name))
+		}
+		Expect(conditions.Has(getClaim(c, "claim-other-pool"), IPAddressAllocatedCondition)).To(BeFalse())
+
+		calls = nil
+		_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calls).To(BeEmpty())
+	})
+
+	It("leaves a bound claim alone when its IPAddress is gone and allocates nothing", func() {
+		ipPool := newPool()
+		claim := newBoundClaim("claim-old", "test-prefix-192-168-0-12", nil)
+		var calls []string
+		c := newRecordingClient(&calls, ipPool, claim)
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		before := getClaim(c, "claim-old")
+
+		calls = nil
+		_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calls).To(BeEmpty())
+		after := getClaim(c, "claim-old")
+		Expect(after.ResourceVersion).To(Equal(before.ResourceVersion))
+		Expect(after.Status.AddressRef.Name).To(Equal("test-prefix-192-168-0-12"))
+		Expect(ipPool.Status.Allocations).To(BeEmpty())
+		list := &capipamv1.IPAddressList{}
+		Expect(c.List(ctx, list, client.InNamespace("myns"))).To(Succeed())
+		Expect(list.Items).To(BeEmpty())
+	})
+
+	It("leaves a bound claim alone when its IPAddress does not have the name derived from the pool", func() {
+		// The pool NamePrefix changed after the claim was bound.
+		ipPool := newPool()
+		address := newAddress("old-prefix-192-168-0-12", "192.168.0.12", "claim-old")
+		claim := newBoundClaim("claim-old", address.Name, nil)
+		var calls []string
+		c := newRecordingClient(&calls, ipPool, claim, address)
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		before := getClaim(c, "claim-old")
+		addressBefore := &capipamv1.IPAddress{}
+		Expect(c.Get(ctx, client.ObjectKeyFromObject(address), addressBefore)).To(Succeed())
+
+		calls = nil
+		_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(calls).To(BeEmpty())
+		after := getClaim(c, "claim-old")
+		Expect(after.ResourceVersion).To(Equal(before.ResourceVersion))
+		Expect(after.Status.AddressRef.Name).To(Equal("old-prefix-192-168-0-12"))
+		expectOnlyAddress(c, addressBefore)
+	})
+
+	It("does not re-link a bound claim to a terminating IPAddress and retries later", func() {
+		ipPool := newPool()
+		deletionTime := metav1.Now()
+		address := newAddress("test-prefix-192-168-0-12", "192.168.0.12", "claim-old")
+		address.DeletionTimestamp = &deletionTime
+		claim := newBoundClaim("claim-old", address.Name, nil)
+		var calls []string
+		c := newRecordingClient(&calls, ipPool, claim, address)
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		addressBefore := &capipamv1.IPAddress{}
+		Expect(c.Get(ctx, client.ObjectKeyFromObject(address), addressBefore)).To(Succeed())
+
+		for range 2 {
+			_, err = ipPoolMgr.capiUpdateAddresses(ctx)
+			var re ReconcileError
+			Expect(errors.As(err, &re)).To(BeTrue())
+			Expect(re.IsTransient()).To(BeTrue())
+			Expect(err).To(MatchError(ContainSubstring("is being deleted")))
+
+			got := getClaim(c, "claim-old")
+			Expect(got.Status.AddressRef.Name).To(Equal(address.Name))
+			Expect(conditions.IsTrue(got, IPAddressAllocatedCondition)).To(BeFalse())
+			Expect(conditions.Has(got, IPAddressCreatedCondition)).To(BeFalse())
+			Expect(conditions.Get(got, capipamv1.IPAddressClaimReadyCondition)).To(
+				HaveField("Status", metav1.ConditionUnknown))
+			expectOnlyAddress(c, addressBefore)
+		}
 	})
 })
