@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -93,9 +94,9 @@ var _ = Describe("IPPool controller", func() {
 			}
 
 			if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() && tc.reconcileDeleteError {
-				m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.Background()).Return(0, time.Duration(0), errors.New(""))
 			} else if tc.m3ipp != nil && !tc.m3ipp.DeletionTimestamp.IsZero() {
-				m.EXPECT().UpdateAddresses(context.Background()).Return(0, nil)
+				m.EXPECT().UpdateAddresses(context.Background()).Return(0, time.Duration(0), nil)
 				m.EXPECT().UnsetFinalizer()
 			}
 
@@ -103,9 +104,9 @@ var _ = Describe("IPPool controller", func() {
 				tc.reconcileNormal {
 				m.EXPECT().SetFinalizer()
 				if tc.reconcileNormalError {
-					m.EXPECT().UpdateAddresses(context.Background()).Return(0, errors.New(""))
+					m.EXPECT().UpdateAddresses(context.Background()).Return(0, time.Duration(0), errors.New(""))
 				} else {
-					m.EXPECT().UpdateAddresses(context.Background()).Return(1, nil)
+					m.EXPECT().UpdateAddresses(context.Background()).Return(1, time.Duration(0), nil)
 				}
 			}
 
@@ -234,6 +235,8 @@ var _ = Describe("IPPool controller", func() {
 		ExpectError   bool
 		ExpectRequeue bool
 		UpdateError   bool
+		// UpdateRequeueAfter is the duration that UpdateAddresses returns with no error.
+		UpdateRequeueAfter time.Duration
 	}
 
 	DescribeTable("ReconcileNormal tests",
@@ -252,9 +255,9 @@ var _ = Describe("IPPool controller", func() {
 			m.EXPECT().SetFinalizer()
 
 			if !tc.UpdateError {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, nil)
+				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, tc.UpdateRequeueAfter, nil)
 			} else {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, time.Duration(0), errors.New(""))
 			}
 
 			result, err := ipPoolReconcile.reconcileNormal(context.TODO(), m)
@@ -270,10 +273,19 @@ var _ = Describe("IPPool controller", func() {
 			} else {
 				Expect(result).ToNot(Equal(ctrl.Result{RequeueAfter: requeueAfter}))
 			}
+			if tc.UpdateRequeueAfter > 0 {
+				// The duration from UpdateAddresses goes into the result.
+				Expect(result).To(Equal(ctrl.Result{RequeueAfter: tc.UpdateRequeueAfter}))
+			}
 		},
 		Entry("No error", reconcileNormalTestCase{
 			ExpectError:   false,
 			ExpectRequeue: false,
+		}),
+		Entry("No error, requeue for a terminating IPAddress", reconcileNormalTestCase{
+			ExpectError:        false,
+			ExpectRequeue:      false,
+			UpdateRequeueAfter: 5 * time.Second,
 		}),
 		Entry("Update error", reconcileNormalTestCase{
 			UpdateError:   true,
@@ -287,6 +299,8 @@ var _ = Describe("IPPool controller", func() {
 		ExpectRequeue bool
 		DeleteReady   bool
 		DeleteError   bool
+		// UpdateRequeueAfter is the duration that UpdateAddresses returns with no error.
+		UpdateRequeueAfter time.Duration
 	}
 
 	DescribeTable("ReconcileDelete tests",
@@ -302,12 +316,13 @@ var _ = Describe("IPPool controller", func() {
 			m := ipam_mocks.NewMockIPPoolManagerInterface(gomockCtrl)
 
 			if !tc.DeleteError && tc.DeleteReady {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, nil)
+				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, time.Duration(0), nil)
 				m.EXPECT().UnsetFinalizer()
 			} else if !tc.DeleteError {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, nil)
+				// UnsetFinalizer is not expected: one allocation is left.
+				m.EXPECT().UpdateAddresses(context.TODO()).Return(1, tc.UpdateRequeueAfter, nil)
 			} else {
-				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, errors.New(""))
+				m.EXPECT().UpdateAddresses(context.TODO()).Return(0, time.Duration(0), errors.New(""))
 			}
 
 			result, err := ipPoolReconcile.reconcileDelete(context.TODO(), m)
@@ -323,10 +338,19 @@ var _ = Describe("IPPool controller", func() {
 			} else {
 				Expect(result).ToNot(Equal(ctrl.Result{RequeueAfter: requeueAfter}))
 			}
+			if tc.UpdateRequeueAfter > 0 {
+				// The duration from UpdateAddresses goes into the result.
+				Expect(result).To(Equal(ctrl.Result{RequeueAfter: tc.UpdateRequeueAfter}))
+			}
 		},
 		Entry("No error", reconcileDeleteTestCase{
 			ExpectError:   false,
 			ExpectRequeue: false,
+		}),
+		Entry("No error, requeue for a terminating IPAddress", reconcileDeleteTestCase{
+			ExpectError:        false,
+			ExpectRequeue:      false,
+			UpdateRequeueAfter: 5 * time.Second,
 		}),
 		Entry("Delete error", reconcileDeleteTestCase{
 			DeleteError:   true,
