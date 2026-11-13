@@ -24,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -91,12 +92,12 @@ func createObject(ctx context.Context, cl client.Client, obj client.Object, opts
 	return err
 }
 
-func deleteObject(ctx context.Context, cl client.Client, obj client.Object, opts ...client.DeleteOption) error {
+func deleteObject(ctx context.Context, cl client.Client, obj client.Object) error {
 	objCopy, err := deepCopyObject(obj)
 	if err != nil {
 		return err
 	}
-	err = cl.Delete(ctx, objCopy, opts...)
+	err = cl.Delete(ctx, objCopy)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -176,4 +177,15 @@ func findOwnerRefFromList(refList []metav1.OwnerReference, objType metav1.TypeMe
 		}
 	}
 	return 0, &NotFoundError{}
+}
+
+// hasOwnerRefWithUID returns true if any owner reference in the list has the
+// given UID.
+func hasOwnerRefWithUID(refList []metav1.OwnerReference, uid types.UID) bool {
+	for _, ref := range refList {
+		if ref.UID == uid {
+			return true
+		}
+	}
+	return false
 }
