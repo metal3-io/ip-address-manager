@@ -192,6 +192,11 @@ func (r *IPPoolReconciler) SetupWithManagerForIPClaim(ctx context.Context, mgr c
 			&ipamv1.IPClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPClaimToIPPool),
 		).
+		// Watch IPAddresses so deleting one reconciles the owning IPPool.
+		Watches(
+			&ipamv1.IPAddress{},
+			handler.EnqueueRequestsFromMapFunc(r.IPAddressToIPPool),
+		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
 }
@@ -205,6 +210,11 @@ func (r *IPPoolReconciler) SetupWithManagerForIPAddressClaim(ctx context.Context
 		Watches(
 			&capipamv1.IPAddressClaim{},
 			handler.EnqueueRequestsFromMapFunc(r.IPAddressClaimToIPPool),
+		).
+		// Watch CAPI IPAddresses so that deleting one triggers a reconcile.
+		Watches(
+			&capipamv1.IPAddress{},
+			handler.EnqueueRequestsFromMapFunc(r.CAPIIPAddressToIPPool),
 		).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(mgr.GetScheme(), ctrl.LoggerFrom(ctx), r.WatchFilterValue)).
 		Complete(r)
@@ -245,6 +255,49 @@ func (r *IPPoolReconciler) IPAddressClaimToIPPool(_ context.Context, obj client.
 					NamespacedName: types.NamespacedName{
 						Name:      ipac.Spec.PoolRef.Name,
 						Namespace: namespace,
+					},
+				},
+			}
+		}
+	}
+	return []ctrl.Request{}
+}
+
+// IPAddressToIPPool maps a metal3 IPAddress event to a reconcile request for
+// the IPPool that owns it.
+func (r *IPPoolReconciler) IPAddressToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
+	if ipa, ok := obj.(*ipamv1.IPAddress); ok {
+		if ipa.Spec.Pool.Name != "" {
+			namespace := ipa.Spec.Pool.Namespace
+			if namespace == "" {
+				namespace = ipa.Namespace
+			}
+			return []ctrl.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      ipa.Spec.Pool.Name,
+						Namespace: namespace,
+					},
+				},
+			}
+		}
+	}
+	return []ctrl.Request{}
+}
+
+// CAPIIPAddressToIPPool maps a CAPI IPAddress event to a reconcile request for
+// the IPPool that owns it. Events whose PoolRef points at another IPAM provider
+// are ignored.
+func (r *IPPoolReconciler) CAPIIPAddressToIPPool(_ context.Context, obj client.Object) []ctrl.Request {
+	if ipa, ok := obj.(*capipamv1.IPAddress); ok {
+		poolRef := ipa.Spec.PoolRef
+		if poolRef.Name != "" && poolRef.APIGroup == ipamv1.GroupVersion.Group &&
+			(poolRef.Kind == "" || poolRef.Kind == "IPPool") {
+			return []ctrl.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      poolRef.Name,
+						Namespace: ipa.Namespace,
 					},
 				},
 			}
