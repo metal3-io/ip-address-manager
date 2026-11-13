@@ -138,6 +138,20 @@ func (webhook *IPClaim) ValidateUpdate(_ context.Context, oldIPClaim, newIPClaim
 		}
 	}
 
+	// Changes to the ipAddress annotation are restricted once an IP has been
+	// allocated. Removing the annotation is always allowed.
+	oldIP := oldIPClaim.Annotations["ipAddress"]
+	newIP := newIPClaim.Annotations["ipAddress"]
+	if newIP != oldIP && newIP != "" && oldIPClaim.Status.Address != nil {
+		allErrs = append(allErrs,
+			field.Invalid(
+				field.NewPath("metadata", "annotations", "ipAddress"),
+				newIP,
+				"cannot be added or modified after an IP address has been allocated",
+			),
+		)
+	}
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
