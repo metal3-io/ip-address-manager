@@ -33,6 +33,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
@@ -71,9 +72,10 @@ type IPPoolManagerInterface interface {
 
 // IPPoolManager is responsible for performing machine reconciliation.
 type IPPoolManager struct {
-	client client.Client
-	IPPool *ipamv1.IPPool
-	Log    logr.Logger
+	client   client.Client
+	IPPool   *ipamv1.IPPool
+	Log      logr.Logger
+	recorder events.EventRecorder
 }
 
 // NewIPPoolManager returns a new helper for managing a ipPool object.
@@ -838,13 +840,21 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 		},
 	}
 
-	// Create the IPAddress object. If we get a conflict (that will set
-	// Transient error), then requeue to retrigger the reconciliation with
-	// the new state
+	// Create the IPAddress object. AlreadyExists is reported as a transient
+	// error so the claim is retried with backoff: the name is either taken by
+	// a concurrent claim in this pool, which resolves itself, or by another
+	// IPPool sharing spec.namePrefix, which resolves once that pool is fixed.
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
+			// Not the AlreadyExists case: surface the real error and requeue.
 			addressClaim.Status.ErrorMessage = ptr.To("Failed to create associated IPAddress object")
+			return addresses, err
+		}
+		msg := nameCollisionMessage(addressName)
+		addressClaim.Status.ErrorMessage = ptr.To(msg)
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
 		}
 		return addresses, err
 	}
@@ -973,18 +983,31 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 		},
 	}
 
-	// Create the IPAddress object. If we get a conflict (that will set
-	// Transient error), then requeue to retrigger the reconciliation with
-	// the new state
+	// Create the IPAddress object. AlreadyExists is reported as a transient
+	// error so the claim is retried with backoff: the name is either taken by
+	// a concurrent claim in this pool, which resolves itself, or by another
+	// IPPool sharing spec.namePrefix, which resolves once that pool is fixed.
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
 		if !errors.As(err, &reconcileError) {
+			// Not the AlreadyExists case: surface the real error and requeue.
 			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
 				Type:    capipamv1.IPAddressClaimReadyCondition,
 				Status:  metav1.ConditionFalse,
 				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
 				Message: "Failed to create associated IPAddress object",
 			})
+			return addresses, err
+		}
+		msg := nameCollisionMessage(addressName)
+		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+			Type:    capipamv1.IPAddressClaimReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+			Message: msg,
+		})
+		if m.recorder != nil {
+			m.recorder.Eventf(m.IPPool, nil, corev1.EventTypeWarning, "IPAddressNameCollision", "AllocateIPAddress", "%s", msg)
 		}
 		return addresses, err
 	}
@@ -1228,4 +1251,16 @@ func anyErrorInExistingClaim(addressClaim capipamv1.IPAddressClaim) bool {
 	condition := meta.FindStatusCondition(addressClaim.Status.Conditions, capipamv1.IPAddressClaimReadyCondition)
 	return condition != nil && (condition.Reason == capipamv1.IPAddressClaimReadyAllocationFailedReason ||
 		condition.Reason == capipamv1.IPAddressClaimReadyPoolExhaustedReason)
+}
+
+// nameCollisionMessage renders the message for an IPAddress name that is
+// already taken. The owning pool is deliberately not looked up: the name is
+// built from spec.namePrefix and the address, so "kubectl get ipaddress <name>
+// -o yaml" shows the owner, and an extra read on every failed create would be
+// wasted work.
+func nameCollisionMessage(addressName string) string {
+	return fmt.Sprintf(
+		"IPAddress %q already exists; another IPPool in this namespace may use the same spec.namePrefix",
+		addressName,
+	)
 }
