@@ -248,12 +248,19 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	if m.IPPool.Status.LastUpdated == nil {
 		m.IPPool.Status.LastUpdated = m.IPPool.CreationTimestamp.DeepCopy()
 	}
+
 	var errorsFound []error
 	var re ReconcileError
 	transient := false
 	requeue := time.Duration(math.MaxInt64)
 
-	_, m3Err := m.m3UpdateAddresses(ctx)
+	addresses, err := m.getIndexes(ctx)
+	if err != nil {
+		m.Log.Error(err, "Failed to update addresses: can't get pool indexes")
+		return 0, err
+	}
+
+	addresses, m3Err := m.m3UpdateAddresses(ctx, addresses)
 	if m3Err != nil {
 		if errors.As(m3Err, &re) && re.IsTransient() {
 			transient, requeue = true, min(requeue, re.GetRequeueAfter())
@@ -261,7 +268,7 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 		errorsFound = append(errorsFound, m3Err)
 	}
 
-	count, capiErr := m.capiUpdateAddresses(ctx)
+	addresses, capiErr := m.capiUpdateAddresses(ctx, addresses)
 	if capiErr != nil {
 		if errors.As(capiErr, &re) && re.IsTransient() {
 			transient, requeue = true, min(requeue, re.GetRequeueAfter())
@@ -269,6 +276,7 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 		errorsFound = append(errorsFound, capiErr)
 	}
 
+	count := len(addresses)
 	if len(errorsFound) > 0 {
 		// A transient error wins: the pool is requeued after the smallest delay.
 		// Plain errors in the same pass are already logged where they happen.
@@ -283,16 +291,9 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// UpdateM3Addresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
-// It returns the number of current allocations. Current allocation include
-// both capi and metal3 type ipaddress objects.
-func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		m.Log.Error(err, "Failed to update addresses for IPClaims: can't get pool indexes")
-		return 0, err
-	}
-
+// m3UpdateAddresses manages the ipclaims.ipam.metal3.io and creates or deletes IPAddress.ipam.metal3.io accordingly.
+// It receives the shared addresses map and returns the updated map.
+func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context, addresses map[ipamv1.IPAddressStr]string) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := ipamv1.IPClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -300,10 +301,10 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
 		m.Log.Error(err, "Failed to update addresses for IPClaims: can't list IPClaims")
-		return 0, err
+		return addresses, err
 	}
 
 	var errorsFound []error
@@ -337,22 +338,17 @@ func (m *IPPoolManager) m3UpdateAddresses(ctx context.Context) (int, error) {
 		if transient {
 			m.Log.Info("Failed to update some IPClaims, requeuing. Enable debug log level for details",
 				"failures", len(errorsFound), "requeueAfter", requeue)
-			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+			return addresses, WithTransientError(errors.Join(errorsFound...), requeue)
 		}
 		// Flattened to a plain error, see UpdateAddresses.
-		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
+		return addresses, errors.New(errors.Join(errorsFound...).Error())
 	}
-	return len(addresses), nil
+	return addresses, nil
 }
 
-// UpdateCAPIAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
-// It returns the number of current allocations.
-func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
-	addresses, err := m.getIndexes(ctx)
-	if err != nil {
-		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't get pool indexes")
-		return 0, err
-	}
+// capiUpdateAddresses manages the ipaddressclaims.ipam.cluster.x-k8s.io and creates or deletes IPAddress.ipam.cluster.x-k8s.io accordingly.
+// It receives the shared addresses map and returns the updated map.
+func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context, addresses map[ipamv1.IPAddressStr]string) (map[ipamv1.IPAddressStr]string, error) {
 	// get list of IPClaim objects
 	addressClaimObjects := capipamv1.IPAddressClaimList{}
 	// without this ListOption, all namespaces would be including in the listing
@@ -360,10 +356,10 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		Namespace: m.IPPool.Namespace,
 	}
 
-	err = m.client.List(ctx, &addressClaimObjects, opts)
+	err := m.client.List(ctx, &addressClaimObjects, opts)
 	if err != nil {
 		m.Log.Error(err, "Failed to update addresses for IPAddressClaims: can't list IPAddressClaims")
-		return 0, err
+		return addresses, err
 	}
 
 	var errorsFound []error
@@ -397,12 +393,12 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 		if transient {
 			m.Log.Info("Failed to update some IPAddressClaims, requeuing. Enable debug log level for details",
 				"failures", len(errorsFound), "requeueAfter", requeue)
-			return len(addresses), WithTransientError(errors.Join(errorsFound...), requeue)
+			return addresses, WithTransientError(errors.Join(errorsFound...), requeue)
 		}
 		// Flattened to a plain error, see UpdateAddresses.
-		return len(addresses), errors.New(errors.Join(errorsFound...).Error())
+		return addresses, errors.New(errors.Join(errorsFound...).Error())
 	}
-	return len(addresses), nil
+	return addresses, nil
 }
 
 // UpdateAddress creates metal3 ipaddress or deletes it. Address can be deleted if it
