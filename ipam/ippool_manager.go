@@ -377,8 +377,11 @@ func (m *IPPoolManager) capiUpdateAddresses(ctx context.Context) (int, error) {
 			continue
 		}
 
+		// A bound claim without an error is skipped, unless it still needs the
+		// sub-conditions of a version that did not set them.
 		if addressClaim.Status.AddressRef.Name != "" && !anyErrorInExistingClaim(addressClaim) &&
-			addressClaim.DeletionTimestamp.IsZero() {
+			addressClaim.DeletionTimestamp.IsZero() &&
+			!m.needsConditionBackfill(&addressClaim) {
 			continue
 		}
 
@@ -474,7 +477,18 @@ func (m *IPPoolManager) capiUpdateAddress(ctx context.Context,
 		if deleted {
 			return
 		}
-		patchErr := helper.Patch(ctx, addressClaim)
+		if addressClaim.DeletionTimestamp.IsZero() {
+			// Ready is derived from the sub-conditions set during reconcile.
+			if summaryErr := setIPAddressClaimReadyCondition(addressClaim); summaryErr != nil {
+				m.Log.Error(summaryErr, "failed to set IPAddressClaim Ready condition")
+				if rerr == nil {
+					rerr = summaryErr
+				}
+			}
+		}
+		patchErr := helper.Patch(ctx, addressClaim,
+			patch.WithOwnedConditions{Conditions: ipAddressClaimOwnedConditions},
+		)
 		if patchErr != nil {
 			m.Log.Error(patchErr, "failed to Patch IPAddressClaim")
 			rerr = patchErr
@@ -622,29 +636,20 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	ipAllocated := false
 
 	requestedIP := ipamv1.IPAddressStr(addressClaim.ObjectMeta.Annotations[IPAddressAnnotation])
+	// Set when the requested IP is found in a pool, whether it is free or not.
 	isRequestedIPAllocated := false
 
 	if requestedIP != "" {
 		if net.ParseIP(string(requestedIP)) == nil {
 			msg := fmt.Sprintf("Invalid ipAddress annotation %q: not a valid IP address", requestedIP)
-			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-				Type:    capipamv1.IPAddressClaimReadyCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-				Message: msg,
-			})
+			setIPAddressAllocationFailed(addressClaim, InvalidRequestedIPReason, msg)
 			return "", 0, nil, errors.New(msg)
 		}
 	}
 
 	// Conflict-case, claim is preAllocated but has requested different IP
 	if requestedIP != "" && ipPreAllocated && !m.ipEqual(requestedIP, preAllocatedAddress) {
-		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-			Type:    capipamv1.IPAddressClaimReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message: "PreAllocation and requested ip address are conflicting",
-		})
+		setIPAddressAllocationFailed(addressClaim, PreAllocationConflictReason, "PreAllocation and requested ip address are conflicting")
 		return "", 0, nil, errors.New("PreAllocation and requested ip address are conflicting")
 	}
 
@@ -693,41 +698,30 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	}
 	// We did not get requestedIp as it did not match with any available IP
 	if requestedIP != "" && isRequestedIPAllocated && !ipAllocated {
-		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-			Type:    capipamv1.IPAddressClaimReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message: "Requested IP not available",
-		})
+		setIPAddressAllocationFailed(addressClaim, RequestedIPNotAvailableReason, "Requested IP not available")
 		return "", 0, nil, WithTransientError(errors.New("requested IP not available"), requeueAfterNoFreeIP)
 	}
 	// We have a preallocated IP but we did not find it in the pools! It means it is
 	// misconfigured
 	if !ipAllocated && ipPreAllocated {
-		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-			Type:    capipamv1.IPAddressClaimReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message: "Pre-allocated IP out of bounds",
-		})
+		setIPAddressAllocationFailed(addressClaim, PreAllocationOutOfBoundsReason, "Pre-allocated IP out of bounds")
 		return "", 0, nil, errors.New("pre-allocated IP out of bounds")
 	}
+	// The requested IP is in none of the pools. A claim with a requested IP is
+	// never given another address, so the pool is not exhausted. Retried at the
+	// same pace as RequestedIPNotAvailable, and straight away when the IPPool
+	// or the claim changes, as both are watched.
+	if requestedIP != "" && !isRequestedIPAllocated {
+		setIPAddressAllocationFailed(addressClaim, RequestedIPOutOfBoundsReason,
+			fmt.Sprintf("Requested IP %s is not in any pool", requestedIP))
+		return "", 0, nil, WithTransientError(fmt.Errorf("requested IP %s is not in any pool", requestedIP), requeueAfterNoFreeIP)
+	}
 	if !ipAllocated {
-		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-			Type:    capipamv1.IPAddressClaimReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  capipamv1.IPAddressClaimReadyPoolExhaustedReason,
-			Message: "Exhausted IP Pools",
-		})
+		setIPAddressAllocationFailed(addressClaim, capipamv1.IPAddressClaimReadyPoolExhaustedReason, "Exhausted IP Pools")
 		return "", 0, nil, WithTransientError(errors.New("exhausted IP pools"), requeueAfterPoolExhausted)
 	}
 	if prefix < 0 || prefix > 128 {
-		meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-			Type:    capipamv1.IPAddressClaimReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-			Message: "Invalid prefix value, it must be between 0 and 128",
-		})
+		setIPAddressAllocationFailed(addressClaim, InvalidPrefixReason, "Invalid prefix value, it must be between 0 and 128")
 		return "", 0, nil, errors.New("invalid prefix value, it must be between 0 and 128")
 	}
 	prefixInt32 := int32(prefix)
@@ -945,10 +939,10 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
 				Name: addressName,
 			}
-			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-				Type:   capipamv1.IPAddressClaimReadyCondition,
-				Status: metav1.ConditionTrue,
-			})
+			setIPAddressClaimSubCondition(addressClaim, IPAddressAllocatedCondition, metav1.ConditionTrue,
+				IPAddressAllocatedReason, "")
+			setIPAddressClaimSubCondition(addressClaim, IPAddressCreatedCondition, metav1.ConditionTrue,
+				IPAddressCreatedReason, "")
 			return addresses, nil
 		}
 		// The IPAddress object does not exist: the allocation in the pool is stale.
@@ -964,6 +958,8 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	if err != nil {
 		return addresses, err
 	}
+	setIPAddressClaimSubCondition(addressClaim, IPAddressAllocatedCondition, metav1.ConditionTrue,
+		IPAddressAllocatedReason, "")
 
 	var gatewayStr string
 	if gateway != nil {
@@ -1027,13 +1023,13 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 	// the new state
 	if err := createObject(ctx, m.client, addressObject); err != nil {
 		var reconcileError ReconcileError
-		if !errors.As(err, &reconcileError) {
-			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-				Type:    capipamv1.IPAddressClaimReadyCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
-				Message: "Failed to create associated IPAddress object",
-			})
+		if errors.As(err, &reconcileError) {
+			// Transient error: the create is retried, so the claim is not reported as failed.
+			setIPAddressClaimSubCondition(addressClaim, IPAddressCreatedCondition, metav1.ConditionUnknown,
+				IPAddressCreatePendingReason, "Waiting to create associated IPAddress object")
+		} else {
+			setIPAddressClaimSubCondition(addressClaim, IPAddressCreatedCondition, metav1.ConditionFalse,
+				IPAddressCreateFailedReason, "Failed to create associated IPAddress object")
 		}
 		return addresses, err
 	}
@@ -1045,10 +1041,8 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 		Name: addressName,
 	}
 
-	meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
-		Type:   capipamv1.IPAddressClaimReadyCondition,
-		Status: metav1.ConditionTrue,
-	})
+	setIPAddressClaimSubCondition(addressClaim, IPAddressCreatedCondition, metav1.ConditionTrue,
+		IPAddressCreatedReason, "")
 
 	return addresses, nil
 }

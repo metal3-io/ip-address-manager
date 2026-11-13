@@ -4429,7 +4429,7 @@ var _ = Describe("IPPool manager", func() {
 			Expect(ipClaim.Status.ErrorMessage).To(Equal(ptr.To("Exhausted IP Pools")))
 		})
 
-		It("capi: repeated exhaustion must not touch LastTransitionTime of the Ready condition", func() {
+		It("capi: repeated exhaustion must not touch LastTransitionTime of the Ready and IPAddressAllocated conditions", func() {
 			ipPool := &ipamv1.IPPool{
 				Spec: ipamv1.IPPoolSpec{
 					Pools: []ipamv1.Pool{
@@ -4440,18 +4440,16 @@ var _ = Describe("IPPool manager", func() {
 					},
 				},
 			}
+			// The state left by a previous exhausted reconcile: the sub-condition
+			// and the Ready condition derived from it.
 			oldTransitionTime := metav1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
 			ipAddressClaim := &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{Name: "claim-b"},
-				Status: capipamv1.IPAddressClaimStatus{
-					Conditions: []metav1.Condition{{
-						Type:               capipamv1.IPAddressClaimReadyCondition,
-						Status:             metav1.ConditionFalse,
-						LastTransitionTime: oldTransitionTime,
-						Reason:             capipamv1.IPAddressClaimReadyPoolExhaustedReason,
-						Message:            "Exhausted IP Pools",
-					}},
-				},
+			}
+			setIPAddressAllocationFailed(ipAddressClaim, capipamv1.IPAddressClaimReadyPoolExhaustedReason, "Exhausted IP Pools")
+			Expect(setIPAddressClaimReadyCondition(ipAddressClaim)).To(Succeed())
+			for i := range ipAddressClaim.Status.Conditions {
+				ipAddressClaim.Status.Conditions[i].LastTransitionTime = oldTransitionTime
 			}
 			addresses := map[ipamv1.IPAddressStr]string{"192.168.0.10": "claim-a"}
 
@@ -4461,8 +4459,13 @@ var _ = Describe("IPPool manager", func() {
 			before := ipAddressClaim.DeepCopy()
 			_, _, _, err = ipPoolMgr.capiAllocateAddress(ipAddressClaim, addresses)
 			Expect(err).To(HaveOccurred())
-			Expect(ipAddressClaim.Status.Conditions).To(HaveLen(1))
-			Expect(ipAddressClaim.Status.Conditions[0].LastTransitionTime).To(Equal(oldTransitionTime))
+			// The Ready condition is derived once per reconcile, as in the
+			// deferred function of capiUpdateAddress.
+			Expect(setIPAddressClaimReadyCondition(ipAddressClaim)).To(Succeed())
+			Expect(ipAddressClaim.Status.Conditions).To(HaveLen(2))
+			for _, condition := range ipAddressClaim.Status.Conditions {
+				Expect(condition.LastTransitionTime).To(Equal(oldTransitionTime), condition.Type)
+			}
 			// No status diff means the deferred patch writes nothing and the
 			// IPAddressClaim watch does not re-enqueue the pool.
 			Expect(ipAddressClaim.Status).To(Equal(before.Status))
