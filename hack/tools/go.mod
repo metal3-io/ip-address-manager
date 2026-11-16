@@ -15,7 +15,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/saschagrunert/go-modiff v1.4.1
 	go.uber.org/mock v0.6.0
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.8.1
 )
 
