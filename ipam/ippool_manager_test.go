@@ -1819,6 +1819,7 @@ var _ = Describe("IPPool manager", func() {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "stale-claim",
+						UID:        "stale-claim-uid",
 						Namespace:  "myns",
 						Finalizers: []string{ipamv1.IPClaimFinalizer},
 					},
@@ -1843,8 +1844,9 @@ var _ = Describe("IPPool manager", func() {
 			ipAddresses: []*ipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "abcpref-192-168-1-11",
-						Namespace: "myns",
+						Name:            "abcpref-192-168-1-11",
+						Namespace:       "myns",
+						OwnerReferences: []metav1.OwnerReference{{UID: "stale-claim-uid"}},
 					},
 					Spec: ipamv1.IPAddressSpec{
 						Pool: corev1.ObjectReference{
@@ -1884,6 +1886,7 @@ var _ = Describe("IPPool manager", func() {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "stale-capi-claim",
+						UID:        "stale-capi-claim-uid",
 						Namespace:  "myns",
 						Finalizers: []string{IPAddressClaimFinalizer},
 					},
@@ -1909,8 +1912,9 @@ var _ = Describe("IPPool manager", func() {
 			capiAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "abcpref-192-168-1-11",
-						Namespace: "myns",
+						Name:            "abcpref-192-168-1-11",
+						Namespace:       "myns",
+						OwnerReferences: []metav1.OwnerReference{{UID: "stale-capi-claim-uid"}},
 					},
 					Spec: capipamv1.IPAddressSpec{
 						PoolRef: capipamv1.IPPoolReference{
@@ -2008,6 +2012,7 @@ var _ = Describe("IPPool manager", func() {
 			ipClaim: &ipamv1.IPClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
+					UID:  "abc-uid",
 				},
 			},
 			// The IPAddress exists and matches ippool allocation, so createAddress
@@ -2015,8 +2020,9 @@ var _ = Describe("IPPool manager", func() {
 			ipAddresses: []*ipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "abcpref-192-168-0-15",
-						Namespace: "myns",
+						Name:            "abcpref-192-168-0-15",
+						Namespace:       "myns",
+						OwnerReferences: []metav1.OwnerReference{{UID: "abc-uid"}},
 					},
 					Spec: ipamv1.IPAddressSpec{
 						Address: "192.168.0.15",
@@ -2351,6 +2357,7 @@ var _ = Describe("IPPool manager", func() {
 			ipAddressClaim: &capipamv1.IPAddressClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "abc",
+					UID:  "abc-uid",
 				},
 			},
 			// The IPAddress exists and matches ippool allocation, so capiCreateAddress
@@ -2358,8 +2365,9 @@ var _ = Describe("IPPool manager", func() {
 			ipAddresses: []*capipamv1.IPAddress{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "abcpref-192-168-0-15",
-						Namespace: "myns",
+						Name:            "abcpref-192-168-0-15",
+						Namespace:       "myns",
+						OwnerReferences: []metav1.OwnerReference{{UID: "abc-uid"}},
 					},
 					Spec: capipamv1.IPAddressSpec{
 						Address:  "192.168.0.15",
