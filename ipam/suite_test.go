@@ -20,6 +20,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	_ "github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -41,6 +42,10 @@ import (
 )
 
 var timeNow = metav1.Now()
+
+// timePast is well beyond moveGracePeriod in the past, used to simulate a claim
+// whose clusterctl move completed long ago.
+var timePast = metav1.NewTime(timeNow.Add(-24 * time.Hour))
 
 var cfg *rest.Config
 var k8sClient client.Client
