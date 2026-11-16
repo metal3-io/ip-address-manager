@@ -751,22 +751,47 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
 		}, existingAddress)
-		if err == nil && existingAddress.DeletionTimestamp.IsZero() {
-			// A non-terminating IPAddress object exists, so we can safely
-			// re-link the claim to it.
-			addressClaim.Status.Address = &corev1.ObjectReference{
-				Name:      addressName,
-				Namespace: m.IPPool.Namespace,
-			}
-			return addresses, nil
-		}
-		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
+		switch {
+		case err != nil:
+			// Read error (e.g. NotFound): returned below.
+		case !existingAddress.DeletionTimestamp.IsZero():
 			// The IPAddress object exists but is being deleted. We must not re-link the claim to it.
 			// Mark the error as transient so the reconcile loop will retry after the specified duration.
 			err = WithTransientError(
 				fmt.Errorf("allocated IPAddress %s is being deleted, waiting for deletion to complete", addressName),
 				requeueAfterIPAddressDeletion,
 			)
+		case !hasOwnerRefWithUID(existingAddress.OwnerReferences, addressClaim.UID):
+			// Make sure this claim is requeued alternatively we could put
+			// an error status on it
+			addressClaim.Status.Address = nil
+			// The IPAddress belongs to a previous IPClaim with the same name.
+			// Names are unique, so that claim is gone and this IPAddress is
+			// orphaned. Delete it so the next reconcile allocates a fresh address.
+			m.Log.Info("Deleting orphaned IPAddress owned by a previous IPClaim",
+				"IPAddress", addressName, "IPClaim", addressClaim.Name)
+			existingAddress.Finalizers = Filter(existingAddress.Finalizers,
+				ipamv1.IPAddressFinalizer,
+			)
+			if err = updateObject(ctx, m.client, existingAddress); err != nil &&
+				!apierrors.IsNotFound(err) {
+				return addresses, err
+			}
+			if err = deleteObject(ctx, m.client, existingAddress); err != nil {
+				return addresses, err
+			}
+			err = WithTransientError(
+				fmt.Errorf("deleted orphaned IPAddress %s owned by a previous IPClaim, requeuing", addressName),
+				requeueAfterIPAddressDeletion,
+			)
+		default:
+			// A non-terminating IPAddress object owned by this claim exists, so
+			// we can safely re-link the claim to it.
+			addressClaim.Status.Address = &corev1.ObjectReference{
+				Name:      addressName,
+				Namespace: m.IPPool.Namespace,
+			}
+			return addresses, nil
 		}
 		// The IPAddress object does not exist: the allocation in the pool is stale.
 		// This should be transient and resolved on the next reconcile loop. We
@@ -877,9 +902,41 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 			Name:      addressName,
 			Namespace: m.IPPool.Namespace,
 		}, existingAddress)
-		if err == nil && existingAddress.DeletionTimestamp.IsZero() {
-			// A non-terminating IPAddress object exists, so we can safely
-			// re-link the claim to it.
+		switch {
+		case err != nil:
+			// Read error (e.g. NotFound): returned below.
+		case !existingAddress.DeletionTimestamp.IsZero():
+			// The IPAddress object exists but is being deleted. We must not re-link the claim to it.
+			// Mark the error as transient so the reconcile loop will retry after the specified duration.
+			err = WithTransientError(
+				fmt.Errorf("allocated IPAddress %s is being deleted, waiting for deletion to complete", addressName),
+				requeueAfterIPAddressDeletion,
+			)
+		case !hasOwnerRefWithUID(existingAddress.OwnerReferences, addressClaim.UID):
+			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{}
+			// The IPAddress belongs to a previous IPAddressClaim with the same
+			// name. Names are unique, so that claim is gone and this IPAddress
+			// is orphaned. Delete it so the next reconcile allocates a fresh
+			// address.
+			m.Log.Info("Deleting orphaned IPAddress owned by a previous IPAddressClaim",
+				"IPAddress", addressName, "IPAddressClaim", addressClaim.Name)
+			existingAddress.Finalizers = Filter(existingAddress.Finalizers,
+				IPAddressFinalizer,
+			)
+			if err = updateObject(ctx, m.client, existingAddress); err != nil &&
+				!apierrors.IsNotFound(err) {
+				return addresses, err
+			}
+			if err = deleteObject(ctx, m.client, existingAddress); err != nil {
+				return addresses, err
+			}
+			err = WithTransientError(
+				fmt.Errorf("deleted orphaned IPAddress %s owned by a previous IPAddressClaim, requeuing", addressName),
+				requeueAfterIPAddressDeletion,
+			)
+		default:
+			// A non-terminating IPAddress object owned by this claim exists, so
+			// we can safely re-link the claim to it.
 			addressClaim.Status.AddressRef = capipamv1.IPAddressReference{
 				Name: addressName,
 			}
@@ -888,14 +945,6 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 				Status: metav1.ConditionTrue,
 			})
 			return addresses, nil
-		}
-		if err == nil && !existingAddress.DeletionTimestamp.IsZero() {
-			// The IPAddress object exists but is being deleted. We must not re-link the claim to it.
-			// Mark the error as transient so the reconcile loop will retry after the specified duration.
-			err = WithTransientError(
-				fmt.Errorf("allocated IPAddress %s is being deleted, waiting for deletion to complete", addressName),
-				requeueAfterIPAddressDeletion,
-			)
 		}
 		// The IPAddress object does not exist: the allocation in the pool is stale.
 		// This should be transient and resolved on the next reconcile loop. We
