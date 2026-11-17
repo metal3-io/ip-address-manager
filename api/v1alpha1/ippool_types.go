@@ -108,6 +108,14 @@ type IPPoolStatus struct {
 
 	// Allocations contains the map of objects and IP addresses they have
 	Allocations map[string]IPAddressStr `json:"indexes,omitempty"`
+
+	// Reservations is a reverse index of Allocations, keyed by IP address
+	// instead of claim name. A claim reserves its IP here, through a
+	// conflict-checked status update, before the IPAddress object for it is
+	// created. This stops a claim of the other kind (metal3 vs CAPI) from
+	// reserving the same IP, even when the informer cache has not yet
+	// observed the first claim's IPAddress object.
+	Reservations map[IPAddressStr]string `json:"reservations,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
