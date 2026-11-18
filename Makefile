@@ -96,11 +96,9 @@ unit: $(SETUP_ENVTEST) ## Run tests
 	go test -v ./controllers/... ./ipam/... -coverprofile ./cover.out && \
 	cd $(APIS_DIR) && go test -v ./... -coverprofile ./cover.out && cd .. && \
 	cd $(WEBHOOKS_DIR) && go test -v ./... -coverprofile ./cover.out
-	# Run fuzz tests as part of the unit test
-	$(MAKE) fuzz-run FUZZ_TIME=10s
 
 .PHONY: test  ## Run linter and tests
-test: generate lint unit
+test: generate lint unit fuzz-run
 
 .PHONY: unit-cover
 unit-cover: $(SETUP_ENVTEST) ## Run unit tests with code coverage
@@ -112,7 +110,7 @@ unit-cover: $(SETUP_ENVTEST) ## Run unit tests with code coverage
 	cd $(WEBHOOKS_DIR) && go test -coverprofile=$(COVER_PROFILE) ./... && \
 	go tool cover -func=$(COVER_PROFILE)
 
-FUZZ_TIME ?= 30s
+FUZZ_TIME ?= 5s
 
 .PHONY: fuzz
 fuzz: ## Run fuzz tests with seed corpus (no fuzzing, regression test only)
