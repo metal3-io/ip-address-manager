@@ -33,6 +33,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
@@ -71,6 +72,49 @@ func minRequeue(a, b time.Duration) time.Duration {
 		return a
 	}
 	return min(a, b)
+}
+
+// reserveIP atomically reserves ip for claimName in IPPool.Status.Reservations,
+// before the IPAddress object for it is created. Status().Update calls are
+// always rejected by the apiserver if the resourceVersion is stale, so a
+// concurrent reservation of the same ip by a claim of the other kind (metal3
+// vs CAPI) is caught here even when the informer cache has not yet observed
+// that other claim's IPAddress object. It returns false, nil if ip is already
+// reserved by a different claim, so the caller can pick another candidate.
+func (m *IPPoolManager) reserveIP(ctx context.Context, ip ipamv1.IPAddressStr, claimName string) (bool, error) {
+	var reserved bool
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		obj := &ipamv1.IPPool{}
+		key := client.ObjectKey{Name: m.IPPool.Name, Namespace: m.IPPool.Namespace}
+		if err := m.client.Get(ctx, key, obj); err != nil {
+			return err
+		}
+		if existing, ok := obj.Status.Reservations[ip]; ok {
+			reserved = existing == claimName
+			return nil
+		}
+		if obj.Status.Reservations == nil {
+			obj.Status.Reservations = make(map[ipamv1.IPAddressStr]string)
+		}
+		obj.Status.Reservations[ip] = claimName
+		if err := m.client.Status().Update(ctx, obj); err != nil {
+			return err
+		}
+		reserved = true
+		return nil
+	})
+	return reserved, err
+}
+
+// hasFixedIPRequest returns true if claimName must get one specific IP (a
+// preallocation or a requested-IP annotation), so a lost reservation race
+// cannot be worked around by picking a different candidate.
+func (m *IPPoolManager) hasFixedIPRequest(claimName string, annotations map[string]string) bool {
+	if annotations[IPAddressAnnotation] != "" {
+		return true
+	}
+	_, ok := m.IPPool.Spec.PreAllocations[claimName]
+	return ok
 }
 
 // IPPoolManagerInterface is an interface for a IPPoolManager.
@@ -211,6 +255,15 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		}
 		updatedAllocations[claimName] = addressObject.Spec.Address
 		addresses[addressObject.Spec.Address] = claimName
+		// Adopt this IP into Reservations if not already tracked. Never
+		// overwrite an existing entry: it may have just been reserved by
+		// reserveIP for a claim whose IPAddress is not in this list yet.
+		if m.IPPool.Status.Reservations == nil {
+			m.IPPool.Status.Reservations = make(map[ipamv1.IPAddressStr]string)
+		}
+		if _, ok := m.IPPool.Status.Reservations[addressObject.Spec.Address]; !ok {
+			m.IPPool.Status.Reservations[addressObject.Spec.Address] = claimName
+		}
 	}
 
 	// get list of IPAddress objects for cluster.x-k8s.io addresses
@@ -238,6 +291,13 @@ func (m *IPPoolManager) getIndexes(ctx context.Context) (map[ipamv1.IPAddressStr
 		}
 		updatedAllocations[claimName] = ipamv1.IPAddressStr(addressObject.Spec.Address)
 		addresses[ipamv1.IPAddressStr(addressObject.Spec.Address)] = claimName
+		// Adopt this IP into Reservations if not already tracked, see above.
+		if m.IPPool.Status.Reservations == nil {
+			m.IPPool.Status.Reservations = make(map[ipamv1.IPAddressStr]string)
+		}
+		if _, ok := m.IPPool.Status.Reservations[ipamv1.IPAddressStr(addressObject.Spec.Address)]; !ok {
+			m.IPPool.Status.Reservations[ipamv1.IPAddressStr(addressObject.Spec.Address)] = claimName
+		}
 	}
 
 	if !reflect.DeepEqual(updatedAllocations, m.IPPool.Status.Allocations) {
@@ -291,7 +351,7 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, time.Duration
 		errorsFound = append(errorsFound, m3Err)
 	}
 
-	addresses, capiRequeue, capiErr := m.capiUpdateAddresses(ctx, addresses)
+	_, capiRequeue, capiErr := m.capiUpdateAddresses(ctx, addresses)
 	if capiErr != nil {
 		if errors.As(capiErr, &re) && re.IsTransient() {
 			transient, requeue = true, min(requeue, re.GetRequeueAfter())
@@ -299,7 +359,8 @@ func (m *IPPoolManager) UpdateAddresses(ctx context.Context) (int, time.Duration
 		errorsFound = append(errorsFound, capiErr)
 	}
 
-	count := len(addresses)
+	// Count by claim, not by IP: two claims that hold the same IP are two holders.
+	count := len(m.IPPool.Status.Allocations)
 	requeueAfter := minRequeue(m3Requeue, capiRequeue)
 	if len(errorsFound) > 0 {
 		// When there is an error, the error alone decides the requeue, and the
@@ -861,10 +922,33 @@ func (m *IPPoolManager) createAddress(ctx context.Context,
 
 	// Get a new index for this machine
 	m.Log.Info("Getting address", "Claim", addressClaim.Name)
-	// Get a new IP for this owner
-	allocatedAddress, prefix, gateway, dnsServers, err := m.allocateAddress(addressClaim, addresses)
-	if err != nil {
-		return addresses, err
+	// Get a new IP for this owner. Reserve it before creating the IPAddress
+	// object: if a claim of the other kind wins the race for the same IP, our
+	// reservation attempt is rejected and we try a different candidate.
+	var allocatedAddress ipamv1.IPAddressStr
+	var prefix int
+	var gateway *ipamv1.IPAddressStr
+	var dnsServers []ipamv1.IPAddressStr
+	for {
+		var err error
+		allocatedAddress, prefix, gateway, dnsServers, err = m.allocateAddress(addressClaim, addresses)
+		if err != nil {
+			return addresses, err
+		}
+		reserved, err := m.reserveIP(ctx, allocatedAddress, addressClaim.Name)
+		if err != nil {
+			return addresses, err
+		}
+		if reserved {
+			break
+		}
+		if m.hasFixedIPRequest(addressClaim.Name, addressClaim.ObjectMeta.Annotations) {
+			addressClaim.Status.ErrorMessage = ptr.To("Requested IP already reserved by another claim")
+			return addresses, WithTransientError(errors.New("requested IP already reserved by another claim"), requeueAfterNoFreeIP)
+		}
+		// Another claim (possibly of the other kind) reserved this IP first;
+		// exclude it locally and pick a different candidate.
+		addresses[allocatedAddress] = ""
 	}
 
 	// Set the index and IPAddress names
@@ -1020,10 +1104,37 @@ func (m *IPPoolManager) capiCreateAddress(ctx context.Context,
 
 	// Get a new index for this machine
 	m.Log.Info("Getting address", "Claim", addressClaim.Name)
-	// Get a new IP for this owner
-	allocatedAddress, prefix, gateway, err := m.capiAllocateAddress(addressClaim, addresses)
-	if err != nil {
-		return addresses, err
+	// Get a new IP for this owner. Reserve it before creating the IPAddress
+	// object: if a claim of the other kind wins the race for the same IP, our
+	// reservation attempt is rejected and we try a different candidate.
+	var allocatedAddress ipamv1.IPAddressStr
+	var prefix int32
+	var gateway *ipamv1.IPAddressStr
+	for {
+		var err error
+		allocatedAddress, prefix, gateway, err = m.capiAllocateAddress(addressClaim, addresses)
+		if err != nil {
+			return addresses, err
+		}
+		reserved, err := m.reserveIP(ctx, allocatedAddress, addressClaim.Name)
+		if err != nil {
+			return addresses, err
+		}
+		if reserved {
+			break
+		}
+		if m.hasFixedIPRequest(addressClaim.Name, addressClaim.ObjectMeta.Annotations) {
+			meta.SetStatusCondition(&addressClaim.Status.Conditions, metav1.Condition{
+				Type:    capipamv1.IPAddressClaimReadyCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  capipamv1.IPAddressClaimReadyAllocationFailedReason,
+				Message: "Requested IP already reserved by another claim",
+			})
+			return addresses, WithTransientError(errors.New("requested IP already reserved by another claim"), requeueAfterNoFreeIP)
+		}
+		// Another claim (possibly of the other kind) reserved this IP first;
+		// exclude it locally and pick a different candidate.
+		addresses[allocatedAddress] = ""
 	}
 
 	var gatewayStr string
@@ -1192,6 +1303,10 @@ func (m *IPPoolManager) deleteAddress(ctx context.Context,
 		return addresses, 0, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
 	}
 	delete(obj.Status.Allocations, addressClaim.Name)
+	// Do not remove a reservation that another claim holds (old cross-kind duplicate).
+	if obj.Status.Reservations[allocatedAddress] == addressClaim.Name {
+		delete(obj.Status.Reservations, allocatedAddress)
+	}
 	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
 	if err = helper.Patch(ctx, obj); err != nil {
 		return addresses, 0, err
@@ -1285,6 +1400,10 @@ func (m *IPPoolManager) capiDeleteAddress(ctx context.Context,
 		return addresses, 0, fmt.Errorf("failed to init patch helper for IPPool: %w", err)
 	}
 	delete(obj.Status.Allocations, addressClaim.Name)
+	// Do not remove a reservation that another claim holds (old cross-kind duplicate).
+	if obj.Status.Reservations[allocatedAddress] == addressClaim.Name {
+		delete(obj.Status.Reservations, allocatedAddress)
+	}
 	obj.Status.LastUpdated = m.IPPool.Status.LastUpdated
 	if err = helper.Patch(ctx, obj); err != nil {
 		return addresses, 0, err
