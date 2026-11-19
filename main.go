@@ -208,8 +208,9 @@ func setupChecks(mgr ctrl.Manager) {
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&controllers.IPPoolReconciler{
-		Client:           mgr.GetClient(),
-		ManagerFactory:   ipam.NewManagerFactory(mgr.GetClient()),
+		Client: mgr.GetClient(),
+		ManagerFactory: ipam.NewManagerFactory(mgr.GetClient(),
+			ipam.WithEventRecorder(mgr.GetEventRecorder("metal3-ippool-controller"))),
 		Log:              ctrl.Log.WithName("controllers").WithName("IPPool"),
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(ippoolConcurrency)); err != nil {
