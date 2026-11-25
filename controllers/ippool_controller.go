@@ -54,7 +54,7 @@ type IPPoolReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools,verbs=get;list;watch;patch;delete
-// +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools/status,verbs=get;patch
+// +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipclaims,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipclaims/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses,verbs=get;list;watch;create;update;delete

@@ -68,6 +68,7 @@ rules:
   - ipam.metal3.io
   resources:
   - ipclaims/status
+  - ippools/status
   verbs:
   - get
   - patch
@@ -82,10 +83,3 @@ rules:
   - list
   - patch
   - watch
-- apiGroups:
-  - ipam.metal3.io
-  resources:
-  - ippools/status
-  verbs:
-  - get
-  - patch

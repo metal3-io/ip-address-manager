@@ -915,6 +915,173 @@ var _ = Describe("IPPool manager", func() {
 			HaveField("Reason", Equal(capipamv1.IPAddressClaimReadyPoolExhaustedReason))))
 	})
 
+	It("prevents a CAPI claim from getting an IP a Metal3 claim already holds from an earlier reconcile, even while the cache is still stale (regression)", func() {
+		// The pool has only one IP.
+		ipPool := &ipamv1.IPPool{
+			ObjectMeta: ipPoolMeta,
+			Spec: ipamv1.IPPoolSpec{
+				Pools: []ipamv1.Pool{
+					{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					},
+				},
+				Prefix:     24,
+				NamePrefix: "abcpref",
+			},
+			Status: ipamv1.IPPoolStatus{
+				Allocations: map[string]ipamv1.IPAddressStr{},
+			},
+		}
+		ipClaim := &ipamv1.IPClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: "m3-claim", Namespace: "myns"},
+			Spec: ipamv1.IPClaimSpec{
+				Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+			},
+		}
+		objects := []client.Object{ipPool, ipClaim}
+		hideMetal3Addresses := false
+		// Register the IPAddressClaim type now for status-subresource
+		// handling, even though the concrete object is created later.
+		statusSubresourceTypes := []client.Object{ipPool, ipClaim, &capipamv1.IPAddressClaim{}}
+		c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+			WithStatusSubresource(statusSubresourceTypes...).WithObjects(objects...).
+			WithInterceptorFuncs(interceptor.Funcs{
+				// Simulate a cache that, in the second reconcile, still has
+				// not observed the Metal3 IPAddress created in the first one.
+				List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+					if err := cl.List(ctx, list, opts...); err != nil {
+						return err
+					}
+					if addrs, ok := list.(*ipamv1.IPAddressList); ok && hideMetal3Addresses {
+						addrs.Items = nil
+					}
+					return nil
+				},
+			}).Build()
+
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		By("First reconcile: the Metal3 claim takes the pool's only IP")
+		_, _, err = ipPoolMgr.UpdateAddresses(context.TODO())
+		Expect(err).NotTo(HaveOccurred())
+		m3Claim := &ipamv1.IPClaim{}
+		Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), m3Claim)).To(Succeed())
+		Expect(m3Claim.Status.Address).NotTo(BeNil())
+
+		By("Second reconcile: a CAPI claim appears, and the cache still does not show the Metal3 IPAddress")
+		hideMetal3Addresses = true
+		ipAddressClaim := &capipamv1.IPAddressClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: "capi-claim", Namespace: "myns"},
+			Spec:       capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+		}
+		Expect(c.Create(context.TODO(), ipAddressClaim)).To(Succeed())
+
+		_, _, err = ipPoolMgr.UpdateAddresses(context.TODO())
+		Expect(err).To(HaveOccurred(), "the pool must look exhausted to the CAPI pass, not silently give it the IP the Metal3 claim holds")
+
+		capiAddrs := capipamv1.IPAddressList{}
+		Expect(c.List(context.TODO(), &capiAddrs)).To(Succeed())
+		Expect(capiAddrs.Items).To(BeEmpty(), "the CAPI claim must not get the IP the Metal3 claim already holds")
+
+		capiClaim := &capipamv1.IPAddressClaim{}
+		Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipAddressClaim), capiClaim)).To(Succeed())
+		Expect(capiClaim.Status.AddressRef.Name).To(BeEmpty())
+		Expect(capiClaim.Status.Conditions).To(ContainElement(
+			HaveField("Reason", Equal(capipamv1.IPAddressClaimReadyPoolExhaustedReason))))
+
+		// Only one IPAddress exists for the pool's single IP: no duplicate.
+		// Stop hiding it from List so this check sees the real state.
+		hideMetal3Addresses = false
+		m3Addrs := ipamv1.IPAddressList{}
+		Expect(c.List(context.TODO(), &m3Addrs)).To(Succeed())
+		Expect(m3Addrs.Items).To(HaveLen(1))
+	})
+
+	It("counts each claim that still holds an IP when a deleted pool has an old cross-kind duplicate (regression)", func() {
+		now := metav1.Now()
+		ipPool := &ipamv1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "abc",
+				Namespace:         "myns",
+				DeletionTimestamp: &now,
+				Finalizers:        []string{ipamv1.IPPoolFinalizer},
+			},
+			Spec: ipamv1.IPPoolSpec{
+				Pools: []ipamv1.Pool{
+					{
+						Start: (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+						End:   (*ipamv1.IPAddressStr)(ptr.To("192.168.0.11")),
+					},
+				},
+				Prefix:     24,
+				NamePrefix: "abcpref",
+			},
+		}
+		m3Claim := &ipamv1.IPClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "m3-claim",
+				Namespace:         "myns",
+				DeletionTimestamp: &now,
+				Finalizers:        []string{ipamv1.IPClaimFinalizer},
+			},
+			Spec: ipamv1.IPClaimSpec{
+				Pool: corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+			},
+		}
+		m3Address := &ipamv1.IPAddress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "abcpref-192-168-0-11",
+				Namespace:  "myns",
+				Finalizers: []string{ipamv1.IPAddressFinalizer},
+			},
+			Spec: ipamv1.IPAddressSpec{
+				Address: "192.168.0.11",
+				Pool:    corev1.ObjectReference{Name: "abc", Namespace: "myns"},
+				Claim:   corev1.ObjectReference{Name: "m3-claim", Namespace: "myns"},
+			},
+		}
+		capiClaim := &capipamv1.IPAddressClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "capi-claim",
+				Namespace:  "myns",
+				UID:        "capi-claim-uid",
+				Finalizers: []string{IPAddressClaimFinalizer},
+			},
+			Spec: capipamv1.IPAddressClaimSpec{PoolRef: *capiPoolRef},
+			Status: capipamv1.IPAddressClaimStatus{
+				AddressRef: capipamv1.IPAddressReference{Name: "abcpref-192-168-0-11"},
+			},
+		}
+		capiAddress := &capipamv1.IPAddress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "abcpref-192-168-0-11",
+				Namespace:       "myns",
+				Finalizers:      []string{IPAddressFinalizer},
+				OwnerReferences: []metav1.OwnerReference{{UID: "capi-claim-uid"}},
+			},
+			Spec: capipamv1.IPAddressSpec{
+				Address:  "192.168.0.11",
+				PoolRef:  *capiPoolRef,
+				ClaimRef: capipamv1.IPAddressClaimReference{Name: "capi-claim"},
+			},
+		}
+		objects := []client.Object{ipPool, m3Claim, m3Address, capiClaim, capiAddress}
+		c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+			WithStatusSubresource(objects...).WithObjects(objects...).Build()
+
+		ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+
+		nb, _, err := ipPoolMgr.UpdateAddresses(context.TODO())
+		Expect(err).NotTo(HaveOccurred())
+		// The CAPI claim still holds the IP, so the pool must not look empty.
+		Expect(nb).To(Equal(1))
+		Expect(ipPool.Status.Allocations).To(HaveKeyWithValue("capi-claim", ipamv1.IPAddressStr("192.168.0.11")))
+		Expect(ipPool.Status.Allocations).NotTo(HaveKey("m3-claim"))
+	})
+
 	It("UpdateAddresses requeues now when a create conflicts and an IPAddress is terminating", func() {
 		now := metav1.Now()
 		ipPool := &ipamv1.IPPool{
@@ -2364,11 +2531,13 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test CreateAddresses",
 		func(tc testCaseCreateAddresses) {
-			objects := make([]client.Object, 0, len(tc.ipAddresses))
+			objects := make([]client.Object, 0, len(tc.ipAddresses)+1)
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -2712,11 +2881,13 @@ var _ = Describe("IPPool manager", func() {
 
 	DescribeTable("Test capiCreateAddresses",
 		func(tc testCaseCapiCreateAddresses) {
-			objects := make([]client.Object, 0, len(tc.ipAddresses))
+			objects := make([]client.Object, 0, len(tc.ipAddresses)+1)
 			for _, address := range tc.ipAddresses {
 				objects = append(objects, address)
 			}
-			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+			objects = append(objects, tc.ipPool)
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(tc.ipPool).WithObjects(objects...).Build()
 			ipPoolMgr, err := NewIPPoolManager(c, tc.ipPool,
 				logr.Discard(),
 			)
@@ -4444,6 +4615,70 @@ var _ = Describe("IPPool manager", func() {
 			persistedClaim := &ipamv1.IPClaim{}
 			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipClaim), persistedClaim)).To(Succeed())
 			Expect(persistedClaim.Finalizers).To(ContainElement(ipamv1.IPClaimFinalizer))
+		})
+	})
+
+	Context("Reservations cleanup on delete", func() {
+		It("keeps the reservation of another claim that holds the same IP", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{Name: testIPPoolName, Namespace: "myns"},
+				Spec:       ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations: map[string]ipamv1.IPAddressStr{
+						"m3-claim":   "192.168.0.1",
+						"capi-claim": "192.168.0.1",
+					},
+					Reservations: map[ipamv1.IPAddressStr]string{"192.168.0.1": "capi-claim"},
+				},
+			}
+			ipClaim := &ipamv1.IPClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "m3-claim",
+					Namespace:  "myns",
+					Finalizers: []string{ipamv1.IPClaimFinalizer},
+				},
+			}
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).WithObjects(ipPool, ipClaim).Build()
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, err = ipPoolMgr.deleteAddress(context.TODO(), ipClaim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).NotTo(HaveOccurred())
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Allocations).NotTo(HaveKey("m3-claim"))
+			Expect(persistedPool.Status.Reservations).To(HaveKeyWithValue(ipamv1.IPAddressStr("192.168.0.1"), "capi-claim"))
+		})
+
+		It("removes the reservation of the claim that is deleted", func() {
+			ipPool := &ipamv1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{Name: testIPPoolName, Namespace: "myns"},
+				Spec:       ipamv1.IPPoolSpec{NamePrefix: "abc"},
+				Status: ipamv1.IPPoolStatus{
+					Allocations:  map[string]ipamv1.IPAddressStr{"capi-claim": "192.168.0.1"},
+					Reservations: map[ipamv1.IPAddressStr]string{"192.168.0.1": "capi-claim"},
+				},
+			}
+			ipAddressClaim := &capipamv1.IPAddressClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "capi-claim",
+					Namespace:  "myns",
+					Finalizers: []string{IPAddressClaimFinalizer},
+				},
+			}
+			c := fakeclient.NewClientBuilder().WithScheme(setupScheme()).
+				WithStatusSubresource(ipPool).WithObjects(ipPool, ipAddressClaim).Build()
+			ipPoolMgr, err := NewIPPoolManager(c, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, err = ipPoolMgr.capiDeleteAddress(context.TODO(), ipAddressClaim, map[ipamv1.IPAddressStr]string{})
+			Expect(err).NotTo(HaveOccurred())
+
+			persistedPool := &ipamv1.IPPool{}
+			Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(ipPool), persistedPool)).To(Succeed())
+			Expect(persistedPool.Status.Reservations).NotTo(HaveKey(ipamv1.IPAddressStr("192.168.0.1")))
 		})
 	})
 
