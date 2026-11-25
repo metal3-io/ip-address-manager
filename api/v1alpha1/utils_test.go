@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"math"
+	"math/big"
 	"net"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -117,6 +119,124 @@ var _ = Describe("IPPool manager", func() {
 		}),
 	)
 
+	type testCaseGetIPAddressBigIndex struct {
+		ipAddress     Pool
+		index         *big.Int
+		expectedError string
+		expectedIP    IPAddressStr
+	}
+
+	// pow2 returns 2^n + delta.
+	pow2 := func(n uint, delta int64) *big.Int {
+		return new(big.Int).Add(new(big.Int).Lsh(big.NewInt(1), n), big.NewInt(delta))
+	}
+
+	DescribeTable("Test GetIPAddressBigIndex",
+		func(tc testCaseGetIPAddressBigIndex) {
+			result, err := GetIPAddressBigIndex(tc.ipAddress, tc.index)
+			if tc.expectedError != "" {
+				Expect(err).To(MatchError(tc.expectedError))
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result).To(Equal(tc.expectedIP))
+			}
+			// GetIPAddress gives the same result for an index that fits in an int.
+			if tc.index.IsInt64() && tc.index.Int64() <= math.MaxInt {
+				intResult, intErr := GetIPAddress(tc.ipAddress, int(tc.index.Int64()))
+				Expect(intResult).To(Equal(result))
+				Expect(intErr != nil).To(Equal(err != nil))
+			}
+		},
+		Entry("Start unset, end unset, subnet set, small index", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:      big.NewInt(1),
+			expectedIP: IPAddressStr("2001:db8::2"),
+		}),
+		Entry("Start unset, end unset, subnet set, index 1<<63 - 1", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:      pow2(63, -1),
+			expectedIP: IPAddressStr("2001:db8:0:0:8000::"),
+		}),
+		Entry("Start unset, end unset, subnet set, index 1<<63", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:      pow2(63, 0),
+			expectedIP: IPAddressStr("2001:db8::8000:0:0:1"),
+		}),
+		Entry("Start unset, end unset, subnet set, last address", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:      pow2(64, -2),
+			expectedIP: IPAddressStr("2001:db8::ffff:ffff:ffff:ffff"),
+		}),
+		Entry("Start unset, end unset, subnet set, out of bound", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:         pow2(64, -1),
+			expectedError: "IP address out of bounds",
+		}),
+		Entry("Start set, end set, subnet unset, index 1<<63", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start: (*IPAddressStr)(ptr.To("2001:db8::")),
+				End:   (*IPAddressStr)(ptr.To("2001:db8::8000:0:0:0")),
+			},
+			index:      pow2(63, 0),
+			expectedIP: IPAddressStr("2001:db8:0:0:8000::"),
+		}),
+		Entry("Start set, end set, subnet unset, out of bound", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start: (*IPAddressStr)(ptr.To("2001:db8::")),
+				End:   (*IPAddressStr)(ptr.To("2001:db8::8000:0:0:0")),
+			},
+			index:         pow2(63, 1),
+			expectedError: "IP address out of bounds for : 2001:db8::",
+		}),
+		Entry("Start set, end unset, subnet set, last address", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start:  (*IPAddressStr)(ptr.To("2001:db8::10")),
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:      pow2(64, -17),
+			expectedIP: IPAddressStr("2001:db8::ffff:ffff:ffff:ffff"),
+		}),
+		Entry("Start set, end unset, subnet set, out of bound", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start:  (*IPAddressStr)(ptr.To("2001:db8::10")),
+				Subnet: (*IPSubnetStr)(ptr.To("2001:db8::/64")),
+			},
+			index:         pow2(64, -16),
+			expectedError: "IP address out of bounds",
+		}),
+		Entry("Start set, no end or subnet, IPv6 maximum address", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start: (*IPAddressStr)(ptr.To("ffff:ffff:ffff:ffff::")),
+			},
+			index:      pow2(64, -1),
+			expectedIP: IPAddressStr("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+		}),
+		Entry("Start set, no end or subnet, IPv6 overflow", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start: (*IPAddressStr)(ptr.To("ffff:ffff:ffff:ffff::")),
+			},
+			index:         pow2(64, 0),
+			expectedError: "IP address overflow for : ffff:ffff:ffff:ffff::",
+		}),
+		Entry("Start set, no end or subnet, IPv4 overflow", testCaseGetIPAddressBigIndex{
+			ipAddress: Pool{
+				Start: (*IPAddressStr)(ptr.To("10.0.0.1")),
+			},
+			index:         pow2(64, 0),
+			expectedError: "IP address overflow for : 10.0.0.1",
+		}),
+	)
+
 	type testCaseAddOffsetToIP struct {
 		ip          string
 		endIP       string
@@ -131,7 +251,7 @@ var _ = Describe("IPPool manager", func() {
 			testEndIP := net.ParseIP(tc.endIP)
 			expectedIP := net.ParseIP(tc.expectedIP)
 
-			result, err := addOffsetToIP(testIP, testEndIP, tc.offset)
+			result, err := addOffsetToIP(testIP, testEndIP, big.NewInt(int64(tc.offset)))
 			if tc.expectError {
 				Expect(err).To(HaveOccurred())
 			} else {

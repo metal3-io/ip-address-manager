@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"reflect"
 	"time"
@@ -4021,6 +4022,431 @@ var _ = Describe("IPPool manager", func() {
 			expectedConditionMessage: `Invalid ipAddress annotation "not-a-valid-ip": not a valid IP address`,
 		}),
 	)
+
+	// returnsWithin runs f and fails the spec if f has not returned after two
+	// seconds. A scan of a large pool can run for hours, so this makes the
+	// spec fail instead of hanging the suite.
+	returnsWithin := func(f func()) {
+		GinkgoHelper()
+		done := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			defer close(done)
+			f()
+		}()
+		Eventually(done).WithTimeout(2 * time.Second).Should(BeClosed())
+	}
+
+	type testCaseLargePool struct {
+		pools           []ipamv1.Pool
+		requestedIP     string
+		preAllocatedIP  ipamv1.IPAddressStr
+		addresses       map[ipamv1.IPAddressStr]string
+		expectedAddress ipamv1.IPAddressStr
+		expectedPrefix  int
+		expectedMessage string
+	}
+
+	subnet64 := []ipamv1.Pool{{Subnet: (*ipamv1.IPSubnetStr)(ptr.To("2001:db8::/64"))}}
+
+	DescribeTable("Test allocateAddress and capiAllocateAddress with a large pool",
+		func(tc testCaseLargePool) {
+			ipPool := &ipamv1.IPPool{
+				Spec: ipamv1.IPPoolSpec{
+					Pools:  tc.pools,
+					Prefix: 64,
+				},
+			}
+			if tc.preAllocatedIP != "" {
+				ipPool.Spec.PreAllocations = map[string]ipamv1.IPAddressStr{"TestRef": tc.preAllocatedIP}
+			}
+			objectMeta := metav1.ObjectMeta{Name: "TestRef"}
+			if tc.requestedIP != "" {
+				objectMeta.Annotations = map[string]string{IPAddressAnnotation: tc.requestedIP}
+			}
+			ipPoolMgr, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+			Expect(err).NotTo(HaveOccurred())
+
+			ipClaim := &ipamv1.IPClaim{ObjectMeta: objectMeta}
+			var address ipamv1.IPAddressStr
+			var prefix int
+			returnsWithin(func() {
+				address, prefix, _, _, err = ipPoolMgr.allocateAddress(ipClaim, tc.addresses)
+			})
+			if tc.expectedMessage != "" {
+				Expect(err).To(HaveOccurred())
+				Expect(ipClaim.Status.ErrorMessage).To(HaveValue(Equal(tc.expectedMessage)))
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(address).To(Equal(tc.expectedAddress))
+				Expect(prefix).To(Equal(tc.expectedPrefix))
+			}
+
+			ipAddressClaim := &capipamv1.IPAddressClaim{ObjectMeta: objectMeta}
+			var capiPrefix int32
+			returnsWithin(func() {
+				address, capiPrefix, _, err = ipPoolMgr.capiAllocateAddress(ipAddressClaim, tc.addresses)
+			})
+			if tc.expectedMessage != "" {
+				Expect(err).To(HaveOccurred())
+				Expect(ipAddressClaim.Status.Conditions).To(HaveLen(1))
+				Expect(ipAddressClaim.Status.Conditions[0].Message).To(Equal(tc.expectedMessage))
+				return
+			}
+			Expect(err).NotTo(HaveOccurred())
+			Expect(address).To(Equal(tc.expectedAddress))
+			Expect(int(capiPrefix)).To(Equal(tc.expectedPrefix))
+		},
+		Entry("/64, requested IP outside the pool", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db9::1",
+			expectedMessage: "Exhausted IP Pools",
+		}),
+		Entry("/64, requested IP taken by another claim", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::5",
+			addresses:       map[ipamv1.IPAddressStr]string{"2001:db8::5": "OtherRef"},
+			expectedMessage: "Requested IP not available",
+		}),
+		Entry("/64, free requested IP deep in the pool", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::100:0",
+			expectedAddress: "2001:db8::100:0",
+			expectedPrefix:  64,
+		}),
+		Entry("free requested IP in a small pool after a /64", testCaseLargePool{
+			pools: []ipamv1.Pool{
+				subnet64[0],
+				{
+					Start:  (*ipamv1.IPAddressStr)(ptr.To("2001:db9::10")),
+					End:    (*ipamv1.IPAddressStr)(ptr.To("2001:db9::20")),
+					Prefix: 120,
+				},
+			},
+			requestedIP:     "2001:db9::15",
+			expectedAddress: "2001:db9::15",
+			expectedPrefix:  120,
+		}),
+		Entry("Start-only IPv6 pool, requested IP outside the pool", testCaseLargePool{
+			pools:           []ipamv1.Pool{{Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1"))}},
+			requestedIP:     "2001:db7::1",
+			expectedMessage: "Exhausted IP Pools",
+		}),
+		Entry("IPv4 start and end over the whole address space, requested IP taken", testCaseLargePool{
+			pools: []ipamv1.Pool{{
+				Start: (*ipamv1.IPAddressStr)(ptr.To("0.0.0.1")),
+				End:   (*ipamv1.IPAddressStr)(ptr.To("255.255.255.254")),
+			}},
+			requestedIP:     "200.0.0.1",
+			addresses:       map[ipamv1.IPAddressStr]string{"200.0.0.1": "OtherRef"},
+			expectedMessage: "Requested IP not available",
+		}),
+		Entry("/64, pre-allocation of the network address", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8::",
+			expectedMessage: "Pre-allocated IP out of bounds",
+		}),
+		Entry("/64, pre-allocation deep in the pool", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8:0:0:1:0:0:1",
+			expectedAddress: "2001:db8::1:0:0:1",
+			expectedPrefix:  64,
+		}),
+		// In the /64, index i is 2001:db8::1 plus i, so the upper half starts at
+		// index 1<<63 - 1, the largest int64.
+		Entry("/64, free requested IP at index 1<<63 - 1", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::8000:0:0:0",
+			expectedAddress: "2001:db8:0:0:8000::",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, free requested IP at index 1<<63, above the int64 range", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::8000:0:0:1",
+			expectedAddress: "2001:db8::8000:0:0:1",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, requested IP in the upper half taken by another claim", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::c000:0:0:5",
+			addresses:       map[ipamv1.IPAddressStr]string{"2001:db8::c000:0:0:5": "OtherRef"},
+			expectedMessage: "Requested IP not available",
+		}),
+		Entry("/64, pre-allocation in the upper half", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8::8000:0:0:1",
+			expectedAddress: "2001:db8::8000:0:0:1",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, free requested IP at the last address", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::ffff:ffff:ffff:ffff",
+			expectedAddress: "2001:db8::ffff:ffff:ffff:ffff",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, pre-allocation of the last address", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8::ffff:ffff:ffff:ffff",
+			expectedAddress: "2001:db8::ffff:ffff:ffff:ffff",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, requested IP right after the last address", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8:0:1::",
+			expectedMessage: "Exhausted IP Pools",
+		}),
+		Entry("start and end, pre-allocation after the end, index above the int64 range", testCaseLargePool{
+			pools: []ipamv1.Pool{{
+				Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+				End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff:0:0:0")),
+			}},
+			preAllocatedIP:  "2001:db8::ffff:0:0:1",
+			expectedMessage: "Pre-allocated IP out of bounds",
+		}),
+		Entry("start and end, free requested IP at the end, index above the int64 range", testCaseLargePool{
+			pools: []ipamv1.Pool{{
+				Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+				End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff:0:0:0")),
+			}},
+			requestedIP:     "2001:db8::ffff:0:0:0",
+			expectedAddress: "2001:db8:0:0:ffff::",
+			expectedPrefix:  64,
+		}),
+	)
+
+	Context("Requested and pre-allocated IP lookup", func() {
+		// scanLimit bounds the reference scans below. The pools in this test
+		// are small.
+		const scanLimit = 1000
+
+		// scanPool is the sequential scan that allocateAddress used for a
+		// requested or pre-allocated IP before findIPInPool.
+		scanPool := func(m *IPPoolManager, pool ipamv1.Pool, ip ipamv1.IPAddressStr) (ipamv1.IPAddressStr, bool) {
+			for index := range scanLimit {
+				address, err := ipamv1.GetIPAddress(pool, index)
+				if err != nil {
+					return "", false
+				}
+				if m.ipEqual(address, ip) {
+					return address, true
+				}
+			}
+			Fail("pool too large for the reference scan")
+			return "", false
+		}
+
+		// oldAllocate is the pool loop of allocateAddress before findIPInPool.
+		// It returns the address and the index of its pool, or the error
+		// message of the claim.
+		oldAllocate := func(m *IPPoolManager, requestedIP, preAllocatedAddress ipamv1.IPAddressStr,
+			ipPreAllocated bool, addresses map[ipamv1.IPAddressStr]string,
+		) (ipamv1.IPAddressStr, int, string) {
+			isRequestedIPAllocated := false
+			for poolIndex, pool := range m.IPPool.Spec.Pools {
+				for index := 0; ; index++ {
+					if index == scanLimit {
+						Fail("pool too large for the reference scan")
+					}
+					allocatedAddress, err := ipamv1.GetIPAddress(pool, index)
+					if err != nil {
+						break
+					}
+					if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
+						continue
+					}
+					if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
+						isRequestedIPAllocated = true
+					}
+					if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
+						continue
+					}
+					if ipPreAllocated {
+						return allocatedAddress, poolIndex, ""
+					}
+					if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
+						return allocatedAddress, poolIndex, ""
+					}
+				}
+			}
+			if requestedIP != "" && isRequestedIPAllocated {
+				return "", -1, "Requested IP not available"
+			}
+			if ipPreAllocated {
+				return "", -1, "Pre-allocated IP out of bounds"
+			}
+			return "", -1, "Exhausted IP Pools"
+		}
+
+		// nearbyIPs returns the addresses from 2 before to 40 after the first
+		// address of each pool.
+		nearbyIPs := func(pools []ipamv1.Pool) []ipamv1.IPAddressStr {
+			ips := make([]ipamv1.IPAddressStr, 0, 43*len(pools))
+			for _, pool := range pools {
+				first, err := ipamv1.GetIPAddress(pool, 0)
+				if err != nil {
+					continue
+				}
+				firstInt := new(big.Int).SetBytes(net.ParseIP(string(first)).To16())
+				for offset := int64(-2); offset <= 40; offset++ {
+					ipInt := new(big.Int).Add(firstInt, big.NewInt(offset))
+					if ipInt.Sign() < 0 || ipInt.BitLen() > 128 {
+						continue
+					}
+					ips = append(ips, ipamv1.IPAddressStr(net.IP(ipInt.FillBytes(make([]byte, net.IPv6len))).String()))
+				}
+			}
+			return ips
+		}
+
+		ipPtr := func(ip string) *ipamv1.IPAddressStr { return (*ipamv1.IPAddressStr)(ptr.To(ip)) }
+		subnetPtr := func(subnet string) *ipamv1.IPSubnetStr { return (*ipamv1.IPSubnetStr)(ptr.To(subnet)) }
+
+		poolSets := [][]ipamv1.Pool{
+			// Subnet only, start and end, start inside, below and above the subnet.
+			{{Subnet: subnetPtr("10.0.0.0/28")}},
+			{{Start: ipPtr("10.0.0.4"), End: ipPtr("10.0.0.9")}},
+			{{Start: ipPtr("10.0.0.12"), Subnet: subnetPtr("10.0.0.0/28")}},
+			{{Start: ipPtr("10.0.0.12"), Subnet: subnetPtr("10.0.0.16/28")}},
+			{{Start: ipPtr("10.0.0.40"), Subnet: subnetPtr("10.0.0.16/28")}},
+			{{Start: ipPtr("10.0.0.20"), End: ipPtr("10.0.0.40"), Subnet: subnetPtr("10.0.0.16/28")}},
+			{{Subnet: subnetPtr("2001:db8::/124")}},
+			{{Start: ipPtr("2001:db8::4"), End: ipPtr("2001:db8::9")}},
+			{{Start: ipPtr("2001:db8::c"), Subnet: subnetPtr("2001:db8::/124")}},
+			{{Start: ipPtr("2001:db8::c"), Subnet: subnetPtr("2001:db8::10/124")}},
+			{{Start: ipPtr("2001:db8::40"), Subnet: subnetPtr("2001:db8::10/124")}},
+			// Start only, near the end of the address space.
+			{{Start: ipPtr("255.255.255.250")}},
+			{{Start: ipPtr("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffa")}},
+			// A subnet with a host address, a subnet in IPv4-mapped form, an
+			// IPv4 start with an IPv6 subnet, and pools that render nothing.
+			{{Subnet: subnetPtr("10.0.0.5/28")}},
+			{{Subnet: subnetPtr("::ffff:10.0.0.0/124")}},
+			{{Start: ipPtr("10.0.0.4"), Subnet: subnetPtr("2001:db8::/124")}},
+			{{}, {Start: ipPtr("not-an-ip")}, {Subnet: subnetPtr("10.0.0.0/28")}},
+			// Overlapping pools, and pools after a pool that renders nothing.
+			{{Start: ipPtr("10.0.0.4"), End: ipPtr("10.0.0.9")}, {Subnet: subnetPtr("10.0.0.0/28")}},
+			{{Subnet: subnetPtr("10.0.0.0/28")}, {Start: ipPtr("10.0.0.4"), End: ipPtr("10.0.0.20")}},
+			{{Start: ipPtr("10.0.0.12"), Subnet: subnetPtr("10.0.0.16/28")}, {Start: ipPtr("10.0.0.4"), End: ipPtr("10.0.0.9")}},
+			{{Start: ipPtr("2001:db8::4"), End: ipPtr("2001:db8::9")}, {Start: ipPtr("2001:db8::4"), End: ipPtr("2001:db8::20")}},
+			{{Subnet: subnetPtr("2001:db8::/124")}, {Subnet: subnetPtr("10.0.0.0/28")}},
+			// An IPv6 subnet does not contain the IPv4-mapped addresses, so the
+			// scan stops there. Without a subnet it goes on.
+			{{Start: ipPtr("::fffe:ffff:fffc"), Subnet: subnetPtr("::/64")}},
+			{{Start: ipPtr("::fffe:ffff:fffc"), End: ipPtr("::ffff:0.0.0.3")}},
+			// Index 0 is outside the subnet, so the scan finds nothing, even
+			// though index 1 is "::1".
+			{{Start: ipPtr("::"), Subnet: subnetPtr("::1/128")}},
+		}
+
+		targets := []ipamv1.IPAddressStr{
+			"10.0.0.0", "10.0.0.1", "10.0.0.4", "10.0.0.5", "10.0.0.6", "10.0.0.9", "10.0.0.10",
+			"10.0.0.12", "10.0.0.15", "10.0.0.16", "10.0.0.20", "10.0.0.31", "10.0.0.32", "10.0.0.40",
+			"192.168.0.1", "::ffff:10.0.0.5", "::ffff:a00:c", "0.0.0.1",
+			"255.255.255.249", "255.255.255.250", "255.255.255.255",
+			"2001:db8::", "2001:db8::1", "2001:DB8::5", "2001:db8:0:0:0:0:0:9", "2001:db8::f",
+			"2001:db8::10", "2001:db8::1c", "2001:db8::20", "2001:db8::40", "2001:db9::1",
+			"ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff9", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffa",
+			"FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+			"::", "::1", "::fffe:ffff:fffd", "::ffff:0:1", "::ffff:0.0.0.3", "::1:0:0:5",
+			"not-an-ip",
+		}
+
+		type lookupMode struct {
+			name         string
+			requested    bool
+			preAllocated bool
+			taken        bool
+		}
+		modes := []lookupMode{
+			{name: "requested", requested: true},
+			{name: "requested, taken", requested: true, taken: true},
+			{name: "pre-allocated", preAllocated: true},
+			{name: "pre-allocated, taken", preAllocated: true, taken: true},
+			{name: "requested and pre-allocated", requested: true, preAllocated: true},
+			{name: "requested and pre-allocated, taken", requested: true, preAllocated: true, taken: true},
+		}
+
+		It("gives the same results as a scan of the pool", func() {
+			for setIndex, set := range poolSets {
+				pools := append([]ipamv1.Pool{}, set...)
+				for i := range pools {
+					pools[i].Prefix = 100 + i
+				}
+				ipPool := &ipamv1.IPPool{Spec: ipamv1.IPPoolSpec{Pools: pools, Prefix: 64}}
+				m, err := NewIPPoolManager(nil, ipPool, logr.Discard())
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, target := range append(nearbyIPs(pools), targets...) {
+					for poolIndex, pool := range pools {
+						wantAddress, wantFound := scanPool(m, pool, target)
+						gotAddress, gotFound := m.findIPInPool(pool, target)
+						Expect(gotFound).To(Equal(wantFound), "pool set %d, pool %d, ip %q", setIndex, poolIndex, target)
+						Expect(gotAddress).To(Equal(wantAddress), "pool set %d, pool %d, ip %q", setIndex, poolIndex, target)
+					}
+
+					parsed := net.ParseIP(string(target))
+					canonical := target
+					if parsed != nil {
+						canonical = ipamv1.IPAddressStr(parsed.String())
+					}
+					for _, mode := range modes {
+						// An invalid requested IP fails before the pool loop.
+						if mode.requested && parsed == nil {
+							continue
+						}
+						description := fmt.Sprintf("pool set %d, ip %q, %s", setIndex, target, mode.name)
+						addresses := map[ipamv1.IPAddressStr]string{}
+						if mode.taken {
+							addresses[canonical] = "OtherRef"
+						}
+						objectMeta := metav1.ObjectMeta{Name: "TestRef"}
+						var requestedIP ipamv1.IPAddressStr
+						if mode.requested {
+							requestedIP = target
+							objectMeta.Annotations = map[string]string{IPAddressAnnotation: string(target)}
+						}
+						// With a requested IP, spell the pre-allocation the
+						// canonical way so that both spellings are used.
+						preAllocatedAddress := target
+						if mode.requested {
+							preAllocatedAddress = canonical
+						}
+						ipPool.Spec.PreAllocations = nil
+						if mode.preAllocated {
+							ipPool.Spec.PreAllocations = map[string]ipamv1.IPAddressStr{"TestRef": preAllocatedAddress}
+						}
+						wantAddress, wantPool, wantMessage := oldAllocate(m, requestedIP, preAllocatedAddress, mode.preAllocated, addresses)
+
+						ipClaim := &ipamv1.IPClaim{ObjectMeta: objectMeta}
+						var address ipamv1.IPAddressStr
+						var prefix int
+						address, prefix, _, _, err = m.allocateAddress(ipClaim, addresses)
+						if wantMessage != "" {
+							Expect(err).To(HaveOccurred(), description)
+							Expect(ipClaim.Status.ErrorMessage).To(HaveValue(Equal(wantMessage)), description)
+						} else {
+							Expect(err).NotTo(HaveOccurred(), description)
+							Expect(address).To(Equal(wantAddress), description)
+							Expect(prefix).To(Equal(100+wantPool), description)
+						}
+
+						ipAddressClaim := &capipamv1.IPAddressClaim{ObjectMeta: objectMeta}
+						var capiPrefix int32
+						address, capiPrefix, _, err = m.capiAllocateAddress(ipAddressClaim, addresses)
+						if wantMessage != "" {
+							Expect(err).To(HaveOccurred(), description)
+							Expect(ipAddressClaim.Status.Conditions).To(HaveLen(1), description)
+							Expect(ipAddressClaim.Status.Conditions[0].Message).To(Equal(wantMessage), description)
+							continue
+						}
+						Expect(err).NotTo(HaveOccurred(), description)
+						Expect(address).To(Equal(wantAddress), description)
+						Expect(int(capiPrefix)).To(Equal(100+wantPool), description)
+					}
+				}
+			}
+		})
+	})
 
 	type testCaseDeleteAddresses struct {
 		ipPool              *ipamv1.IPPool

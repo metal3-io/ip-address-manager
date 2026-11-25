@@ -36,6 +36,12 @@ const (
 // GetIPAddress renders the IP address, taking the index, offset and step into
 // account, it is IP version agnostic.
 func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
+	return GetIPAddressBigIndex(entry, big.NewInt(int64(index)))
+}
+
+// GetIPAddressBigIndex renders the IP address like GetIPAddress, for an index
+// of any size. An IPv6 pool can have more addresses than an int can index.
+func GetIPAddressBigIndex(entry Pool, index *big.Int) (IPAddressStr, error) {
 	if entry.Start == nil && entry.Subnet == nil {
 		return "", errors.New("either Start or Subnet is required for ipAddress")
 	}
@@ -72,7 +78,7 @@ func GetIPAddress(entry Pool, index int) (IPAddressStr, error) {
 		if err != nil {
 			return "", err
 		}
-		offset++
+		offset = new(big.Int).Add(offset, big.NewInt(1))
 		ip, err = addOffsetToIP(ip, nil, offset)
 		if err != nil {
 			return "", err
@@ -190,7 +196,7 @@ func lastIPInSubnet(n *net.IPNet) net.IP {
 // IP version agnostic
 // Note that if the resulting IP address is in the format ::ffff:xxxx:xxxx then
 // ip.String will fail to select the correct type of ip.
-func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
+func addOffsetToIP(ip, endIP net.IP, offset *big.Int) (net.IP, error) {
 	// Detect IPv4 before normalizing to 16-byte form.
 	ip4 := ip.To4() != nil
 	// Normalize to the 16-byte form so the byte-length and value checks
@@ -201,13 +207,12 @@ func addOffsetToIP(ip, endIP net.IP, offset int) (net.IP, error) {
 	}
 	// Create big integers.
 	IPInt := big.NewInt(0)
-	OffsetInt := big.NewInt(int64(offset))
 
 	// Transform the ip into an int. (big endian function).
 	IPInt = IPInt.SetBytes(ip)
 
 	// add the two integers.
-	IPInt = IPInt.Add(IPInt, OffsetInt)
+	IPInt = IPInt.Add(IPInt, offset)
 
 	// return the bytes list.
 	IPBytes := IPInt.Bytes()

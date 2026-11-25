@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"math/rand/v2"
 	"net"
 	"reflect"
@@ -567,7 +568,6 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 	addresses map[ipamv1.IPAddressStr]string,
 ) (ipamv1.IPAddressStr, int, *ipamv1.IPAddressStr, []ipamv1.IPAddressStr, error) {
 	var allocatedAddress ipamv1.IPAddressStr
-	var err error
 
 	// Get pre-allocated addresses
 	preAllocatedAddress, ipPreAllocated := m.IPPool.Spec.PreAllocations[addressClaim.Name]
@@ -600,28 +600,20 @@ func (m *IPPoolManager) allocateAddress(addressClaim *ipamv1.IPClaim,
 			break
 		}
 
-		// PreAllocations and requestedIP always use sequential scan
+		// PreAllocations and requestedIP look up the IP in the pool directly.
+		// When both are set they are equal, see the conflict check above.
 		if ipPreAllocated || requestedIP != "" {
-			index := 0
-			for !ipAllocated {
-				allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
-				if err != nil {
-					break
-				}
-				index++
-				if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
-					continue
-				}
-				if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
+			wantedIP := requestedIP
+			if wantedIP == "" {
+				wantedIP = preAllocatedAddress
+			}
+			var inPool bool
+			allocatedAddress, inPool = m.findIPInPool(pool, wantedIP)
+			if inPool {
+				if requestedIP != "" {
 					isRequestedIPAllocated = true
 				}
-				if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
-					continue
-				}
-				if ipPreAllocated {
-					ipAllocated = true
-				}
-				if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
+				if _, ok := addresses[allocatedAddress]; ipPreAllocated || !ok {
 					ipAllocated = true
 				}
 			}
@@ -666,7 +658,6 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 	addresses map[ipamv1.IPAddressStr]string,
 ) (ipamv1.IPAddressStr, int32, *ipamv1.IPAddressStr, error) {
 	var allocatedAddress ipamv1.IPAddressStr
-	var err error
 
 	// Get pre-allocated addresses
 	preAllocatedAddress, ipPreAllocated := m.IPPool.Spec.PreAllocations[addressClaim.Name]
@@ -708,28 +699,20 @@ func (m *IPPoolManager) capiAllocateAddress(addressClaim *capipamv1.IPAddressCla
 			break
 		}
 
-		// PreAllocations and requestedIP always use sequential scan
+		// PreAllocations and requestedIP look up the IP in the pool directly.
+		// When both are set they are equal, see the conflict check above.
 		if ipPreAllocated || requestedIP != "" {
-			index := 0
-			for !ipAllocated {
-				allocatedAddress, err = ipamv1.GetIPAddress(pool, index)
-				if err != nil {
-					break
-				}
-				index++
-				if requestedIP != "" && !m.ipEqual(allocatedAddress, requestedIP) {
-					continue
-				}
-				if requestedIP != "" && m.ipEqual(allocatedAddress, requestedIP) {
+			wantedIP := requestedIP
+			if wantedIP == "" {
+				wantedIP = preAllocatedAddress
+			}
+			var inPool bool
+			allocatedAddress, inPool = m.findIPInPool(pool, wantedIP)
+			if inPool {
+				if requestedIP != "" {
 					isRequestedIPAllocated = true
 				}
-				if ipPreAllocated && !m.ipEqual(allocatedAddress, preAllocatedAddress) {
-					continue
-				}
-				if ipPreAllocated {
-					ipAllocated = true
-				}
-				if _, ok := addresses[allocatedAddress]; !ok && allocatedAddress != "" {
+				if _, ok := addresses[allocatedAddress]; ipPreAllocated || !ok {
 					ipAllocated = true
 				}
 			}
@@ -1342,6 +1325,47 @@ func (m *IPPoolManager) selectIPFromPool(pool ipamv1.Pool, addresses map[ipamv1.
 		}
 	}
 	return "", false
+}
+
+// findIPInPool returns the address that GetIPAddress renders for ip in the
+// pool, and true if a scan of the pool from index 0 reaches it. It computes
+// the index of ip from the first address of the pool instead of walking the
+// pool, so it takes the same time for any pool size. The index can be beyond
+// the int range, as in the upper half of an IPv6 /64.
+func (m *IPPoolManager) findIPInPool(pool ipamv1.Pool, ip ipamv1.IPAddressStr) (ipamv1.IPAddressStr, bool) {
+	// A scan stops at the first index that GetIPAddress rejects, so index 0
+	// must work.
+	first, err := ipamv1.GetIPAddress(pool, 0)
+	if err != nil {
+		return "", false
+	}
+	target := net.ParseIP(string(ip))
+	if target == nil {
+		return "", false
+	}
+	// GetIPAddress renders index i as the first address plus i.
+	firstInt := new(big.Int).SetBytes(net.ParseIP(string(first)).To16())
+	targetInt := new(big.Int).SetBytes(target.To16())
+	offset := new(big.Int).Sub(targetInt, firstInt)
+	if offset.Sign() < 0 {
+		return "", false
+	}
+	// The indexes that GetIPAddress accepts form one range from 0, so a scan
+	// reaches ip if its index works. The exception is an IPv6 subnet: it does
+	// not contain the IPv4-mapped addresses (::ffff:0:0/96), so a scan stops
+	// when it gets to them.
+	mappedInt := new(big.Int).SetBytes(net.ParseIP("::ffff:0.0.0.0"))
+	if firstInt.Cmp(mappedInt) < 0 && targetInt.Cmp(mappedInt) > 0 {
+		gap := new(big.Int).Sub(mappedInt, firstInt)
+		if _, err = ipamv1.GetIPAddressBigIndex(pool, gap); err != nil {
+			return "", false
+		}
+	}
+	address, err := ipamv1.GetIPAddressBigIndex(pool, offset)
+	if err != nil || !m.ipEqual(address, ip) {
+		return "", false
+	}
+	return address, true
 }
 
 // formatAddressName renders the name of the IPAddress objects.
