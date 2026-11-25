@@ -1330,7 +1330,8 @@ func (m *IPPoolManager) selectIPFromPool(pool ipamv1.Pool, addresses map[ipamv1.
 // findIPInPool returns the address that GetIPAddress renders for ip in the
 // pool, and true if a scan of the pool from index 0 reaches it. It computes
 // the index of ip from the first address of the pool instead of walking the
-// pool, so it takes the same time for any pool size.
+// pool, so it takes the same time for any pool size. The index can be beyond
+// the int range, as in the upper half of an IPv6 /64.
 func (m *IPPoolManager) findIPInPool(pool ipamv1.Pool, ip ipamv1.IPAddressStr) (ipamv1.IPAddressStr, bool) {
 	// A scan stops at the first index that GetIPAddress rejects, so index 0
 	// must work.
@@ -1346,7 +1347,7 @@ func (m *IPPoolManager) findIPInPool(pool ipamv1.Pool, ip ipamv1.IPAddressStr) (
 	firstInt := new(big.Int).SetBytes(net.ParseIP(string(first)).To16())
 	targetInt := new(big.Int).SetBytes(target.To16())
 	offset := new(big.Int).Sub(targetInt, firstInt)
-	if offset.Sign() < 0 || !offset.IsInt64() || offset.Int64() > math.MaxInt {
+	if offset.Sign() < 0 {
 		return "", false
 	}
 	// The indexes that GetIPAddress accepts form one range from 0, so a scan
@@ -1356,11 +1357,11 @@ func (m *IPPoolManager) findIPInPool(pool ipamv1.Pool, ip ipamv1.IPAddressStr) (
 	mappedInt := new(big.Int).SetBytes(net.ParseIP("::ffff:0.0.0.0"))
 	if firstInt.Cmp(mappedInt) < 0 && targetInt.Cmp(mappedInt) > 0 {
 		gap := new(big.Int).Sub(mappedInt, firstInt)
-		if _, err = ipamv1.GetIPAddress(pool, int(gap.Int64())); err != nil {
+		if _, err = ipamv1.GetIPAddressBigIndex(pool, gap); err != nil {
 			return "", false
 		}
 	}
-	address, err := ipamv1.GetIPAddress(pool, int(offset.Int64()))
+	address, err := ipamv1.GetIPAddressBigIndex(pool, offset)
 	if err != nil || !m.ipEqual(address, ip) {
 		return "", false
 	}

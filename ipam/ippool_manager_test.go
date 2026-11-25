@@ -4152,6 +4152,66 @@ var _ = Describe("IPPool manager", func() {
 			expectedAddress: "2001:db8::1:0:0:1",
 			expectedPrefix:  64,
 		}),
+		// In the /64, index i is 2001:db8::1 plus i, so the upper half starts at
+		// index 1<<63 - 1, the largest int64.
+		Entry("/64, free requested IP at index 1<<63 - 1", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::8000:0:0:0",
+			expectedAddress: "2001:db8:0:0:8000::",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, free requested IP at index 1<<63, above the int64 range", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::8000:0:0:1",
+			expectedAddress: "2001:db8::8000:0:0:1",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, requested IP in the upper half taken by another claim", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::c000:0:0:5",
+			addresses:       map[ipamv1.IPAddressStr]string{"2001:db8::c000:0:0:5": "OtherRef"},
+			expectedMessage: "Requested IP not available",
+		}),
+		Entry("/64, pre-allocation in the upper half", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8::8000:0:0:1",
+			expectedAddress: "2001:db8::8000:0:0:1",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, free requested IP at the last address", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8::ffff:ffff:ffff:ffff",
+			expectedAddress: "2001:db8::ffff:ffff:ffff:ffff",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, pre-allocation of the last address", testCaseLargePool{
+			pools:           subnet64,
+			preAllocatedIP:  "2001:db8::ffff:ffff:ffff:ffff",
+			expectedAddress: "2001:db8::ffff:ffff:ffff:ffff",
+			expectedPrefix:  64,
+		}),
+		Entry("/64, requested IP right after the last address", testCaseLargePool{
+			pools:           subnet64,
+			requestedIP:     "2001:db8:0:1::",
+			expectedMessage: "Exhausted IP Pools",
+		}),
+		Entry("start and end, pre-allocation after the end, index above the int64 range", testCaseLargePool{
+			pools: []ipamv1.Pool{{
+				Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+				End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff:0:0:0")),
+			}},
+			preAllocatedIP:  "2001:db8::ffff:0:0:1",
+			expectedMessage: "Pre-allocated IP out of bounds",
+		}),
+		Entry("start and end, free requested IP at the end, index above the int64 range", testCaseLargePool{
+			pools: []ipamv1.Pool{{
+				Start: (*ipamv1.IPAddressStr)(ptr.To("2001:db8::1")),
+				End:   (*ipamv1.IPAddressStr)(ptr.To("2001:db8::ffff:0:0:0")),
+			}},
+			requestedIP:     "2001:db8::ffff:0:0:0",
+			expectedAddress: "2001:db8:0:0:ffff::",
+			expectedPrefix:  64,
+		}),
 	)
 
 	Context("Requested and pre-allocated IP lookup", func() {
